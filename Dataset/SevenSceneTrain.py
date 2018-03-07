@@ -2,6 +2,10 @@ from Dataset.SevenScene import SevenScene
 from Dataset.mult_modal_transform import ToTensor, ColorJitter, RandomResizedCrop
 import re
 from torchvision import transforms
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class SevenSceneTrain(SevenScene):
@@ -20,7 +24,9 @@ class SevenSceneTrain(SevenScene):
                 fold = 'seq-{:02d}/'.format(int(re.search('(?<=sequence)\d', line).group(0)))
                 folders.append(self.root_path + fold)
 
+        logger.info('Loading file name...')
         SevenScene.__init__(self, folders=folders)
+        logger.info('Loading finished')
 
     def __getitem__(self, idx):
         sample = SevenScene.__getitem__(self, idx)

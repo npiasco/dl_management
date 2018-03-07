@@ -1,0 +1,25 @@
+version: 1
+formatters:
+  precise:
+    format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  brief:
+    (): colorlog.ColoredFormatter
+    format: '%(log_color)s%(levelname)-8s%(reset)s %(blue)s%(message)s'
+handlers:
+  console:
+    level: WARN
+    class: logging.StreamHandler
+    formatter: brief
+  file:
+    level: DEBUG
+    class: logging.FileHandler
+    formatter: precise
+loggers:
+  qualcity:
+    handlers:
+      - console
+      - file
+root:
+  handlers:
+    - console
+    - file

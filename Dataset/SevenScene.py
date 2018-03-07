@@ -4,6 +4,10 @@ import numpy as np
 from PIL import Image
 import re
 from pathlib import Path
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 def matrix_2_quaternion(mat):
@@ -42,12 +46,13 @@ class SevenScene(Dataset):
 
         pose_file = self.folders[fold] + 'frame-' + num + '.pose.txt'
         pose = np.ndarray((4, 4), dtype=float)
-        with open(pose_file, 'r') as f:
-            for i, line in enumerate(f):
+        with open(pose_file, 'r') as pose_file_pt:
+            for i, line in enumerate(pose_file_pt):
                 for j, c in enumerate(line.split('\t')):
                     try:
                         pose[i, j] = float(c)
                     except ValueError:
+                        logger.warning('Error reading pose file')
                         pass
 
         if self.pose_tf:
