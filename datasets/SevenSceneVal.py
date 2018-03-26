@@ -1,22 +1,19 @@
-from Dataset.SevenScene import SevenScene
-from Dataset.mult_modal_transform import ToTensor, ColorJitter, RandomResizedCrop
+from datasets.SevenScene import SevenScene
+from datasets.mult_modal_transform import ToTensor, Resize
 import re
 from torchvision import transforms
-import logging
 
 
-logger = logging.getLogger(__name__)
-
-
-class SevenSceneTrain(SevenScene):
+class SevenSceneVal(SevenScene):
     def __init__(self, **kwargs):
         self.root_path = kwargs.pop('root_path', None)
         self.transform = kwargs.pop('transform', 'default')
+        pruning = kwargs.pop('pruning', 0.9)
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
         if self.transform == 'default':
-            self.transform = transforms.Compose((RandomResizedCrop(224), ColorJitter(), ToTensor()))
+            self.transform = transforms.Compose((Resize(224), ToTensor()))
 
         folders = list()
         with open(self.root_path + 'TrainSplit.txt', 'r') as f:
@@ -24,9 +21,10 @@ class SevenSceneTrain(SevenScene):
                 fold = 'seq-{:02d}/'.format(int(re.search('(?<=sequence)\d', line).group(0)))
                 folders.append(self.root_path + fold)
 
-        logger.info('Loading file name...')
         SevenScene.__init__(self, folders=folders)
-        logger.info('Loading finished')
+        step = round(1 / (1-pruning))
+        print(step)
+        self.data = [dat for i, dat in enumerate(self.data) if i % step == 0]
 
     def __getitem__(self, idx):
         sample = SevenScene.__getitem__(self, idx)
@@ -52,14 +50,13 @@ if __name__ == '__main__':
         grid = utils.make_grid(depth)
         plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
-    tf = transforms.Compose((RandomResizedCrop(224), ColorJitter(), ToTensor()))
 
     root = '/media/nathan/Data/7_Scenes/chess/'
 
-    dataset = SevenSceneTrain(root_path=root, transform=tf)
+    dataset = SevenSceneVal(root_path=root)
     print(len(dataset))
 
-    dataloader = DataLoader(dataset, batch_size=8, shuffle=True, num_workers=2)
+    dataloader = DataLoader(dataset, batch_size=8, shuffle=False, num_workers=2)
 
     for b in dataloader:
         plt.figure(1)
