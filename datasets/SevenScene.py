@@ -7,9 +7,13 @@ import re
 import pathlib as path
 import torchvision as torchvis
 import datasets.mult_modal_transform as tf
+import matplotlib.pyplot as plt
+import torch.utils.data as data
 
 
-sslogger = logging.getLogger('main.SS')
+#logger = logging.getLogger('full.'+__name__)
+logger = logging.getLogger(__name__)
+
 
 def matrix_2_quaternion(mat):
     pos = np.array(mat[0:3, 3])
@@ -22,23 +26,19 @@ def matrix_2_quaternion(mat):
 class SevenScene(utils.Dataset):
 
     def __init__(self, **kwargs):
-        #self.logger = logging.getLogger('qualcity.'+__name__+'.SevenSceneClass')
-#        self.logger = logging.getLogger('main.SS.SevenSceneClass')
-
         self.folders = kwargs.pop('folders', None)
         self.depth_factor = kwargs.pop('depth_factor', 1e-3)  # Depth in meter
         self.pose_tf = kwargs.pop('pose_tf', matrix_2_quaternion)
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
         self.data = list()
-       # self.logger.info('Loading file name...')
+        logger.info('Loading file name...')
         for i, folder in enumerate(self.folders):
             p = path.Path(folder)
             self.data += [(i, re.search('(?<=-)\d+', file.name).group(0))
                           for file in p.iterdir()
                           if file.is_file() and '.txt' in file.name]
-        #self.logger.info('Loading finished')
-
+        logger.info('Loading finished')
 
     def __len__(self):
         return self.data.__len__()
@@ -59,7 +59,7 @@ class SevenScene(utils.Dataset):
                     try:
                         pose[i, j] = float(c)
                     except ValueError:
-                        #self.logger.warning('Error reading pose file')
+                        logger.warning('Error reading pose file')
                         pass
 
         if self.pose_tf:
@@ -87,7 +87,6 @@ class SevenSceneTrain(SevenScene):
                 folders.append(self.root_path + fold)
 
         SevenScene.__init__(self, folders=folders)
-
 
     def __getitem__(self, idx):
         sample = SevenScene.__getitem__(self, idx)
@@ -141,7 +140,7 @@ class SevenSceneVal(SevenScene):
         SevenScene.__init__(self, folders=folders)
 
         step = round(1 / (1-pruning))
-        #self.logger.info('Computed step {}'.format(step))
+        logger.info('Computed step {}'.format(step))
         self.data = [dat for i, dat in enumerate(self.data) if i % step == 0]
 
     def __getitem__(self, idx):
@@ -151,22 +150,20 @@ class SevenSceneVal(SevenScene):
         return sample
 
 
+def show_batch(sample_batched):
+    """Show image with landmarks for a batch of samples."""
+    grid = torchvis.utils.make_grid(sample_batched['rgb'])
+    plt.imshow(grid.numpy().transpose((1, 2, 0)))
+
+
+def show_batch_mono(sample_batched):
+    """Show image with landmarks for a batch of samples."""
+    depth = sample_batched['depth']  # /torch.max(sample_batched['depth'])
+    grid = torchvis.utils.make_grid(depth)
+    plt.imshow(grid.numpy().transpose((1, 2, 0)))
+
+
 if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    import torch.utils.data as data
-    import yaml
-    import time
-
-    def show_batch(sample_batched):
-        """Show image with landmarks for a batch of samples."""
-        grid = torchvis.utils.make_grid(sample_batched['rgb'])
-        plt.imshow(grid.numpy().transpose((1, 2, 0)))
-
-    def show_batch_mono(sample_batched):
-        """Show image with landmarks for a batch of samples."""
-        depth = sample_batched['depth']  # /torch.max(sample_batched['depth'])
-        grid = torchvis.utils.make_grid(depth)
-        plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
     tf = torchvis.transforms.Compose((tf.RandomResizedCrop(224), tf.ColorJitter(), tf.ToTensor()))
 

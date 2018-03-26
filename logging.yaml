@@ -1,20 +1,24 @@
 version: 1
 formatters:
   precise:
-    format: 'Bonjour %(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
   brief:
     (): colorlog.ColoredFormatter
     format: '%(log_color)s%(levelname)-8s%(reset)s %(blue)s%(message)s'
 handlers:
   console:
-    level: DEBUG
+    level: WARNING
     class: logging.StreamHandler
-    formatter: precise
+    formatter: brief
   file:
     level: DEBUG
     class: logging.FileHandler
     formatter: precise
+loggers:
+  full:
+    level: DEBUG
+    handlers: [console, file]
+    propagate: yes
 root:
-  handlers:
-    - file
-    - console
+  level: DEBUG
+  handlers:  [console, file]

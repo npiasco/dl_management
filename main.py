@@ -2,10 +2,28 @@ import yaml
 import logging.config
 import logging
 import time
+
+def config_log():
+    root = '/home/nathan/Dev/Code/dl_management/'
+    root = '/Users/n.piasco/Documents/Dev/dl_management/'
+    path = root + 'logging.yaml'
+    with open(path, 'rt') as f:
+        config = yaml.safe_load(f.read())
+    config['handlers']['file']['filename'] = root + '.log/run_{}.log'.format(time.time())
+    print(config)
+    return config
+
+config = config_log()
+
+logging.config.dictConfig(config)
+logger = logging.getLogger(__name__)
+
 import torchvision
 import matplotlib.pyplot as plt
 import torch.utils.data as data
 import datasets.mult_modal_transform as tf
+import datasets.SevenScene as ssdataset
+
 
 
 
@@ -21,33 +39,21 @@ def show_batch_mono(sample_batched):
     plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
 
-def config_log():
-    root = '/home/nathan/Dev/Code/dl_management/'
-    path = root + 'logging.yaml'
-    with open(path, 'rt') as f:
-        config = yaml.safe_load(f.read())
-    config['handlers']['file']['filename'] = root + '.log/run_{}.log'.format(time.time())
-    print(config)
-    return config
 
 
 if __name__ == '__main__':
-    config = config_log()
-
-    logging.config.dictConfig(config)
-    logger = logging.getLogger('main')
 
     logger.debug(config)
     logger.info('Root logging')
-    import datasets.SevenScene as ssdataset
 
     tf = torchvision.transforms.Compose((tf.RandomResizedCrop(224), tf.ColorJitter(), tf.ToTensor()))
 
     root = '/media/nathan/Data/7_Scenes/chess/'
+    root = '/private/anakim/data/7_scenes/chess/'
 
     dataset = ssdataset.SevenSceneTrain(root_path=root, transform=tf)
     print(len(dataset))
-
+    '''
     dataloader = data.DataLoader(dataset, batch_size=8, shuffle=True, num_workers=2)
 
     for b in dataloader:
@@ -56,3 +62,5 @@ if __name__ == '__main__':
         plt.figure(2)
         show_batch_mono(b)
         plt.show()
+        break
+    '''
