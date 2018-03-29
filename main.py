@@ -7,7 +7,7 @@ setlog.reconfigure(file, root)
 import torchvision
 import matplotlib.pyplot as plt
 import torch.utils.data as data
-import datasets.mult_modal_transform as tf
+import datasets.multmodtf as tf
 import datasets.SevenScene
 
 
