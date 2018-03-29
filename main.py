@@ -1,6 +1,6 @@
 import setlog
 
-file = 'logging.yaml'
+file = '.log/logging.yaml'
 root = '/home/nathan/Dev/Code/dl_management/'
 setlog.reconfigure(file, root)
 
