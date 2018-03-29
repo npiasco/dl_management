@@ -1,18 +1,18 @@
-import logging
+import setlog
 import torch.utils.data as utils
 import datasets.custom_quaternion as custom_q
 import numpy as np
-import PIL
+import PIL.Image
 import re
 import pathlib as path
 import torchvision as torchvis
-import datasets.mult_modal_transform as tf
+import datasets.multmodtf as tf
 import matplotlib.pyplot as plt
 import torch.utils.data as data
+import tqdm
 
 
-#logger = logging.getLogger('full.'+__name__)
-logger = logging.getLogger(__name__)
+logger = setlog.get_logger(__name__)
 
 
 def matrix_2_quaternion(mat):
@@ -32,8 +32,10 @@ class SevenScene(utils.Dataset):
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
         self.data = list()
-        logger.info('Loading file name...')
-        for i, folder in enumerate(self.folders):
+
+    def load_data(self):
+        logger.info('Loading file names')
+        for i, folder in tqdm.tqdm(enumerate(self.folders)):
             p = path.Path(folder)
             self.data += [(i, re.search('(?<=-)\d+', file.name).group(0))
                           for file in p.iterdir()
@@ -59,7 +61,7 @@ class SevenScene(utils.Dataset):
                     try:
                         pose[i, j] = float(c)
                     except ValueError:
-                        logger.warning('Error reading pose file')
+                        logger.debug('Normal error reading pose file (occuring at the end)')
                         pass
 
         if self.pose_tf:
@@ -71,32 +73,40 @@ class SevenScene(utils.Dataset):
 
 class SevenSceneTrain(SevenScene):
     def __init__(self, **kwargs):
+        SevenScene.__init__(self,
+                            depth_factor=kwargs.pop('depth_factor', 1e-3),
+                            pose_tf=kwargs.pop('pose_tf', matrix_2_quaternion))
+
         self.root_path = kwargs.pop('root_path', None)
         self.transform = kwargs.pop('transform', 'default')
-
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
         if self.transform == 'default':
             self.transform = torchvis.transforms.Compose((tf.RandomResizedCrop(224), tf.ColorJitter(), tf.ToTensor()))
 
-        folders = list()
+        self.folders = list()
         with open(self.root_path + 'TrainSplit.txt', 'r') as f:
             for line in f:
                 fold = 'seq-{:02d}/'.format(int(re.search('(?<=sequence)\d', line).group(0)))
-                folders.append(self.root_path + fold)
+                self.folders.append(self.root_path + fold)
 
-        SevenScene.__init__(self, folders=folders)
+        self.load_data()
 
     def __getitem__(self, idx):
         sample = SevenScene.__getitem__(self, idx)
         if self.transform:
             sample = self.transform(sample)
+            sample['depth'] *= self.depth_factor
         return sample
 
 
 class SevenSceneTest(SevenScene):
     def __init__(self, **kwargs):
+        SevenScene.__init__(self,
+                            depth_factor=kwargs.pop('depth_factor', 1e-3),
+                            pose_tf=kwargs.pop('pose_tf', matrix_2_quaternion))
+
         self.root_path = kwargs.pop('root_path', None)
         self.transform = kwargs.pop('transform', 'default')
         if kwargs:
@@ -105,23 +115,28 @@ class SevenSceneTest(SevenScene):
         if self.transform == 'default':
             self.transform = torchvis.transforms.Compose((tf.Resize((224, 224)), tf.ToTensor()))
 
-        folders = list()
+        self.folders = list()
         with open(self.root_path + 'TestSplit.txt', 'r') as f:
             for line in f:
                 fold = 'seq-{:02d}/'.format(int(re.search('(?<=sequence)\d', line).group(0)))
-                folders.append(self.root_path + fold)
+                self.folders.append(self.root_path + fold)
 
-        SevenScene.__init__(self, folders=folders)
+        self.load_data()
 
     def __getitem__(self, idx):
         sample = SevenScene.__getitem__(self, idx)
         if self.transform:
             sample = self.transform(sample)
+            sample['depth'] *= self.depth_factor
         return sample
 
 
 class SevenSceneVal(SevenScene):
     def __init__(self, **kwargs):
+        SevenScene.__init__(self,
+                            depth_factor=kwargs.pop('depth_factor', 1e-3),
+                            pose_tf=kwargs.pop('pose_tf', matrix_2_quaternion))
+
         self.root_path = kwargs.pop('root_path', None)
         self.transform = kwargs.pop('transform', 'default')
         pruning = kwargs.pop('pruning', 0.9)
@@ -131,22 +146,23 @@ class SevenSceneVal(SevenScene):
         if self.transform == 'default':
             self.transform = torchvis.transforms.Compose((tf.Resize((224, 224)), tf.ToTensor()))
 
-        folders = list()
+        self.folders = list()
         with open(self.root_path + 'TrainSplit.txt', 'r') as f:
             for line in f:
                 fold = 'seq-{:02d}/'.format(int(re.search('(?<=sequence)\d', line).group(0)))
-                folders.append(self.root_path + fold)
+                self.folders.append(self.root_path + fold)
 
-        SevenScene.__init__(self, folders=folders)
+        self.load_data()
 
         step = round(1 / (1-pruning))
-        logger.info('Computed step {}'.format(step))
+        logger.info('Computed step for pruning {}'.format(step))
         self.data = [dat for i, dat in enumerate(self.data) if i % step == 0]
 
     def __getitem__(self, idx):
         sample = SevenScene.__getitem__(self, idx)
         if self.transform:
             sample = self.transform(sample)
+            sample['depth'] *= self.depth_factor
         return sample
 
 
@@ -165,14 +181,20 @@ def show_batch_mono(sample_batched):
 
 if __name__ == '__main__':
 
-    tf = torchvis.transforms.Compose((tf.RandomResizedCrop(224), tf.ColorJitter(), tf.ToTensor()))
+    logger.setLevel('INFO')
+    test_tf = torchvis.transforms.Compose((tf.RandomResizedCrop(224), tf.ColorJitter(), tf.ToTensor()))
 
     root = '/media/nathan/Data/7_Scenes/chess/'
 
-    dataset = SevenSceneTrain(root_path=root, transform=tf)
-    print(len(dataset))
+    train_dataset = SevenSceneTrain(root_path=root, transform=test_tf, depth_factor=1e-3)
+    test_dataset = SevenSceneTest(root_path=root)
+    val_dataset = SevenSceneVal(root_path=root)
 
-    dataloader = data.DataLoader(dataset, batch_size=8, shuffle=True, num_workers=2)
+    print(len(train_dataset))
+    print(len(test_dataset))
+    print(len(val_dataset))
+
+    dataloader = data.DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=2)
 
     for b in dataloader:
         plt.figure(1)
@@ -180,4 +202,3 @@ if __name__ == '__main__':
         plt.figure(2)
         show_batch_mono(b)
         plt.show()
-
