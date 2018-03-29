@@ -10,7 +10,7 @@ def_config = {
     'formatters': {
         'standard': {
             '()': 'colorlog.ColoredFormatter',
-            'format': '%(log_color)s%(levelname)-8s%(reset)s %(blue)s%(message)s'
+            'format': '%(log_color)s%(name)s - %(levelname)-8s%(reset)s %(blue)s%(message)s'
         },
     },
     'handlers': {
