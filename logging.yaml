@@ -12,13 +12,10 @@ handlers:
     formatter: brief
   file:
     level: DEBUG
-    class: logging.FileHandler
+    class: logging.handlers.RotatingFileHandler
     formatter: precise
-loggers:
-  full:
-    level: DEBUG
-    handlers: [console, file]
-    propagate: yes
+    mode: a
+    maxBytes: 25000
 root:
   level: DEBUG
   handlers:  [console, file]
