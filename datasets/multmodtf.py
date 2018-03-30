@@ -12,29 +12,26 @@ class RandomCrop(tf.RandomCrop):
         tf.RandomCrop.__init__(self, size=size, padding=padding)
 
     def __call__(self, sample):
-        img = sample['rgb']
-        depth = sample['depth']
-        if self.padding > 0:
-            img = func.pad(img, self.padding)
-            depth = func.pad(depth, self.padding)
+        for name, mod in sample.items():
+            if self.padding > 0:
+                sample[name] = func.pad(mod, self.padding)
 
-        i, j, h, w = self.get_params(img, self.size)
+        first_mod = list(sample.values())[0]
+        i, j, h, w = self.get_params(first_mod, self.size)
 
-        sample['rgb'] = func.crop(img, i, j, h, w)
-        sample['depth'] = func.crop(depth, i, j, h, w)
+        for name, mod in sample.items():
+            sample[name] = func.crop(mod, i, j, h, w)
         return sample
 
 
 class ToTensor(tf.ToTensor):
-    def __init__(self, error_value=65535):
+    def __init__(self):
         tf.ToTensor.__init__(self)
-        self.error_value = error_value
-        logger.info('Value error in the depth map set to {}'.format(error_value))
 
     def __call__(self, sample):
-        sample['rgb'] = func.to_tensor(sample['rgb'])
-        sample['depth'] = func.to_tensor(sample['depth']).float()
-        sample['depth'][sample['depth'] == self.error_value] = 0
+        for name, mod in sample.items():
+            sample[name] = func.to_tensor(mod).float()
+
         return sample
 
 
@@ -47,7 +44,9 @@ class ColorJitter(tf.ColorJitter):
     def __call__(self, sample):
         transform = self.get_params(self.brightness, self.contrast,
                                     self.saturation, self.hue)
-        sample['rgb'] = transform(sample['rgb'])
+        for name, mod in sample.items():
+            sample[name] = transform(mod)
+
         return sample
 
 
@@ -56,8 +55,9 @@ class Resize(tf.Resize):
         tf.Resize.__init__(self, size)
 
     def __call__(self, sample):
-        sample['rgb'] = func.resize(sample['rgb'], self.size, self.interpolation)
-        sample['depth'] = func.resize(sample['depth'], self.size, self.interpolation)
+        for name, mod in sample.items():
+            sample[name] = func.resize(mod, self.size, self.interpolation)
+
         return sample
 
 
@@ -66,11 +66,25 @@ class RandomResizedCrop(tf.RandomResizedCrop):
         tf.RandomResizedCrop.__init__(self, size=size, scale=scale, ratio=ratio, interpolation=interpolation)
 
     def __call__(self, sample):
-        img = sample['rgb']
-        depth = sample['depth']
+        first_mod = list(sample.values())[0]
 
-        i, j, h, w = self.get_params(img, self.scale, self.ratio)
+        i, j, h, w = self.get_params(first_mod, self.scale, self.ratio)
 
-        sample['rgb'] = func.resized_crop(img, i, j, h, w, self.size, self.interpolation)
-        sample['depth'] = func.resized_crop(depth, i, j, h, w, self.size, self.interpolation)
+        for name, mod in sample.items():
+            sample[name] = func.resized_crop(mod, i, j, h, w, self.size, self.interpolation)
+
+        return sample
+
+
+class DepthTransform:
+    def __init__(self, depth_factor=1e-3, error_value=65535, replacing_value=0):
+        self.depth_factor = depth_factor
+        self.error_value = error_value
+        self.replacing_value = replacing_value
+
+    def __call__(self, sample):
+        for name, mod in sample.items():
+            sample[name][sample[name] == self.error_value] = self.replacing_value
+            sample[name] *= self.depth_factor
+
         return sample
