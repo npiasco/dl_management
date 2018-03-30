@@ -68,13 +68,16 @@ class SevenScene(utils.Dataset):
 
         if self.pose_tf:
             pose = self.pose_tf(pose)
+
         sample = {'rgb': rgb, 'depth': depth}
 
         if self.transform:
-            sample = self.transform(sample)
+            if 'first' in self.transform:
+                sample = torchvis.transforms.Compose(self.transform['first'])(sample)
+            for mod in self.transform:
+                if mod not in ('first',):
+                    sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod:sample[mod]})[mod]
 
-        sample['depth'][sample['depth'] == self.error_value] = 0
-        sample['depth'] *= self.depth_factor
         sample['pose'] = pose
 
         return sample
@@ -82,7 +85,11 @@ class SevenScene(utils.Dataset):
 
 class SevenSceneTrain(SevenScene):
     def __init__(self, root_path, **kwargs):
-        default_tf = torchvis.transforms.Compose((tf.RandomResizedCrop(224), tf.ColorJitter(), tf.ToTensor()))
+        default_tf = {
+            'first': (tf.RandomResizedCrop(224),),
+            'rgb': (tf.ColorJitter(), tf.ToTensor()),
+            'depth': (tf.ToTensor(), tf.DepthTransform())
+        }
         SevenScene.__init__(self,
                             depth_factor=kwargs.pop('depth_factor', 1e-3),
                             error_value=kwargs.pop('error_value', 65535),
@@ -104,7 +111,11 @@ class SevenSceneTrain(SevenScene):
 
 class SevenSceneTest(SevenScene):
     def __init__(self, **kwargs):
-        default_tf = torchvis.transforms.Compose((tf.Resize((224, 224)), tf.ToTensor()))
+        default_tf = {
+            'first': (tf.Resize((224, 224)),),
+            'rgb': (tf.ToTensor(),),
+            'depth': (tf.ToTensor(), tf.DepthTransform())
+        }
         SevenScene.__init__(self,
                             depth_factor=kwargs.pop('depth_factor', 1e-3),
                             error_value=kwargs.pop('error_value', 65535),
@@ -127,7 +138,11 @@ class SevenSceneTest(SevenScene):
 
 class SevenSceneVal(SevenScene):
     def __init__(self, **kwargs):
-        default_tf = torchvis.transforms.Compose((tf.Resize((224, 224)), tf.ToTensor()))
+        default_tf =  {
+            'first': (tf.Resize((224, 224)),),
+            'rgb': (tf.ToTensor(),),
+            'depth': (tf.ToTensor(), tf.DepthTransform())
+        }
         SevenScene.__init__(self,
                             depth_factor=kwargs.pop('depth_factor', 1e-3),
                             error_value=kwargs.pop('error_value', 65535),
@@ -149,7 +164,7 @@ class SevenSceneVal(SevenScene):
         self.load_data()
 
         step = round(1 / (1-pruning))
-        logger.info('Computed step for pruning {}'.format(step))
+        logger.info('Computed step for pruning: {}'.format(step))
         self.data = [dat for i, dat in enumerate(self.data) if i % step == 0]
 
 
@@ -169,9 +184,16 @@ def show_batch_mono(sample_batched):
 if __name__ == '__main__':
 
     logger.setLevel('INFO')
-    test_tf = torchvis.transforms.Compose((tf.Resize(240), tf.RandomResizedCrop(224), tf.ColorJitter(), tf.ToTensor()))
-    test_tf_wo_tf = torchvis.transforms.Compose((tf.Resize(240), tf.RandomCrop(224), tf.ToTensor()))
-
+    test_tf = {
+            'first': (tf.Resize(240), tf.RandomResizedCrop(224),),
+            'rgb': (tf.ColorJitter(), tf.ToTensor()),
+            'depth': (tf.ToTensor(), tf.DepthTransform())
+        }
+    test_tf_wo_tf = {
+            'first': (tf.Resize(240), tf.RandomCrop(224),),
+            'rgb': (tf.ToTensor(),),
+            'depth': (tf.ToTensor(), tf.DepthTransform())
+        }
     root = '/media/nathan/Data/7_Scenes/chess/'
 
     train_dataset = SevenSceneTrain(root_path=root, transform=test_tf, depth_factor=1e-3)
