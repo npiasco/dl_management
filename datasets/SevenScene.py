@@ -76,7 +76,7 @@ class SevenScene(utils.Dataset):
                 sample = torchvis.transforms.Compose(self.transform['first'])(sample)
             for mod in self.transform:
                 if mod not in ('first',):
-                    sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod:sample[mod]})[mod]
+                    sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod: sample[mod]})[mod]
 
         sample['pose'] = pose
 
@@ -110,7 +110,7 @@ class SevenSceneTrain(SevenScene):
 
 
 class SevenSceneTest(SevenScene):
-    def __init__(self, **kwargs):
+    def __init__(self, root_path, **kwargs):
         default_tf = {
             'first': (tf.Resize((224, 224)),),
             'rgb': (tf.ToTensor(),),
@@ -122,7 +122,7 @@ class SevenSceneTest(SevenScene):
                             pose_tf=kwargs.pop('pose_tf', matrix_2_quaternion),
                             transform=kwargs.pop('transform', default_tf))
 
-        self.root_path = kwargs.pop('root_path', None)
+        self.root_path = root_path
         self.transform = kwargs.pop('transform', 'default')
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -137,8 +137,8 @@ class SevenSceneTest(SevenScene):
 
 
 class SevenSceneVal(SevenScene):
-    def __init__(self, **kwargs):
-        default_tf =  {
+    def __init__(self, root_path, **kwargs):
+        default_tf = {
             'first': (tf.Resize((224, 224)),),
             'rgb': (tf.ToTensor(),),
             'depth': (tf.ToTensor(), tf.DepthTransform())
@@ -149,7 +149,7 @@ class SevenSceneVal(SevenScene):
                             pose_tf=kwargs.pop('pose_tf', matrix_2_quaternion),
                             transform=kwargs.pop('transform', default_tf))
 
-        self.root_path = kwargs.pop('root_path', None)
+        self.root_path = root_path
         self.transform = kwargs.pop('transform', 'default')
         pruning = kwargs.pop('pruning', 0.9)
         if kwargs:
