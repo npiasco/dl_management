@@ -10,6 +10,7 @@ import datasets.multmodtf as tf
 import matplotlib.pyplot as plt
 import torch.utils.data as data
 import tqdm
+import os
 
 
 logger = setlog.get_logger(__name__)
@@ -194,7 +195,7 @@ if __name__ == '__main__':
             'rgb': (tf.ToTensor(),),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
-    root = '/media/nathan/Data/7_Scenes/chess/'
+    root =  os.environ['SEVENSCENES'] + 'chess/'
 
     train_dataset = SevenSceneTrain(root_path=root, transform=test_tf, depth_factor=1e-3)
     train_dataset_wo_tf = SevenSceneTrain(root_path=root, transform=test_tf_wo_tf, depth_factor=1e-3)

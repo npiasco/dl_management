@@ -8,6 +8,8 @@ import numpy as np
 import PIL.Image
 import torch
 import matplotlib.pyplot as plt
+import os
+
 
 logger = setlog.get_logger(__name__)
 
@@ -67,7 +69,8 @@ def show_batch(sample_batched):
 
 
 if __name__ == '__main__':
-    root_to_folders = '/media/nathan/Data/Robotcar/training/TrainDataset_02_10_15/'
+    root_to_folders = os.environ['ROBOTCAR'] + 'training/TrainDataset_02_10_15/'
+
     modtouse = {'rgb': 'dataset.txt', 'depth': 'depth_dataset.txt', 'ref': 'ref_dataset.txt'}
     transform = {
         'first': (tf.RandomResizedCrop(420),),
