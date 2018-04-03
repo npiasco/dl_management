@@ -88,3 +88,14 @@ class DepthTransform:
             sample[name] *= self.depth_factor
 
         return sample
+
+
+class Normalize(tf.Normalize):
+    def __init__(self, mean, std):
+        tf.Normalize.__init__(self, mean, std)
+
+    def __call__(self, sample):
+        for name, mod in sample.items():
+            sample[name] = func.normalize(mod, self.mean, self.std)
+
+        return sample
