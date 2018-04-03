@@ -28,7 +28,7 @@ class VBLDataset(utils.data.Dataset):
                 'first': (tf.Resize((224, 224)), tf.ToTensor())
             }
 
-        self.coord = pd.read_csv(self.root + coord_file, header=None, sep='\t', dtype=np.float64)
+        self.coord = pd.read_csv(self.root + coord_file, header=None, sep=',', dtype=np.float64)
 
         self.modalities = dict()
         for mod_name in modalities:
@@ -52,7 +52,7 @@ class VBLDataset(utils.data.Dataset):
                 if mod not in ('first',) and mod in self.used_mod:
                     sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod: sample[mod]})[mod]
 
-        sample['coord'] = self.coord.ix[idx, 0:1].as_matrix().astype('float')
+        sample['coord'] = self.coord.ix[idx, 0:2].as_matrix().astype('float')
         return sample
 
 
@@ -61,10 +61,15 @@ def show_batch(sample_batched):
     buffer = tuple()
     for name, mod in sample_batched.items():
         if name not in ('coord',):
+            min_v = mod.min()
+            mod -= min_v
+            max_v = mod.max()
+            mod /= max_v
             buffer += (mod,)
 
     images_batch = torch.cat(buffer, 0)
-    grid = torchvis.utils.make_grid(images_batch)
+    grid = torchvis.utils.make_grid(images_batch, nrow=4)
+
     plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
 
@@ -74,13 +79,14 @@ if __name__ == '__main__':
     modtouse = {'rgb': 'dataset.txt', 'depth': 'depth_dataset.txt', 'ref': 'ref_dataset.txt'}
     transform = {
         'first': (tf.RandomResizedCrop(420),),
-        'rgb': (tf.ColorJitter(), tf.ToTensor()),
+        'rgb': (tf.ToTensor(), tf.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])),
         'depth': (tf.ToTensor(),),
         'ref': (tf.ToTensor(),)
     }
-    dataset = VBLDataset(root=root_to_folders, modalities=modtouse, coord_file='coordxIm.txt', transform=transform)
-    dataset.used_mod = ['rgb']
-    dataloader = utils.data.DataLoader(dataset, batch_size=8, shuffle=True, num_workers=4)
+
+    dataset = VBLDataset(root=root_to_folders, modalities=modtouse, coord_file='coordxImbearing.txt', transform=transform)
+
+    dataloader = utils.data.DataLoader(dataset, batch_size=4, shuffle=True, num_workers=4)
 
     for b in dataloader:
         plt.figure(1)
