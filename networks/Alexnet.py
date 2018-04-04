@@ -11,15 +11,12 @@ import os
 logger = setlog.get_logger(__name__)
 
 
-class Feature(nn.Module):
+class Feat(nn.Module):
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
 
         batch_norm = kwargs.pop('batch_norm', False)
-        agg_method = kwargs.pop('agg_method', 'RMAC')
-        desc_norm = kwargs.pop('desc_norm', True)
         end_relu = kwargs.pop('end_relu', False)
-        R = kwargs.pop('R', 1)
         load_imagenet = kwargs.pop('load_imagenet', True)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
 
@@ -54,25 +51,12 @@ class Feature(nn.Module):
         logger.debug('Final feature extractor architecture:')
         logger.debug(self.feature)
 
-        if agg_method == 'RMAC':
-            self.descriptor = Agg.RMAC(R=R, norm=desc_norm)
-
-        logger.debug('Descriptor architecture:')
-        logger.debug(self.descriptor)
-
         if load_imagenet:
             self.load()
 
-    def __call__(self, x):
-        x_feat = self.feature(x)
-        x_desc = self.descriptor(x_feat)
+    def forward(self, x):
 
-        if self.training:
-            forward = {'desc': x_desc, 'feat': x_feat}
-        else:
-            forward = x_desc
-
-        return forward
+        return self.feature(x)
 
     def load(self):
         alexnet = models.alexnet()
@@ -90,36 +74,85 @@ class Feature(nn.Module):
         self.base_archi['conv4'].weight.data = alexnet[10].weight.data
         self.base_archi['conv4'].bias.data = alexnet[10].bias.data
 
-    def get_traing_layers(self):
+    def get_traing_layers(self, layers_to_train=None):
         def sub_layers(name):
             return {
-                'all': [{'params': layers.parameters()} for layers in
-                                 [self.feature, self.descriptor] ],
-                'only_feat': self.feature.parameters(),
-                'only_descriptor': self.descriptor.parameters(),
+                'all': [{'params': self.feature.parameters()}],
                 'up_to_conv4': [{'params': layers.parameters()} for layers in
-                                 list(self.feature.children())[list(self.base_archi.keys()).index('conv4'):]]
-                                + [{'params': self.descriptor.parameters()}],
+                                list(self.feature.children())[list(self.base_archi.keys()).index('conv4'):]],
                 'up_to_conv3': [{'params': layers.parameters()} for layers in
-                                 list(self.feature.children())[list(self.base_archi.keys()).index('conv3'):]]
-                                + [{'params': self.descriptor.parameters()}],
+                                list(self.feature.children())[list(self.base_archi.keys()).index('conv3'):]],
                 'up_to_conv2': [{'params': layers.parameters()} for layers in
-                                 list(self.feature.children())[list(self.base_archi.keys()).index('conv2'):]]
-                                + [{'params': self.descriptor.parameters()}],
+                                list(self.feature.children())[list(self.base_archi.keys()).index('conv2'):]],
                 'up_to_conv1': [{'params': layers.parameters()} for layers in
-                                 list(self.feature.children())[list(self.base_archi.keys()).index('conv1'):]]
-                                + [{'params': self.descriptor.parameters()}],
+                                list(self.feature.children())[list(self.base_archi.keys()).index('conv1'):]]
             }.get(name)
-        return sub_layers(self.layers_to_train)
+        if not layers_to_train:
+            layers_to_train = self.layers_to_train
+        return sub_layers(layers_to_train)
+
+
+class Desc(nn.Module):
+    def __init__(self, **kwargs):
+        nn.Module.__init__(self)
+
+        batch_norm = kwargs.pop('batch_norm', False)
+        agg_method = kwargs.pop('agg_method', 'RMAC')
+        desc_norm = kwargs.pop('desc_norm', True)
+        end_relu = kwargs.pop('end_relu', False)
+        R = kwargs.pop('R', 1)
+        load_imagenet = kwargs.pop('load_imagenet', True)
+        self.layers_to_train = kwargs.pop('layers_to_train', 'all')
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        self.feature = Feat(batch_norm=batch_norm, end_relu=end_relu, load_imagenet=load_imagenet)
+
+        if agg_method == 'RMAC':
+            self.descriptor = Agg.RMAC(R=R, norm=desc_norm)
+
+        logger.debug('Descriptor architecture:')
+        logger.debug(self.descriptor)
+
+    def forward(self, x):
+        x_feat = self.feature(x)
+        x_desc = self.descriptor(x_feat)
+
+        if self.training:
+            forward = {'desc': x_desc, 'feat': x_feat}
+        else:
+            forward = x_desc
+
+        return forward
+
+    def get_traing_layers(self, layers_to_train=None):
+        def sub_layers(name):
+            return {
+                'all': [{'params': self.descriptor.parameters()}] + self.feature.get_traing_layers('all'),
+                'only_feat': self.feature.get_traing_layers('all'),
+                'only_descriptor': [{'params': self.descriptor.parameters()}],
+                'up_to_conv4': [{'params': self.descriptor.parameters()}] +
+                               self.feature.get_traing_layers('up_to_conv4'),
+                'up_to_conv3': [{'params': self.descriptor.parameters()}] +
+                               self.feature.get_traing_layers('up_to_conv3'),
+                'up_to_conv2': [{'params': self.descriptor.parameters()}] +
+                               self.feature.get_traing_layers('up_to_conv2'),
+                'up_to_conv1': [{'params': self.descriptor.parameters()}] +
+                               self.feature.get_traing_layers('up_to_conv1'),
+            }.get(name)
+        if not layers_to_train:
+            layers_to_train = self.layers_to_train
+        return sub_layers(layers_to_train)
 
 
 
 if __name__ == '__main__':
-    net = Feature().cuda()
+    net = Desc().cuda()
     tensor_input = torch.rand([10, 3, 224, 224]).cuda()
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'][0])
-    net = Feature(batch_norm=False, end_relu=False).cuda()
+    net = Desc(batch_norm=False, end_relu=True).cuda()
     feat_output = net(auto.Variable(tensor_input.cuda()))
     net.eval()
     feat_output = net(auto.Variable(tensor_input.cuda()))
