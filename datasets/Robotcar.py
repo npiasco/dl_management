@@ -99,8 +99,9 @@ class TripletDataset(utils.data.Dataset):
                     and len(triplet['positives']) >= self.num_positive \
                     and len(triplet['negatives']) >= self.num_negative:
                 triplet['query'] = i
-                np.random.shuffle(triplet['negatives'])
+                np.random.shuffle(triplet['negatives'])  # Random shuffeling to have diversity when calling
                 triplets.append(triplet)
+                logger.debug('Number of triplets {}'.format(len(triplets)))
                 if len(triplets) == self.num_triplets:
                     break
 
