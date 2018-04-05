@@ -35,6 +35,7 @@ class Feat(nn.Module):
             ('relu3', nn.ReLU(inplace=True)),                                   # 9
             ('conv4', nn.Conv2d(256, 256, kernel_size=3, padding=1)),           # 10
             ]
+
         if batch_norm:
             base_archi.append(('norm4', nn.BatchNorm2d(256)))
             base_archi.insert(9, ('norm3', nn.BatchNorm2d(256)))
@@ -97,9 +98,9 @@ if __name__ == '__main__':
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output[0])
     net = Feat(batch_norm=False, end_relu=True).cuda()
-    feat_output = net(auto.Variable(tensor_input.cuda()))
+    feat_output = net(auto.Variable(tensor_input).cuda())
     net.eval()
-    feat_output = net(auto.Variable(tensor_input.cuda()))
+    feat_output = net(auto.Variable(tensor_input).cuda())
     print(feat_output[0])
     net.layers_to_train = 'up_to_conv2'
     print(net.get_training_layers())
