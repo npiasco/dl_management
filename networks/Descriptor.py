@@ -39,11 +39,11 @@ class Main(nn.Module):
         x_desc = self.descriptor(x_feat)
 
         if self.training:
-            forward = {'desc': x_desc, 'feat': x_feat}
+            forward_pass = {'desc': x_desc, 'feat': x_feat}
         else:
-            forward = x_desc
+            forward_pass = x_desc
 
-        return forward
+        return forward_pass
 
     def get_training_layers(self, layers_to_train=None):
         def sub_layers(name):
