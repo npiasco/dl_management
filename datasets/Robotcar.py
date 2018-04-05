@@ -19,6 +19,7 @@ class VBLDataset(utils.data.Dataset):
     def __init__(self, root, coord_file, modalities, **kwargs):
         self.root = root
         self.transform = kwargs.pop('transform', 'default')
+        self.bearing = kwargs.pop('bearing', True)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -28,7 +29,8 @@ class VBLDataset(utils.data.Dataset):
                 'first': (tf.Resize((224, 224)), tf.ToTensor())
             }
 
-        self.coord = pd.read_csv(self.root + coord_file, header=None, sep=',', dtype=np.float64)
+        self.coord = pd.read_csv(self.root + coord_file, header=None, sep=',', dtype=np.float64) if self.bearing \
+            else pd.read_csv(self.root + coord_file, header=None, sep='\t', dtype=np.float64)
 
         self.modalities = dict()
         for mod_name in modalities:
@@ -52,7 +54,9 @@ class VBLDataset(utils.data.Dataset):
                 if mod not in ('first',) and mod in self.used_mod:
                     sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod: sample[mod]})[mod]
 
-        sample['coord'] = self.coord.ix[idx, 0:2].as_matrix().astype('float')
+        sample['coord'] = self.coord.ix[idx, 0:2].as_matrix().astype('float') if self.bearing \
+            else self.coord.ix[idx, 0:1].as_matrix().astype('float')
+
         return sample
 
 
