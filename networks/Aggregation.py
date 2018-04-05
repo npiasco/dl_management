@@ -14,7 +14,7 @@ class RMAC(nn.Module):
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    def __call__(self, feature):
+    def forward(self, feature):
         x = func.adaptive_max_pool2d(feature, (self.R, self.R))
         x = x.view(x.size(0), -1)
         if self.norm:
