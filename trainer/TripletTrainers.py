@@ -139,7 +139,6 @@ if __name__ == '__main__':
 
     network = Desc.Main(end_relu=True, batch_norm=False)
     trainer = TripletTrainer(network=network, cuda_on=False)
-    print(trainer.optimizer.state_dict())
     trainer.eval(query_data, data, ScoreFunc.RecallAtN(n=1, radius=25))
     for b in tqdm.tqdm(dtload):
         trainer.train(b)
