@@ -12,7 +12,7 @@ import networks.Descriptor as Desc
 import numpy as np
 import tqdm
 import copy
-import score.Functions as score_func
+import score.Functions as ScoreFunc
 
 
 logger = setlog.get_logger(__name__)
@@ -80,13 +80,8 @@ class TripletTrainer(Base.BaseTrainer):
 
         logger.info('Computing similarity')
         ranked = list()
-        once = True
         for query in tqdm.tqdm(queries_loader):
             feat = self.network(self.cuda_func(auto.Variable(query[self.mod])))[0].cpu().data.numpy()
-            if once:
-                print(query[self.mod])
-                print(feat)
-                once = False
             gt_pos = query['coord'].cpu().numpy()
             diff = [(np.dot(feat, d_feat[0]), np.linalg.norm(gt_pos - d_feat[1])) for d_feat in dataset_feats]
             sorted_index = list(np.argsort([d[0] for d in diff]))
@@ -103,7 +98,7 @@ class TripletTrainer(Base.BaseTrainer):
         raise NotImplementedError()
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     logger.setLevel('INFO')
     modtouse = {'rgb': 'dataset.txt'}
     transform = {
@@ -120,33 +115,32 @@ if __name__=='__main__':
                                      transform=transform_eval,
                                      bearing=False)
     data = Robotcar.VBLDataset(root=os.environ['ROBOTCAR'] + 'Robotcar_D1/Dataset/',
-                                modalities={'rgb': 'dataset.txt'},
-                                coord_file='coordxIm.txt',
-                                transform=transform_eval,
-                                bearing=False)
+                               modalities={'rgb': 'dataset.txt'},
+                               coord_file='coordxIm.txt',
+                               transform=transform_eval,
+                               bearing=False)
 
     dataset_1 = Robotcar.VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_05_19_15/',
-                           modalities=modtouse,
-                           coord_file='coordxImbearing.txt',
-                           transform=transform)
+                                    modalities=modtouse,
+                                    coord_file='coordxImbearing.txt',
+                                    transform=transform)
     dataset_2 = Robotcar.VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_08_28_15/',
-                           modalities=modtouse,
-                           coord_file='coordxImbearing.txt',
-                           transform=transform)
+                                    modalities=modtouse,
+                                    coord_file='coordxImbearing.txt',
+                                    transform=transform)
     dataset_3 = Robotcar.VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_11_10_15/',
-                           modalities=modtouse,
-                           coord_file='coordxImbearing.txt',
-                           transform=transform)
+                                    modalities=modtouse,
+                                    coord_file='coordxImbearing.txt',
+                                    transform=transform)
 
     triplet_dataset = Robotcar.TripletDataset(dataset_1, dataset_2, dataset_3,
-                                     num_triplets=100, num_positives=2, num_negative=20)
+                                              num_triplets=100, num_positives=2, num_negative=20)
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
     network = Desc.Main(end_relu=True, batch_norm=False)
     trainer = TripletTrainer(network=network, cuda_on=False)
     print(trainer.optimizer.state_dict())
-    trainer.eval(query_data, data, score_func.RecallAtN(n=1,radius=25))
-    for batch in tqdm.tqdm(dtload):
-        trainer.train(batch)
-    trainer.eval(query_data, data, score_func.RecallAtN(n=1, radius=25))
-
+    trainer.eval(query_data, data, ScoreFunc.RecallAtN(n=1, radius=25))
+    for b in tqdm.tqdm(dtload):
+        trainer.train(b)
+    trainer.eval(query_data, data, ScoreFunc.RecallAtN(n=1, radius=25))
