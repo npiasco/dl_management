@@ -68,7 +68,7 @@ class TripletTrainer(Base.BaseTrainer):
     def eval(self, queries, dataset, score_function):
         dataset.used_mod = [self.mod]
         queries.used_mod = [self.mod]
-        dataset_loader =  utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
+        dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
         queries_loader = utils.data.DataLoader(queries, batch_size=1, num_workers=self.val_num_workers)
 
         self.network.eval()
@@ -133,8 +133,14 @@ if __name__ == '__main__':
                                     coord_file='coordxImbearing.txt',
                                     transform=transform)
 
-    triplet_dataset = Robotcar.TripletDataset(dataset_1, dataset_2, dataset_3,
-                                              num_triplets=100, num_positives=2, num_negative=20)
+    args = {
+        'num_triplets': 100,
+        'num_positives': 2,
+        'num_negative': 20
+    }
+
+    triplet_dataset = Robotcar.TripletDataset(dataset_1, dataset_2, dataset_3, **args)
+
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
     network = Desc.Main(end_relu=True, batch_norm=False)
