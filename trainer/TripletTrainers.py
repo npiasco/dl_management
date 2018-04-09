@@ -18,7 +18,7 @@ import score.Functions as ScoreFunc
 logger = setlog.get_logger(__name__)
 
 
-class TripletTrainer(Base.BaseTrainer):
+class Trainer(Base.BaseTrainer):
     def __init__(self, **kwargs):
         Base.BaseTrainer.__init__(
             self,
@@ -26,26 +26,20 @@ class TripletTrainer(Base.BaseTrainer):
             momentum=kwargs.pop('momentum', 0.9),
             weight_decay=kwargs.pop('weight_decay', 0.001),
             cuda_on=kwargs.pop('cuda_on', True),
-            optimizer_type=kwargs.pop('optimizer_type', 'SGD')
+            optimizer_type=kwargs.pop('optimizer_type', 'SGD'),
+            network=kwargs.pop('network', None),
+            val_num_workers=kwargs.pop('val_num_workers', 8)
         )
 
-        self.network = kwargs.pop('network', None)
         self.triplet_loss = kwargs.pop('triplet_loss', func.triplet_margin_loss)
         self.margin = kwargs.pop('margin', 0.25)
         self.minning_func = kwargs.pop('minning_func', minning.random)
         self.mod = kwargs.pop('mod', 'rgb')
-        self.val_num_workers = kwargs.pop('val_num_workers', 8)
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
         self.optimizer = self.init_optimizer(self.network.get_training_layers())
-        self.loss_log = {
-            'triplet_loss': list()
-        }
-
-        self.network.cpu()
-        self.best_net = (0, copy.deepcopy(self.network.state_dict()))
-        self.cuda_func(self.network)
+        self.loss_log['triplet_loss'] = list()
 
     def train(self, batch):
         self.network.train()
@@ -65,37 +59,50 @@ class TripletTrainer(Base.BaseTrainer):
         self.loss_log['triplet_loss'].append(loss.data[0])
         logger.debug('Triplet loss is {}'.format(loss.data[0]))
 
-    def eval(self, queries, dataset, score_function):
+    def eval(self, queries, dataset, score_function, serialize=False):
+        ranked = self._compute_sim(self.network, queries, dataset)
+        score = score_function(ranked)
+        self.val_score.append(score)
+        logger.info('Score is: {}'.format(score))
+        if score_function.rank_score(score, self.best_net[0]):
+            self.network.cpu()
+            self.best_net = (score, copy.deepcopy(self.network.state_dict()))
+            self.cuda_func(self.network)
+            if serialize:
+                return self.serialize()
+
+    def test(self, queries, dataset, score_functions):
+        net = copy.deepcopy(self.network)
+        net.load_state_dict(self.best_net[1])
+        ranked = self._compute_sim(net, queries, dataset)
+        results = dict()
+        for function_name, func in score_functions.items():
+            results[function_name] = func(ranked)
+        return results
+
+    def _compute_sim(self, network, queries, dataset):
         dataset.used_mod = [self.mod]
         queries.used_mod = [self.mod]
         dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
         queries_loader = utils.data.DataLoader(queries, batch_size=1, num_workers=self.val_num_workers)
 
-        self.network.eval()
+        network.eval()
 
         logger.info('Computing dataset feats')
-        dataset_feats = [(self.network(self.cuda_func(auto.Variable(example[self.mod])))[0].cpu().data.numpy(),
+        dataset_feats = [(network(self.cuda_func(auto.Variable(example[self.mod])))[0].cpu().data.numpy(),
                           example['coord'].cpu().numpy())
                          for example in tqdm.tqdm(dataset_loader)]
 
         logger.info('Computing similarity')
         ranked = list()
         for query in tqdm.tqdm(queries_loader):
-            feat = self.network(self.cuda_func(auto.Variable(query[self.mod])))[0].cpu().data.numpy()
+            feat = network(self.cuda_func(auto.Variable(query[self.mod])))[0].cpu().data.numpy()
             gt_pos = query['coord'].cpu().numpy()
             diff = [(np.dot(feat, d_feat[0]), np.linalg.norm(gt_pos - d_feat[1])) for d_feat in dataset_feats]
             sorted_index = list(np.argsort([d[0] for d in diff]))
             ranked.append([diff[idx][1] for idx in reversed(sorted_index)])
 
-        score = score_function(ranked)
-        logger.info('Score is: {}'.format(score))
-        if score_function.rank_score(score, self.best_net[0]):
-            self.network.cpu()
-            self.best_net = (score, copy.deepcopy(self.network.state_dict()))
-            self.cuda_func(self.network)
-
-    def serialize(self):
-        raise NotImplementedError()
+        return ranked
 
 
 if __name__ == '__main__':
@@ -134,17 +141,19 @@ if __name__ == '__main__':
                                     transform=transform)
 
     args = {
+        'main': dataset_1,
+        'examples': [dataset_2, dataset_3],
         'num_triplets': 100,
         'num_positives': 2,
         'num_negative': 20
     }
 
-    triplet_dataset = Robotcar.TripletDataset(dataset_1, dataset_2, dataset_3, **args)
+    triplet_dataset = Robotcar.TripletDataset(**args)
 
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
     network = Desc.Main(end_relu=True, batch_norm=False)
-    trainer = TripletTrainer(network=network, cuda_on=False)
+    trainer = Trainer(network=network, cuda_on=True)
     trainer.eval(query_data, data, ScoreFunc.RecallAtN(n=1, radius=25))
     for b in tqdm.tqdm(dtload):
         trainer.train(b)

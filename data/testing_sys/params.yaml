@@ -1,0 +1,7 @@
+batch_size: 4
+curr_epoch: 1
+max_epoch: 1
+saved_files: {best_network: /home/nathan/Dev/Code/dl_management/data/testing_sys/best_network.pth,
+  loss: /home/nathan/Dev/Code/dl_management/data/testing_sys/loss.pth, network: /home/nathan/Dev/Code/dl_management/data/testing_sys/network.pth,
+  optimizer: /home/nathan/Dev/Code/dl_management/data/testing_sys/optimizer.pth, val_score: /home/nathan/Dev/Code/dl_management/data/testing_sys/val_score.pth}
+score: {default: 0.36398467432950193}

@@ -61,22 +61,27 @@ class VBLDataset(utils.data.Dataset):
 
 
 class TripletDataset(utils.data.Dataset):
-    def __init__(self, main, *args, **kwargs):
-        self.main = main
-        self.examples = args
+    def __init__(self, **kwargs):
 
+        self.main = kwargs.pop('main', None)
+        self.examples = kwargs.pop('examples', None)
         self.num_positive = kwargs.pop('num_positives', 2)
         self.num_negative = kwargs.pop('num_negative', 20)
         self.num_triplets = kwargs.pop('num_triplets', 1000)
         self.max_pose_dist = kwargs.pop('max_pose_dist', 10)        # meters
         self.min_neg_dist = kwargs.pop('min_neg_dist', 500)         # meters
         self.max_angle = kwargs.pop('max_angle', 0.174533)          # radians, 20 degrees
+        load_triplets = kwargs.pop('load_triplets', None)  # radians, 20 degrees
+        self._used_mod = kwargs.pop('used_mod', ['rgb'])
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-        logger.info('Creating {} triplets...'.format(self.num_triplets))
-        self.triplets = self.build_triplets()
+        if load_triplets:
+            self.triplets = torch.load(os.environ['DATASET'] + load_triplets)
+        else:
+            logger.info('Creating {} triplets...'.format(self.num_triplets))
+            self.triplets = self.build_triplets()
 
     def __len__(self):
         return self.triplets.__len__()
@@ -121,6 +126,17 @@ class TripletDataset(utils.data.Dataset):
         }
         return sample
 
+    @property
+    def used_mod(self):
+        return self._used_mod
+
+    @used_mod.setter
+    def used_mod(self, mods):
+        self.main.used_mod = mods
+        for data in self.examples:
+            data.used_mod = mods
+        self._used_mod = mods
+
 
 def show_batch(sample_batched):
     """Show image with landmarks for a batch of samples."""
@@ -144,7 +160,7 @@ if __name__ == '__main__':
 
     modtouse = {'rgb': 'dataset.txt', 'depth': 'depth_dataset.txt', 'ref': 'ref_dataset.txt'}
     transform = {
-        'first': (tf.Resize((420, 420)),),
+        'first': (tf.RandomResizedCrop((420, 420)),),
         'rgb': (tf.ToTensor(), tf.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])),
         'depth': (tf.ToTensor(),),
         'ref': (tf.ToTensor(),)
@@ -178,7 +194,7 @@ if __name__ == '__main__':
                            coord_file='coordxImbearing.txt',
                            transform=transform)
 
-    triplet_dataset = TripletDataset(dataset_1, dataset_2, dataset_3,
+    triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_2, dataset_3],
                                      num_triplets=200, num_positives=2, num_negative=20)
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 

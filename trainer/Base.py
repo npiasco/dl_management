@@ -1,6 +1,6 @@
 import setlog
 import torch.optim as optim
-
+import copy
 
 logger = setlog.get_logger(__name__)
 
@@ -12,8 +12,18 @@ class BaseTrainer:
         self.weight_decay = kwargs.pop('weight_decay', 0.001)
         self.cuda_on = kwargs.pop('cuda_on', True)
         self.optimizer_type = kwargs.pop('optimizer_type', 'SGD')
+        self.network = kwargs.pop('network', None)
+        self.val_num_workers = kwargs.pop('val_num_workers', 8)
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        self.val_score = list()
+        self.loss_log = dict()
+
+        self.network.cpu()
+        self.best_net = (0, copy.deepcopy(self.network.state_dict()))
+        self.cuda_func(self.network)
+        self.optimizer = None
 
     def init_optimizer(self, param):
         if self.optimizer_type == "SGD":
@@ -35,8 +45,26 @@ class BaseTrainer:
     def train(self, batch):
         raise NotImplementedError()
 
-    def eval(self, queries, dataset, score_function):
+    def eval(self, queries, dataset, score_function, serialize):
+        raise NotImplementedError()
+
+    def test(self, queries, dataset, score_functions):
         raise NotImplementedError()
 
     def serialize(self):
-        raise NotImplementedError()
+        ser = {
+            'network': self.network.state_dict(),
+            'best_network': self.best_net,
+            'optimizer': self.optimizer.state_dict(),
+            'loss': self.loss_log,
+            'val_score': self.val_score
+        }
+
+        return ser
+
+    def load(self, datas):
+        self.network.load_state_dict(datas['network'])
+        self.best_net = datas['best_network']
+        self.optimizer.load_state_dict(datas['optimizer'])
+        self.loss_log = datas['loss']
+        self.val_score = datas['val_score']
