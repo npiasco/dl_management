@@ -11,3 +11,13 @@ test_func:
         param_class:
             n: 1
             radius: 25
+    mean_recall:
+        class: 'score.Functions.MeanRecallAtN'
+        param_class:
+            n: 50
+            radius: 25
+    recall:
+        class: 'score.Functions.Recall'
+        param_class:
+            n: 50
+            radius: 25
