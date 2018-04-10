@@ -59,25 +59,24 @@ class Trainer(Base.BaseTrainer):
         self.loss_log['triplet_loss'].append(loss.data[0])
         logger.debug('Triplet loss is {}'.format(loss.data[0]))
 
-    def eval(self, queries, dataset, score_function, serialize=False):
-        ranked = self._compute_sim(self.network, queries, dataset)
-        score = score_function(ranked)
-        self.val_score.append(score)
-        logger.info('Score is: {}'.format(score))
-        if score_function.rank_score(score, self.best_net[0]):
-            self.network.cpu()
-            self.best_net = (score, copy.deepcopy(self.network.state_dict()))
-            self.cuda_func(self.network)
-            if serialize:
-                return self.serialize()
+    def eval(self, queries, dataset, score_function, ep):
+        if len(self.val_score) <= ep:
+            ranked = self._compute_sim(self.network, queries, dataset)
+            score = score_function(ranked)
+            self.val_score.append(score)
+            if score_function.rank_score(score, self.best_net[0]):
+                self.network.cpu()
+                self.best_net = (score, copy.deepcopy(self.network.state_dict()))
+                self.cuda_func(self.network)
+        logger.info('Score is: {}'.format(self.val_score[ep]))
 
     def test(self, queries, dataset, score_functions):
-        net = copy.deepcopy(self.network)
-        net.load_state_dict(self.best_net[1])
-        ranked = self._compute_sim(net, queries, dataset)
+        net_to_test = copy.deepcopy(self.network)
+        net_to_test.load_state_dict(self.best_net[1])
+        ranked = self._compute_sim(net_to_test, queries, dataset)
         results = dict()
-        for function_name, func in score_functions.items():
-            results[function_name] = func(ranked)
+        for function_name, score_func in score_functions.items():
+            results[function_name] = score_func(ranked)
         return results
 
     def _compute_sim(self, network, queries, dataset):
@@ -152,8 +151,8 @@ if __name__ == '__main__':
 
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
-    network = Desc.Main(end_relu=True, batch_norm=False)
-    trainer = Trainer(network=network, cuda_on=True)
+    net = Desc.Main(end_relu=True, batch_norm=False)
+    trainer = Trainer(network=net, cuda_on=True)
     trainer.eval(query_data, data, ScoreFunc.RecallAtN(n=1, radius=25))
     for b in tqdm.tqdm(dtload):
         trainer.train(b)

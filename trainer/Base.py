@@ -45,7 +45,7 @@ class BaseTrainer:
     def train(self, batch):
         raise NotImplementedError()
 
-    def eval(self, queries, dataset, score_function, serialize):
+    def eval(self, queries, dataset, score_function, ep):
         raise NotImplementedError()
 
     def test(self, queries, dataset, score_functions):
