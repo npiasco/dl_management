@@ -5,10 +5,13 @@ import torch.utils.data
 import tqdm
 import os
 import copy
-import networks.Descriptor
-import trainer.TripletTrainers
-import score.Functions
-import datasets.Robotcar
+import sys
+import matplotlib.pyplot as plt
+import networks.Descriptor              # Needed for class creation with eval
+import trainer.TripletTrainers          # Needed for class creation with eval
+import score.Functions                  # Needed for class creation with eval
+import datasets.Robotcar                # Needed for class creation with eval
+
 
 logger = setlog.get_logger(__name__)
 
@@ -47,6 +50,9 @@ class Base:
         self.num_workers = params.pop('num_workers', 8)
         self.shuffle = params.pop('shuffle', True)
         self.results = params.pop('score', None)
+        self.stop_criteria_epsilon = params.pop('stop_criteria_epsilon', 1e-6)
+        self.min_value_to_stop = params.pop('min_value_to_stop', 10)
+        self.sucess_bad_epoch = params.pop('sucess_bad_epoch', 2)
         params.pop('saved_files')
         if params:
             logger.error('Unexpected **params: %r' % params)
@@ -79,8 +85,95 @@ class Base:
             datas[name] = torch.load(file)
         self.trainer.load(datas)
 
-    def print(self):
-        raise NotImplementedError()
+    def plot(self, **kwargs):
+        print_loss = kwargs.pop('print_loss', True)
+        print_val = kwargs.pop('print_val', True)
+        print_score = kwargs.pop('print_score', True)
+        size_dataset = kwargs.pop('size_dataset', 0)
+
+        if print_loss:
+            nbtch = round(size_dataset/self.batch_size)
+            print(nbtch, size_dataset, self.batch_size)
+            losses = self.trainer.loss_log
+            f, axes = plt.subplots(len(losses) + 1, sharex=True)
+            for i, (name, vals) in enumerate(losses.items()):
+                axes[i].plot(vals)
+                axes[i].set_title(name)
+
+            handles = list()
+            for name, vals in losses.items():
+                handle, = axes[-1].plot(vals, label=name)
+                handles.append(handle)
+
+            legend = plt.legend(handles=handles)
+            axes[-1].add_artist(legend)
+
+            f, axes = plt.subplots(len(losses) + 1, sharex=True)
+            for i, (name, vals) in enumerate(losses.items()):
+                axes[i].plot(
+                    [sum(vals[i * nbtch:(i + 1) * nbtch]) / nbtch for i in range(len(vals) // nbtch)])
+                axes[i].set_title(name)
+
+            handles.clear()
+            for name, vals in losses.items():
+                handle, = axes[-1].plot(
+                    [sum(vals[i * nbtch:(i + 1) * nbtch]) / nbtch for i in range(len(vals) // nbtch)],
+                    label=name)
+                handles.append(handle)
+
+            legend = plt.legend(handles=handles)
+            axes[-1].add_artist(legend)
+
+        if print_val:
+            plt.figure()
+            plt.plot(self.trainer.val_score)
+            plt.title('Validation score')
+
+        if print_score:
+            print('Validation score is {}'.format(self.trainer.best_net[0]))
+            scores_to_plot = list()
+            for i, (name, vals) in enumerate(self.results.items()):
+                try:
+                    len(vals)
+                except TypeError:
+                    print(self.test_func[name], '= {}'.format(vals))
+                else:
+                    scores_to_plot.append((name, vals))
+            if len(scores_to_plot):
+                f, axes = plt.subplots(len(scores_to_plot) + 1, sharex=True)
+                for i, (name, vals) in enumerate(scores_to_plot):
+                    print(vals)
+                    axes[i].plot(vals)
+                    axes[i].set_title(name)
+                handles = list()
+                for name, vals in scores_to_plot:
+                    handle, = axes[-1].plot(vals, label=name)
+                    handles.append(handle)
+
+                legend = plt.legend(handles=handles)
+                axes[-1].add_artist(legend)
+
+        plt.show()
+
+    def compute_stop_criteria(self, seq, criteria):
+        derive = [seq[i] - seq[i-1] for i in reversed(range(len(seq)-1))]
+        seuil = max(int(0.1*len(derive)), min(len(derive), self.min_value_to_stop))
+        if seuil < self.min_value_to_stop:
+            logger.info('[STOP CRITERIA] Not enought values to compute stop criteria ({} values)'.format(seuil))
+            return False  # Continue training
+
+        moy = sum(derive[:seuil])/seuil
+        logger.info('[STOP CRITERIA] Mean of latest derivative value is {}'.format(moy))
+        if criteria == 'minimize':
+            if moy + self.stop_criteria_epsilon > 0:
+                return True  # Stop training
+            else:
+                return False  # Continue training
+        elif criteria == 'maximize':
+            if moy - self.stop_criteria_epsilon > 0:
+                return False  # Continue training
+            else:
+                return True  # Stop training
 
 
 class DescriptorLearning(Base):
@@ -126,7 +219,6 @@ class DescriptorLearning(Base):
         params['param_class'].pop('root')
         return eval(params['class'])(root=name, transform=transform, **params['param_class'])
 
-
     def train(self):
         self.data['train'].used_mod = self.training_mod
         self.data['val']['queries'].used_mod = self.testing_mod
@@ -136,23 +228,43 @@ class DescriptorLearning(Base):
         self.save(self.trainer.serialize())
 
         logger.info('Getting the first validation score...')
-        data_to_save = self.trainer.eval(self.data['val']['queries'],
-                                         self.data['val']['data'],
-                                         self.eval_func)
+        self.trainer.eval(self.data['val']['queries'],
+                          self.data['val']['data'],
+                          self.eval_func,
+                          self.curr_epoch)
+
         dtload = utils.data.DataLoader(self.data['train'],
                                        batch_size=self.batch_size,
                                        num_workers=self.num_workers,
                                        shuffle=self.shuffle)
 
-        for ep in tqdm.tqdm(range(self.curr_epoch, self.max_epoch)):
-            for b in tqdm.tqdm(dtload):
-                self.trainer.train(b)
-            self.curr_epoch += 1
-            data_to_save = self.trainer.eval(self.data['val']['queries'],
-                                             self.data['val']['data'],
-                                             self.eval_func,
-                                             serialize=True)
-            self.save(data_to_save)
+        try:
+            # End training criteria initiation
+            criteria_loss = [False] * self.sucess_bad_epoch
+            criteria_val = [False] * self.sucess_bad_epoch
+
+            for ep in range(self.curr_epoch, self.max_epoch):
+                logger.info('Training network for ep {}'.format(ep+1))
+                for b in tqdm.tqdm(dtload):
+                    self.trainer.train(b)
+                self.curr_epoch += 1
+                self.trainer.eval(self.data['val']['queries'],
+                                  self.data['val']['data'],
+                                  self.eval_func,
+                                  self.curr_epoch)
+
+                loss = [sum(elem) for elem in zip(*self.trainer.loss_log.values())]
+                criteria_loss.pop()
+                criteria_loss.append(self.compute_stop_criteria(loss, 'minimize'))
+                criteria_val.pop()
+                criteria_val.append(self.compute_stop_criteria(self.trainer.val_score, 'maximize'))
+                if not False in criteria_loss +  criteria_val:
+                    break
+
+        except:
+            logger.error('Aborting training with interruption:\n{}'.format(sys.exc_info()[0]))
+        finally:
+            self.save(self.trainer.serialize())
 
     def test(self):
         self.data['test']['queries'].used_mod = self.testing_mod
@@ -161,9 +273,14 @@ class DescriptorLearning(Base):
         self.results = self.trainer.test(self.data['test']['queries'],
                                          self.data['test']['data'],
                                          self.test_func)
+        self.save(self.trainer.serialize())
+
+
+    def plot(self, **kwargs):
+        Base.plot(self, **kwargs, size_dataset=len(self.data['train']))
 
 
 if __name__ == '__main__':
-    sys = DescriptorLearning(root=os.environ['DATA'] + 'testing_sys/')
-    sys.test()
-    sys.train()
+    system = DescriptorLearning(root=os.environ['DATA'] + 'testing_sys/')
+    system.test()
+    system.plot()
