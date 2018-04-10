@@ -258,9 +258,8 @@ class DescriptorLearning(Base):
                 criteria_loss.append(self.compute_stop_criteria(loss, 'minimize'))
                 criteria_val.pop()
                 criteria_val.append(self.compute_stop_criteria(self.trainer.val_score, 'maximize'))
-                if not False in criteria_loss +  criteria_val:
+                if False not in criteria_loss + criteria_val:
                     break
-
         except:
             logger.error('Aborting training with interruption:\n{}'.format(sys.exc_info()[0]))
         finally:
@@ -274,7 +273,6 @@ class DescriptorLearning(Base):
                                          self.data['test']['data'],
                                          self.test_func)
         self.save(self.trainer.serialize())
-
 
     def plot(self, **kwargs):
         Base.plot(self, **kwargs, size_dataset=len(self.data['train']))
