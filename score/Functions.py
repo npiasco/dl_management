@@ -24,6 +24,9 @@ class RecallAtN:
         self.score = score/len(ranked_queries)
         return self.score
 
+    def __str__(self):
+        return 'Recall @{}'.format(self.n)
+
     @staticmethod
     def rank_score(new_score, old_score):
         return new_score > old_score
