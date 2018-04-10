@@ -28,10 +28,14 @@ class Base:
 
         with open(self.root + self.cnn_file, 'rt') as f:
             network_params = yaml.safe_load(f)
+            logger.debug('cnn param files {} is:'.format(self.root + self.cnn_file))
+            logger.debug(yaml.safe_dump(network_params))
         self.network = eval(network_params['class'])(**network_params['param_class'])
 
         with open(self.root + self.trainer_file, 'rt') as f:
             trainer_params = yaml.safe_load(f)
+            logger.debug('trainer param files is {}:'.format(self.root + self.trainer_file))
+            logger.debug(yaml.safe_dump(trainer_params))
         self.trainer = eval(trainer_params['class'])(network=self.network, **trainer_params['param_class'])
         self.eval_func = eval(trainer_params['eval_class'])(**trainer_params['param_eval_class'])
         self.test_func = dict()
@@ -43,6 +47,8 @@ class Base:
 
         with open(self.root + self.param_file, 'rt') as f:
             params = yaml.safe_load(f)
+            logger.debug('system param files is {}:'.format(self.root + self.param_file))
+            logger.debug(yaml.safe_dump(params))
         self.params = copy.deepcopy(params)
         self.curr_epoch = params.pop('curr_epoch', 0)
         self.max_epoch = params.pop('max_epoch', 1000)
@@ -183,6 +189,8 @@ class DescriptorLearning(Base):
 
         with open(self.root + self.dataset_file, 'rt') as f:
             dataset_params = yaml.safe_load(f)
+            logger.debug('dataset param files {} is:'.format(self.root + self.dataset_file))
+            logger.debug(yaml.safe_dump(dataset_params))
 
         self.data = dict()
         training_param = dict()
