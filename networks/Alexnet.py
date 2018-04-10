@@ -16,6 +16,7 @@ class Feat(nn.Module):
 
         batch_norm = kwargs.pop('batch_norm', False)
         end_relu = kwargs.pop('end_relu', False)
+        end_max_polling = kwargs.pop('end_max_polling', False)
         load_imagenet = kwargs.pop('load_imagenet', True)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
 
@@ -46,10 +47,14 @@ class Feat(nn.Module):
         if end_relu:
             base_archi.append(('relu4', nn.ReLU(inplace=True)))
 
+        if end_max_polling:
+            base_archi.append(('pool3', nn.MaxPool2d(kernel_size=3, stride=2)))
+
         self.base_archi = coll.OrderedDict(base_archi)
         self.feature = nn.Sequential(self.base_archi)
         logger.info('Final feature extractor architecture:')
         logger.info(self.feature)
+        self._down_ratio = 0
 
         if load_imagenet:
             self.load()
@@ -91,6 +96,14 @@ class Feat(nn.Module):
             layers_to_train = self.layers_to_train
         return sub_layers(layers_to_train)
 
+    @property
+    def down_ratio(self):
+        if 'pool3' in [elem[0] for elem in list(self.feature.named_children())]:
+            self._down_ratio = 224 / 6
+        else:
+            self._down_ratio = 224 / 13
+        return self._down_ratio
+
 
 if __name__ == '__main__':
     net = Feat().cuda()
@@ -104,3 +117,8 @@ if __name__ == '__main__':
     print(feat_output[0])
     net.layers_to_train = 'up_to_conv2'
     print(net.get_training_layers())
+    print(net.down_ratio)
+    net = Feat(batch_norm=False, end_relu=True, end_max_polling=True).cuda()
+    feat_output = net(auto.Variable(tensor_input).cuda())
+    print(feat_output.size())
+    print(net.down_ratio)
