@@ -1,0 +1,9 @@
+batch_size: 5
+curr_epoch: 5
+max_epoch: 20
+saved_files: {best_network: /Users/n.piasco/Documents/Dev/dl_management/data/testing_pose/best_network.pth,
+  combining_loss: /Users/n.piasco/Documents/Dev/dl_management/data/testing_pose/combining_loss.pth,
+  loss: /Users/n.piasco/Documents/Dev/dl_management/data/testing_pose/loss.pth, network: /Users/n.piasco/Documents/Dev/dl_management/data/testing_pose/network.pth,
+  optimizer: /Users/n.piasco/Documents/Dev/dl_management/data/testing_pose/optimizer.pth,
+  val_score: /Users/n.piasco/Documents/Dev/dl_management/data/testing_pose/val_score.pth}
+score: null

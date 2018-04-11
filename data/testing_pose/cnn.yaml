@@ -1,0 +1,5 @@
+class: 'networks.Pose.Main'
+param_class:
+    end_relu: True
+    batch_norm: False
+    num_inter_layers: 0

@@ -1,0 +1,32 @@
+train:
+    class: datasets.SevenScene.Train
+    param_class:
+        root: 'heads/'
+        transform:
+            first:
+                - {class: 'datasets.multmodtf.RandomResizedCrop', param_class: {size: 224}}
+            rgb:
+                - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.485, 0.456, 0.406], std: [0.229, 0.224, 0.225]}}
+test:
+    class: datasets.SevenScene.Test
+    param_class:
+        root: 'heads/'
+        transform:
+            first:
+                - {class: 'datasets.multmodtf.Resize', param_class: {size: [224,224]}}
+            rgb:
+                - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.485, 0.456, 0.406], std: [0.229, 0.224, 0.225]}}
+val:
+    class: datasets.SevenScene.Val
+    param_class:
+        root: 'heads/'
+        transform:
+            first:
+                - {class: 'datasets.multmodtf.Resize', param_class: {size: [224,224]}}
+            rgb:
+                - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.485, 0.456, 0.406], std: [0.229, 0.224, 0.225]}}
+testing_mod: ['rgb']
+training_mod: ['rgb']

@@ -1,0 +1,28 @@
+class: 'trainer.PoseTrainers.Trainer'
+param_class:
+    cuda_on: False
+eval_class: 'score.Functions.GlobalPoseError'
+param_eval_class:
+    data_type: 'position'
+    pooling_type: 'mean'
+test_func:
+    mean_pos:
+        class: 'score.Functions.GlobalPoseError'
+        param_class:
+            data_type: 'position'
+            pooling_type: 'mean'
+    med_pos:
+        class: 'score.Functions.GlobalPoseError'
+        param_class:
+            data_type: 'position'
+            pooling_type: 'median'
+    mean_ori:
+        class: 'score.Functions.GlobalPoseError'
+        param_class:
+          data_type: 'orientation'
+          pooling_type: 'mean'
+    med_ori:
+        class: 'score.Functions.GlobalPoseError'
+        param_class:
+          data_type: 'orientation'
+          pooling_type: 'median'
