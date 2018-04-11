@@ -1,6 +1,7 @@
 import setlog
 import tqdm
 import random
+import numpy as np
 
 
 logger = setlog.get_logger(__name__)
@@ -90,6 +91,30 @@ class Recall:
     def __str__(self):
         return 'Recall (computed up to {})'.format(self.n)
 
+
+class GlobalPoseError:
+    def __init__(self, **kwargs):
+        self.pooling_type = kwargs.pop('pooling_type', 'median')
+        self.data_type = kwargs.pop('data_type', 'position')
+        if kwargs:
+            logger.error('Unexpected **kwargs: %r' % kwargs)
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    def __call__(self, errors):
+        if self.pooling_type == 'median':
+            return np.median(errors[self.data_type])
+        elif self.pooling_type == 'mean':
+            return sum(errors[self.data_type])/len(errors[self.data_type])
+        else:
+            logger.error('Unknown pooling named {}'.format(self.pooling_type))
+            raise ValueError('Unknown pooling named {}'.format(self.pooling_type))
+
+    def __str__(self):
+        return '{} error on {}'.format(self.pooling_type.capitalize(), self.data_type)
+
+    @staticmethod
+    def rank_score(new_score, old_score):
+        return new_score < old_score
 
 if __name__ == '__main__':
     n_queries = 200
