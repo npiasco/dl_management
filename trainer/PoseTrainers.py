@@ -142,11 +142,11 @@ if __name__ == '__main__':
     }
     root = os.environ['SEVENSCENES'] + 'heads/'
 
-    train_dataset = SevenScene.Train(root_path=root,
+    train_dataset = SevenScene.Train(root=root,
                                      transform=test_tf,
                                      used_mod=('rgb',))
 
-    val_dataset = SevenScene.Val(root_path=root,
+    val_dataset = SevenScene.Val(root=root,
                                  transform=val_tf,
                                  used_mod=('rgb',))
 
