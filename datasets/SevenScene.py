@@ -24,7 +24,7 @@ def matrix_2_quaternion(mat):
     return {'position': pos, 'orientation': quat}
 
 
-class SevenScene(utils.Dataset):
+class Base(utils.Dataset):
 
     def __init__(self, **kwargs):
 
@@ -34,6 +34,8 @@ class SevenScene(utils.Dataset):
         self.error_value = kwargs.pop('error_value', 65535)
         self.pose_tf = kwargs.pop('pose_tf', matrix_2_quaternion)
         self.transform = kwargs.pop('transform', None)
+        self.used_mod = kwargs.pop('used_mod', ('rgb', 'depth'))
+
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
         self.data = list()
@@ -52,11 +54,21 @@ class SevenScene(utils.Dataset):
 
     def __getitem__(self, idx):
         fold, num = self.data[idx]
-        img_name = self.folders[fold] + 'frame-' + num + '.color.png'
-        rgb = PIL.Image.open(img_name)
+        sample = dict()
+        if 'rgb' in self.used_mod:
+            img_name = self.folders[fold] + 'frame-' + num + '.color.png'
+            sample['rgb'] = PIL.Image.open(img_name)
 
-        img_name = self.folders[fold] + 'frame-' + num + '.depth.png'
-        depth = PIL.Image.open(img_name)
+        if 'depth' in self.used_mod:
+            img_name = self.folders[fold] + 'frame-' + num + '.depth.png'
+            sample['depth'] = PIL.Image.open(img_name)
+
+        if self.transform:
+            if 'first' in self.transform:
+                sample = torchvis.transforms.Compose(self.transform['first'])(sample)
+            for mod in self.transform:
+                if mod not in ('first',):
+                    sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod: sample[mod]})[mod]
 
         pose_file = self.folders[fold] + 'frame-' + num + '.pose.txt'
         pose = np.ndarray((4, 4), dtype=float)
@@ -72,30 +84,21 @@ class SevenScene(utils.Dataset):
         if self.pose_tf:
             pose = self.pose_tf(pose)
 
-        sample = {'rgb': rgb, 'depth': depth}
-
-        if self.transform:
-            if 'first' in self.transform:
-                sample = torchvis.transforms.Compose(self.transform['first'])(sample)
-            for mod in self.transform:
-                if mod not in ('first',):
-                    sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod: sample[mod]})[mod]
-
         sample['pose'] = pose
 
         return sample
 
 
-class SevenSceneTrain(SevenScene):
+class Train(Base):
     def __init__(self, **kwargs):
         default_tf = {
             'first': (tf.RandomResizedCrop(224),),
             'rgb': (tf.ColorJitter(), tf.ToTensor()),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
-        SevenScene.__init__(self,
-                            transform=kwargs.pop('transform', default_tf),
-                            **kwargs)
+        Base.__init__(self,
+                      transform=kwargs.pop('transform', default_tf),
+                      **kwargs)
 
         self.folders = list()
         with open(self.root_path + 'TrainSplit.txt', 'r') as f:
@@ -106,16 +109,16 @@ class SevenSceneTrain(SevenScene):
         self.load_data()
 
 
-class SevenSceneTest(SevenScene):
+class Test(Base):
     def __init__(self, **kwargs):
         default_tf = {
             'first': (tf.Resize((224, 224)),),
             'rgb': (tf.ToTensor(),),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
-        SevenScene.__init__(self,
-                            transform=kwargs.pop('transform', default_tf),
-                            **kwargs)
+        Base.__init__(self,
+                      transform=kwargs.pop('transform', default_tf),
+                      **kwargs)
 
         self.folders = list()
         with open(self.root_path + 'TestSplit.txt', 'r') as f:
@@ -126,7 +129,7 @@ class SevenSceneTest(SevenScene):
         self.load_data()
 
 
-class SevenSceneVal(SevenScene):
+class Val(Base):
     def __init__(self, **kwargs):
         default_tf = {
             'first': (tf.Resize((224, 224)),),
@@ -134,9 +137,9 @@ class SevenSceneVal(SevenScene):
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
         pruning = kwargs.pop('pruning', 0.9)
-        SevenScene.__init__(self,
-                            transform=kwargs.pop('transform', default_tf),
-                            **kwargs)
+        Base.__init__(self,
+                      transform=kwargs.pop('transform', default_tf),
+                      **kwargs)
         self.folders = list()
         with open(self.root_path + 'TrainSplit.txt', 'r') as f:
             for line in f:
@@ -174,14 +177,18 @@ if __name__ == '__main__':
     test_tf_wo_tf = {
             'first': (tf.Resize(240), tf.RandomCrop(224),),
             'rgb': (tf.ToTensor(),),
-            'depth': (tf.ToTensor(), tf.DepthTransform())
         }
     root = os.environ['SEVENSCENES'] + 'chess/'
 
-    train_dataset = SevenSceneTrain(root_path=root, transform=test_tf, depth_factor=1e-3)
-    train_dataset_wo_tf = SevenSceneTrain(root_path=root, transform=test_tf_wo_tf, depth_factor=1e-3)
-    test_dataset = SevenSceneTest(root_path=root)
-    val_dataset = SevenSceneVal(root_path=root)
+    train_dataset = Train(root_path=root,
+                          transform=test_tf,
+                          depth_factor=1e-3)
+
+    train_dataset_wo_tf = Train(root_path=root,
+                                transform=test_tf_wo_tf,
+                                used_mod=('rgb'))
+    test_dataset = Test(root_path=root)
+    val_dataset = Val(root_path=root)
 
     print(len(train_dataset))
     print(len(test_dataset))
