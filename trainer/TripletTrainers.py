@@ -59,7 +59,15 @@ class Trainer(Base.BaseTrainer):
         self.loss_log['triplet_loss'].append(loss.data[0])
         logger.debug('Triplet loss is {}'.format(loss.data[0]))
 
-    def eval(self, queries, dataset, score_function, ep):
+    def eval(self, **kwargs):
+        queries = kwargs.pop('queries', None)
+        dataset = kwargs.pop('dataset', None)
+        score_function = kwargs.pop('score_function', None)
+        ep = kwargs.pop('ep', None)
+        if kwargs:
+            logger.error('Unexpected **kwargs: %r' % kwargs)
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
         if len(self.val_score) <= ep:
             ranked = self._compute_sim(self.network, queries, dataset)
             score = score_function(ranked)
@@ -70,7 +78,13 @@ class Trainer(Base.BaseTrainer):
                 self.cuda_func(self.network)
         logger.info('Score is: {}'.format(self.val_score[ep]))
 
-    def test(self, queries, dataset, score_functions):
+    def test(self, **kwargs):
+        queries = kwargs.pop('queries', None)
+        dataset = kwargs.pop('dataset', None)
+        score_functions = kwargs.pop('score_functions', None)
+        if kwargs:
+            logger.error('Unexpected **kwargs: %r' % kwargs)
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
         net_to_test = copy.deepcopy(self.network)
         net_to_test.load_state_dict(self.best_net[1])
         ranked = self._compute_sim(net_to_test, queries, dataset)
@@ -153,7 +167,13 @@ if __name__ == '__main__':
 
     net = Desc.Main(end_relu=True, batch_norm=False)
     trainer = Trainer(network=net, cuda_on=True)
-    trainer.eval(query_data, data, ScoreFunc.RecallAtN(n=1, radius=25))
+    trainer.eval(queries=query_data,
+                 dataset=data,
+                 score_function=ScoreFunc.RecallAtN(n=1, radius=25),
+                 ep=0)
     for b in tqdm.tqdm(dtload):
         trainer.train(b)
-    trainer.eval(query_data, data, ScoreFunc.RecallAtN(n=1, radius=25))
+    trainer.eval(queries=query_data,
+                 dataset=data,
+                 score_function=ScoreFunc.RecallAtN(n=1, radius=25),
+                 ep=1)
