@@ -25,10 +25,9 @@ def matrix_2_quaternion(mat):
 
 
 class Base(utils.Dataset):
-
     def __init__(self, **kwargs):
 
-        self.root_path = kwargs.pop('root_path', None)
+        self.root_path = kwargs.pop('root', None)
         self.folders = kwargs.pop('folders', None)
         self.depth_factor = kwargs.pop('depth_factor', 1e-3)  # Depth in meter
         self.error_value = kwargs.pop('error_value', 65535)
@@ -180,15 +179,15 @@ if __name__ == '__main__':
         }
     root = os.environ['SEVENSCENES'] + 'chess/'
 
-    train_dataset = Train(root_path=root,
+    train_dataset = Train(root=root,
                           transform=test_tf,
                           depth_factor=1e-3)
 
-    train_dataset_wo_tf = Train(root_path=root,
+    train_dataset_wo_tf = Train(root=root,
                                 transform=test_tf_wo_tf,
                                 used_mod=('rgb'))
-    test_dataset = Test(root_path=root)
-    val_dataset = Val(root_path=root)
+    test_dataset = Test(root=root)
+    val_dataset = Val(root=root)
 
     print(len(train_dataset))
     print(len(test_dataset))
