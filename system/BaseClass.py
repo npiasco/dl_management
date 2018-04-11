@@ -4,9 +4,12 @@ import torch.utils.data
 import copy
 import matplotlib.pyplot as plt
 import networks.Descriptor              # Needed for class creation with eval
+import networks.Pose                    # Needed for class creation with eval
 import trainer.TripletTrainers          # Needed for class creation with eval
+import trainer.PoseTrainers             # Needed for class creation with eval
 import score.Functions                  # Needed for class creation with eval
 import datasets.Robotcar                # Needed for class creation with eval
+import datasets.SevenScene              # Needed for class creation with eval
 
 
 logger = setlog.get_logger(__name__)
@@ -55,7 +58,7 @@ class Base:
         self.stop_criteria_epsilon = params.pop('stop_criteria_epsilon', 1e-6)
         self.min_value_to_stop = params.pop('min_value_to_stop', 10)
         self.sucess_bad_epoch = params.pop('sucess_bad_epoch', 2)
-        params.pop('saved_files')
+        params.pop('saved_files', None)
         if params:
             logger.error('Unexpected **params: %r' % params)
             raise TypeError('Unexpected **params: %r' % params)
