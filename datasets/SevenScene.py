@@ -27,6 +27,8 @@ def matrix_2_quaternion(mat):
 class SevenScene(utils.Dataset):
 
     def __init__(self, **kwargs):
+
+        self.root_path = kwargs.pop('root_path', None)
         self.folders = kwargs.pop('folders', None)
         self.depth_factor = kwargs.pop('depth_factor', 1e-3)  # Depth in meter
         self.error_value = kwargs.pop('error_value', 65535)
@@ -85,21 +87,15 @@ class SevenScene(utils.Dataset):
 
 
 class SevenSceneTrain(SevenScene):
-    def __init__(self, root_path, **kwargs):
+    def __init__(self, **kwargs):
         default_tf = {
             'first': (tf.RandomResizedCrop(224),),
             'rgb': (tf.ColorJitter(), tf.ToTensor()),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
         SevenScene.__init__(self,
-                            depth_factor=kwargs.pop('depth_factor', 1e-3),
-                            error_value=kwargs.pop('error_value', 65535),
-                            pose_tf=kwargs.pop('pose_tf', matrix_2_quaternion),
-                            transform=kwargs.pop('transform', default_tf))
-
-        self.root_path = root_path
-        if kwargs:
-            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+                            transform=kwargs.pop('transform', default_tf),
+                            **kwargs)
 
         self.folders = list()
         with open(self.root_path + 'TrainSplit.txt', 'r') as f:
@@ -111,22 +107,15 @@ class SevenSceneTrain(SevenScene):
 
 
 class SevenSceneTest(SevenScene):
-    def __init__(self, root_path, **kwargs):
+    def __init__(self, **kwargs):
         default_tf = {
             'first': (tf.Resize((224, 224)),),
             'rgb': (tf.ToTensor(),),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
         SevenScene.__init__(self,
-                            depth_factor=kwargs.pop('depth_factor', 1e-3),
-                            error_value=kwargs.pop('error_value', 65535),
-                            pose_tf=kwargs.pop('pose_tf', matrix_2_quaternion),
-                            transform=kwargs.pop('transform', default_tf))
-
-        self.root_path = root_path
-        self.transform = kwargs.pop('transform', 'default')
-        if kwargs:
-            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+                            transform=kwargs.pop('transform', default_tf),
+                            **kwargs)
 
         self.folders = list()
         with open(self.root_path + 'TestSplit.txt', 'r') as f:
@@ -138,24 +127,16 @@ class SevenSceneTest(SevenScene):
 
 
 class SevenSceneVal(SevenScene):
-    def __init__(self, root_path, **kwargs):
+    def __init__(self, **kwargs):
         default_tf = {
             'first': (tf.Resize((224, 224)),),
             'rgb': (tf.ToTensor(),),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
-        SevenScene.__init__(self,
-                            depth_factor=kwargs.pop('depth_factor', 1e-3),
-                            error_value=kwargs.pop('error_value', 65535),
-                            pose_tf=kwargs.pop('pose_tf', matrix_2_quaternion),
-                            transform=kwargs.pop('transform', default_tf))
-
-        self.root_path = root_path
-        self.transform = kwargs.pop('transform', 'default')
         pruning = kwargs.pop('pruning', 0.9)
-        if kwargs:
-            raise TypeError('Unexpected **kwargs: %r' % kwargs)
-
+        SevenScene.__init__(self,
+                            transform=kwargs.pop('transform', default_tf),
+                            **kwargs)
         self.folders = list()
         with open(self.root_path + 'TrainSplit.txt', 'r') as f:
             for line in f:
@@ -195,7 +176,7 @@ if __name__ == '__main__':
             'rgb': (tf.ToTensor(),),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
-    root =  os.environ['SEVENSCENES'] + 'chess/'
+    root = os.environ['SEVENSCENES'] + 'chess/'
 
     train_dataset = SevenSceneTrain(root_path=root, transform=test_tf, depth_factor=1e-3)
     train_dataset_wo_tf = SevenSceneTrain(root_path=root, transform=test_tf_wo_tf, depth_factor=1e-3)
