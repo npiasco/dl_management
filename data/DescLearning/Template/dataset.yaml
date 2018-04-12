@@ -3,13 +3,13 @@ train:
     param_class:
         load_triplets: '200triplets.pth'
         # In case of load_triplets: None
-        num_positive: 2
-        num_negative:
+        num_positives: 2
+        num_negatives: 20
         num_triplets: 1000
         max_pose_dist: 10  # metre
         min_neg_dist: 500  # metre
         max_angle: 0.174533  # rad, 20 deg
-        _used_mod: ['rgb', 'depth']
+        used_mod: ['rgb', 'depth']
         main:
             class: datasets.Robotcar.VBLDataset
             param_class:
@@ -21,8 +21,8 @@ train:
                     first:
                         - {class: 'datasets.multmodtf.RandomResizedCrop', param_class: {size: 224}}
                     rgb:
-                        - {class: 'datasets.multmodtf.ToTensor', param_class:}
                         - {class: 'datasets.multmodtf.ColorJitter', param_class:}
+                        - {class: 'datasets.multmodtf.ToTensor', param_class:}
                         - {class: 'datasets.multmodtf.Normalize', param_class:}
                     depth:
                         - {class: 'datasets.multmodtf.ToTensor', param_class:}
@@ -40,17 +40,23 @@ train:
                         transform:
                         {
                             first:
-                                - {class: 'datasets.multmodtf.RandomResizedCrop', param_class: {size: 224}}
+                                [
+                                    {class: 'datasets.multmodtf.RandomResizedCrop', param_class: {size: 224}}
+                                ],
                             rgb:
                                 [
-                                    {class: 'datasets.multmodtf.ColorJitter', param_class:},
-                                    {class: 'datasets.multmodtf.ToTensor', param_class:},
-                                    {class: 'datasets.multmodtf.Normalize', param_class:}
-                                ]
+                                    {class: 'datasets.multmodtf.ColorJitter', param_class: },
+                                    {class: 'datasets.multmodtf.ToTensor', param_class: },
+                                    {class: 'datasets.multmodtf.Normalize', param_class: }
+                                ],
                             depth:
-                                - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                                [
+                                    {class: 'datasets.multmodtf.ToTensor', param_class: }
+                                ],
                             ref:
-                                - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                                [
+                                    {class: 'datasets.multmodtf.ToTensor', param_class: }
+                                ]
                         }
                     }
               }
@@ -65,17 +71,23 @@ train:
                         transform:
                         {
                             first:
-                                - {class: 'datasets.multmodtf.RandomResizedCrop', param_class: {size: 224}}
+                                [
+                                    {class: 'datasets.multmodtf.RandomResizedCrop', param_class: {size: 224}}
+                                ],
                             rgb:
                                 [
                                     {class: 'datasets.multmodtf.ColorJitter', param_class:},
                                     {class: 'datasets.multmodtf.ToTensor', param_class:},
                                     {class: 'datasets.multmodtf.Normalize', param_class:}
-                                ]
+                                ],
                             depth:
-                                - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                                [
+                                    {class: 'datasets.multmodtf.ToTensor', param_class:}
+                                ],
                             ref:
-                                - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                                [
+                                    {class: 'datasets.multmodtf.ToTensor', param_class:}
+                                ]
                         }
                     }
                }

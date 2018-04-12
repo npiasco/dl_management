@@ -6,9 +6,9 @@ param_class:
     weight_decay: 1e-3
     optimizer_type: SGD
     val_num_workers: 8
-    triplet_loss: 'trainer.loss_functions.triplet_margin_loss'
+    triplet_loss: 'torch.nn.functional.triplet_margin_loss'
     margin: 0.25
-    minning_func: 'trainer.minning_func.random'
+    minning_func: 'trainer.minning_function.random'
     mod: 'rgb'
 
 eval_class: 'score.Functions.RecallAtN'
