@@ -30,21 +30,19 @@ class Base:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
         with open(self.root + self.cnn_file, 'rt') as f:
-            network_params = yaml.safe_load(f)
+            self.network_params = yaml.safe_load(f)
             logger.debug('cnn param files {} is:'.format(self.root + self.cnn_file))
-            logger.debug(yaml.safe_dump(network_params))
-        self.network = eval(network_params['class'])(**network_params['param_class'])
+            logger.debug(yaml.safe_dump(self.network_params))
 
         with open(self.root + self.trainer_file, 'rt') as f:
-            trainer_params = yaml.safe_load(f)
-            logger.debug('trainer param files is {}:'.format(self.root + self.trainer_file))
-            logger.debug(yaml.safe_dump(trainer_params))
-        self.trainer = eval(trainer_params['class'])(network=self.network, **trainer_params['param_class'])
-        self.eval_func = eval(trainer_params['eval_class'])(**trainer_params['param_eval_class'])
+            self.trainer_params = yaml.safe_load(f)
+            logger.debug('_trainer param files is {}:'.format(self.root + self.trainer_file))
+            logger.debug(yaml.safe_dump(self.trainer_params))
+
+        self.eval_func = eval(self.trainer_params['eval_class'])(**self.trainer_params['param_eval_class'])
         self.test_func = dict()
-        for test_func_name in trainer_params['test_func']:
-            self.test_func[test_func_name] = eval(trainer_params['test_func'][test_func_name]['class'])\
-                (**trainer_params['test_func'][test_func_name]['param_class'])
+        for test_func_name, fonction in self.trainer_params['test_func'].items():
+            self.test_func[test_func_name] = eval(fonction['class'])(**fonction['param_class'])
 
         with open(self.root + self.param_file, 'rt') as f:
             params = yaml.safe_load(f)
@@ -67,8 +65,8 @@ class Base:
 
         self.results = None
         self.data = None
-        if self.curr_epoch != 0:
-            self.load()
+        self._network = None
+        self._trainer = None
 
     @staticmethod
     def creat_dataset(params, env_var):
@@ -87,10 +85,10 @@ class Base:
 
     def train(self):
         logger.info('Initial saving before training.')
-        self.save(self.trainer.serialize())
+        self.save(self._trainer.serialize())
 
         logger.info('Getting the first validation score...')
-        self.trainer.eval(dataset=self.data['val'],
+        self._trainer.eval(dataset=self.data['val'],
                           score_function=self.eval_func,
                           ep=self.curr_epoch)
 
@@ -105,30 +103,30 @@ class Base:
             criteria_val = [False] * self.sucess_bad_epoch
 
             for ep in range(self.curr_epoch, self.max_epoch):
-                logger.info('Training network for ep {}'.format(ep + 1))
+                logger.info('Training _network for ep {}'.format(ep + 1))
                 for b in tqdm.tqdm(dtload):
-                    self.trainer.train(b)
+                    self._trainer.train(b)
                 self.curr_epoch += 1
-                self.trainer.eval(dataset=self.data['val'],
+                self._trainer.eval(dataset=self.data['val'],
                                   score_function=self.eval_func,
                                   ep=self.curr_epoch)
 
-                loss = [sum(elem) for elem in zip(*self.trainer.loss_log.values())]
+                loss = [sum(elem) for elem in zip(*self._trainer.loss_log.values())]
                 criteria_loss.pop()
                 criteria_loss.append(self.compute_stop_criteria(loss, float.__lt__))
                 criteria_val.pop()
-                criteria_val.append(self.compute_stop_criteria(self.trainer.val_score, self.eval_func.rank_score))
+                criteria_val.append(self.compute_stop_criteria(self._trainer.val_score, self.eval_func.rank_score))
                 if False not in criteria_loss + criteria_val:
                     break
         except KeyboardInterrupt:
             logger.error('Aborting training with interruption:\n{}'.format(sys.exc_info()[0]))
         finally:
-            self.save(self.trainer.serialize())
+            self.save(self._trainer.serialize())
 
     def test(self):
-        self.results = self.trainer.test(dataset=self.data['test'],
+        self.results = self._trainer.test(dataset=self.data['test'],
                                          score_functions=self.test_func)
-        self.save(self.trainer.serialize())
+        self.save(self._trainer.serialize())
 
     def save(self, datas):
         self.params['saved_files'] = dict()
@@ -147,7 +145,7 @@ class Base:
         datas = dict()
         for name, file in self.params['saved_files'].items():
             datas[name] = torch.load(file)
-        self.trainer.load(datas)
+        self._trainer.load(datas)
         self.results = torch.load(self.params['score_file'])
 
     def plot(self, **kwargs):
@@ -158,7 +156,7 @@ class Base:
 
         if print_loss:
             nbtch = round(size_dataset/self.batch_size)
-            losses = self.trainer.loss_log
+            losses = self._trainer.loss_log
             f, axes = plt.subplots(len(losses) + 1, sharex=True)
             for i, (name, vals) in enumerate(losses.items()):
                 axes[i].plot(vals)
@@ -190,11 +188,11 @@ class Base:
 
         if print_val:
             plt.figure()
-            plt.plot(self.trainer.val_score)
+            plt.plot(self._trainer.val_score)
             plt.title('Validation score')
 
         if print_score:
-            print('Validation score is {}'.format(self.trainer.best_net[0]))
+            print('Validation score is {}'.format(self._trainer.best_net[0]))
             scores_to_plot = list()
             for i, (name, vals) in enumerate(self.results.items()):
                 try:

@@ -28,6 +28,12 @@ class Default(BaseClass.Base):
         self.training_mod = dataset_params['training_mod']
         self.testing_mod = dataset_params['testing_mod']
 
+        self.network = eval(self.network_params['class'])(**self.network_params['param_class'])
+        self.trainer = eval(self.trainer_params['class'])(network=self.network,
+                                                          **self.trainer_params['param_class'])
+        if self.curr_epoch != 0:
+            self.load()
+
     def train(self):
         self.data['train'].used_mod = self.training_mod
         self.data['val'].used_mod = self.testing_mod

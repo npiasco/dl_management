@@ -1,8 +1,11 @@
 import setlog
 import yaml
 import os
+import trainer.minning_function
 import system.BaseClass as BaseClass
 import datasets.Robotcar                # Needed for class creation with eval
+import torch.nn.functional
+import networks.Descriptor              # Needed for class creation with eval
 
 
 logger = setlog.get_logger(__name__)
@@ -24,7 +27,8 @@ class Default(BaseClass.Base):
         training_param = dict()
         training_param['main'] = self.creat_dataset(dataset_params['train']['param_class']['main'], env_var)
         dataset_params['train']['param_class'].pop('main')
-        training_param['examples'] = [self.creat_dataset(d, env_var) for d in dataset_params['train']['param_class']['examples']]
+        training_param['examples'] = [self.creat_dataset(d, env_var)
+                                      for d in dataset_params['train']['param_class']['examples']]
         dataset_params['train']['param_class'].pop('examples')
         self.data['train'] = eval(dataset_params['train']['class'])(**training_param,
                                                                     **dataset_params['train']['param_class'])
@@ -35,10 +39,23 @@ class Default(BaseClass.Base):
 
         self.data['val'] = dict()
         self.data['val']['queries'] = self.creat_dataset(dataset_params['val']['queries'], env_var)
-        self.data['val']['data'] = self.creat_dataset(dataset_params['val']['data'],env_var)
+        self.data['val']['data'] = self.creat_dataset(dataset_params['val']['data'], env_var)
 
         self.training_mod = dataset_params['training_mod']
         self.testing_mod = dataset_params['testing_mod']
+
+        self._network = eval(self.network_params['class'])(**self.network_params['param_class'])
+
+        triplet_loss = self.trainer_params['param_class'].pop('triplet_loss',
+                                                              'torch.nn.functional.triplet_margin_loss')
+        minning_func = self.trainer_params['param_class'].pop('minning_func',
+                                                              'trainer.minning_function.random')
+        self._trainer = eval(self.trainer_params['class'])(network=self._network,
+                                                          triplet_loss=eval(triplet_loss),
+                                                          minning_func=eval(minning_func),
+                                                          **self.trainer_params['param_class'])
+        if self.curr_epoch != 0:
+            self.load()
 
     def train(self):
         self.data['train'].used_mod = self.training_mod
