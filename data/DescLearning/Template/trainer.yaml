@@ -1,6 +1,16 @@
 class: 'trainer.TripletTrainers.Trainer'
 param_class:
-    cuda_on: False
+    cuda_on: True
+    lr: 1e-4
+    momentum: 0.9
+    weight_decay: 1e-3
+    optimizer_type: SGD
+    val_num_workers: 8
+    triplet_loss: 'trainer.loss_functions.triplet_margin_loss'
+    margin: 0.25
+    minning_func: 'trainer.minning_func.random'
+    mod: 'rgb'
+
 eval_class: 'score.Functions.RecallAtN'
 param_eval_class:
     n: 5
