@@ -34,8 +34,8 @@ logger.debug(str(def_config))
 
 
 def config_log(file, root='/home/nathan/Dev/Code/dl_management/'):
-    logger.debug('Loading logging file {}'.format(root+file))
-    with open(file, 'rt') as f:
+    logger.debug('Loading logging file {}'.format(root + file))
+    with open(root + file, 'rt') as f:
         config = yaml.safe_load(f.read())
     config['handlers']['file']['filename'] = root + '.log/run_{}.log'.format(time.time())
     return config
