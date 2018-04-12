@@ -48,7 +48,7 @@ class Trainer(Base.BaseTrainer):
         # dataset.associated_net = copy.deepcopy(net).cpu()
 
         # Forward pass
-        anchor = self.network(self.cuda_func(auto.Variable(batch['query'][self.mod], requires_grad=True)))
+        anchor = self.network(auto.Variable(self.cuda_func(batch['query'][self.mod]), requires_grad=True))
         positive = self.minning_func(self, batch, 'positives')
         negative = self.minning_func(self, batch, 'negatives')
 
@@ -60,8 +60,9 @@ class Trainer(Base.BaseTrainer):
         logger.debug('Triplet loss is {}'.format(loss.data[0]))
 
     def eval(self, **kwargs):
-        queries = kwargs.pop('queries', None)
-        dataset = kwargs.pop('dataset', None)
+        data = kwargs.pop('dataset', None)
+        dataset = data['data']
+        queries = data['queries']
         score_function = kwargs.pop('score_function', None)
         ep = kwargs.pop('ep', None)
         if kwargs:
@@ -79,8 +80,9 @@ class Trainer(Base.BaseTrainer):
         logger.info('Score is: {}'.format(self.val_score[ep]))
 
     def test(self, **kwargs):
-        queries = kwargs.pop('queries', None)
-        dataset = kwargs.pop('dataset', None)
+        data = kwargs.pop('dataset', None)
+        dataset = data['data']
+        queries = data['queries']
         score_functions = kwargs.pop('score_functions', None)
         if kwargs:
             logger.error('Unexpected **kwargs: %r' % kwargs)
@@ -102,14 +104,15 @@ class Trainer(Base.BaseTrainer):
         network.eval()
 
         logger.info('Computing dataset feats')
-        dataset_feats = [(network(self.cuda_func(auto.Variable(example[self.mod])))[0].cpu().data.numpy(),
-                          example['coord'].cpu().numpy())
-                         for example in tqdm.tqdm(dataset_loader)]
+        dataset_feats = [(network(auto.Variable(self.cuda_func(example[self.mod]),
+                                                requires_grad=False))[0].cpu().data.numpy(),
+                          example['coord'].cpu().numpy()) for example in tqdm.tqdm(dataset_loader)]
 
         logger.info('Computing similarity')
         ranked = list()
         for query in tqdm.tqdm(queries_loader):
-            feat = network(self.cuda_func(auto.Variable(query[self.mod])))[0].cpu().data.numpy()
+            feat = network(auto.Variable(self.cuda_func(query[self.mod]),
+                                         requires_grad=False))[0].cpu().data.numpy()
             gt_pos = query['coord'].cpu().numpy()
             diff = [(np.dot(feat, d_feat[0]), np.linalg.norm(gt_pos - d_feat[1])) for d_feat in dataset_feats]
             sorted_index = list(np.argsort([d[0] for d in diff]))
@@ -167,13 +170,11 @@ if __name__ == '__main__':
 
     net = Desc.Main(end_relu=True, batch_norm=False)
     trainer = Trainer(network=net, cuda_on=True)
-    trainer.eval(queries=query_data,
-                 dataset=data,
+    trainer.eval(dataset={'data':data, 'queries':query_data},
                  score_function=ScoreFunc.RecallAtN(n=1, radius=25),
                  ep=0)
     for b in tqdm.tqdm(dtload):
         trainer.train(b)
-    trainer.eval(queries=query_data,
-                 dataset=data,
+    trainer.eval(dataset={'data':data, 'queries':query_data},
                  score_function=ScoreFunc.RecallAtN(n=1, radius=25),
                  ep=1)
