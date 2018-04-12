@@ -77,7 +77,6 @@ class Base(utils.Dataset):
                     try:
                         pose[i, j] = float(c)
                     except ValueError:
-                        logger.debug('Normal error reading pose file (occuring at the end)')
                         pass
 
         if self.pose_tf:
