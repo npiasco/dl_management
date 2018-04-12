@@ -3,6 +3,7 @@ import torch.utils.data as utils
 import datasets.custom_quaternion as custom_q
 import numpy as np
 import PIL.Image
+import PIL.PngImagePlugin
 import re
 import pathlib as path
 import torchvision as torchvis
@@ -11,6 +12,7 @@ import matplotlib.pyplot as plt
 import torch.utils.data as data
 import tqdm
 import os
+PIL.PngImagePlugin.logger.setLevel('INFO')
 
 
 logger = setlog.get_logger(__name__)
@@ -184,7 +186,7 @@ if __name__ == '__main__':
 
     train_dataset_wo_tf = Train(root=root,
                                 transform=test_tf_wo_tf,
-                                used_mod=('rgb'))
+                                used_mod=('rgb',))
     test_dataset = Test(root=root)
     val_dataset = Val(root=root)
 
