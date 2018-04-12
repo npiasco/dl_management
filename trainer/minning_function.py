@@ -15,6 +15,6 @@ def random(trainer, batch, mode):
     pick = rd.randint(0, n-1)
     return trainer.network(auto.Variable(trainer.cuda_func(batch[mode][pick][trainer.mod]), requires_grad=True))
 
+
 def hard_minning(trainer, batch, mode):
     raise NotImplementedError
-
