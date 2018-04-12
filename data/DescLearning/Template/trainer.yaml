@@ -1,6 +1,6 @@
 class: 'trainer.TripletTrainers.Trainer'
 param_class:
-    cuda_on: True
+    cuda_on: False
 eval_class: 'score.Functions.RecallAtN'
 param_eval_class:
     n: 5

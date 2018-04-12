@@ -56,7 +56,7 @@ class Default(BaseClass.Base):
 
 
 if __name__ == '__main__':
-    system = Default(root=os.environ['DATA'] + 'testing_sys/')
+    system = Default(root=os.environ['DATA'] + 'DescLearning/')
     system.train()
     system.test()
     system.plot()

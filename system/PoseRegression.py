@@ -42,7 +42,7 @@ class Default(BaseClass.Base):
 
 
 if __name__ == '__main__':
-    system = Default(root=os.environ['DATA'] + 'testing_pose/')
+    system = Default(root=os.environ['DATA'] + 'PoseReg/')
     system.train()
     system.test()
     system.plot()

@@ -1,6 +1,6 @@
 class: 'trainer.PoseTrainers.Trainer'
 param_class:
-    cuda_on: False
+    cuda_on: True
 eval_class: 'score.Functions.GlobalPoseError'
 param_eval_class:
     data_type: 'position'

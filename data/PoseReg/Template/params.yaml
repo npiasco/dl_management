@@ -1,0 +1,9 @@
+batch_size: 64
+curr_epoch: 19
+max_epoch: 200
+saved_files: {best_network: /home/nathan/Dev/Code/dl_management/data/testing_pose/best_network.pth,
+  combining_loss: /home/nathan/Dev/Code/dl_management/data/testing_pose/combining_loss.pth,
+  loss: /home/nathan/Dev/Code/dl_management/data/testing_pose/loss.pth, network: /home/nathan/Dev/Code/dl_management/data/testing_pose/network.pth,
+  optimizer: /home/nathan/Dev/Code/dl_management/data/testing_pose/optimizer.pth,
+  val_score: /home/nathan/Dev/Code/dl_management/data/testing_pose/val_score.pth}
+score_file: /home/nathan/Dev/Code/dl_management/data/testing_pose/score_file.pth
