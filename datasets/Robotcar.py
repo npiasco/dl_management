@@ -66,12 +66,12 @@ class TripletDataset(utils.data.Dataset):
         self.main = kwargs.pop('main', None)
         self.examples = kwargs.pop('examples', None)
         self.num_positive = kwargs.pop('num_positives', 2)
-        self.num_negative = kwargs.pop('num_negative', 20)
+        self.num_negative = kwargs.pop('num_negatives', 20)
         self.num_triplets = kwargs.pop('num_triplets', 1000)
         self.max_pose_dist = kwargs.pop('max_pose_dist', 10)        # meters
         self.min_neg_dist = kwargs.pop('min_neg_dist', 500)         # meters
         self.max_angle = kwargs.pop('max_angle', 0.174533)          # radians, 20 degrees
-        load_triplets = kwargs.pop('load_triplets', None)  # radians, 20 degrees
+        load_triplets = kwargs.pop('load_triplets', None)
         self._used_mod = kwargs.pop('used_mod', ['rgb'])
 
         if kwargs:

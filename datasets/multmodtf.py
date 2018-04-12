@@ -91,7 +91,7 @@ class DepthTransform:
 
 
 class Normalize(tf.Normalize):
-    def __init__(self, mean, std):
+    def __init__(self, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
         tf.Normalize.__init__(self, mean, std)
 
     def __call__(self, sample):
