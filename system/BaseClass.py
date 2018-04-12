@@ -11,6 +11,10 @@ import score.Functions                  # Needed for class creation with eval
 import datasets.Robotcar                # Needed for class creation with eval
 import datasets.SevenScene              # Needed for class creation with eval
 
+import torch.utils as utils
+import tqdm
+import sys
+
 
 logger = setlog.get_logger(__name__)
 
@@ -40,9 +44,7 @@ class Base:
         self.test_func = dict()
         for test_func_name in trainer_params['test_func']:
             self.test_func[test_func_name] = eval(trainer_params['test_func'][test_func_name]['class'])\
-                (
-                    **trainer_params['test_func'][test_func_name]['param_class']
-                )
+                (**trainer_params['test_func'][test_func_name]['param_class'])
 
         with open(self.root + self.param_file, 'rt') as f:
             params = yaml.safe_load(f)
@@ -54,23 +56,79 @@ class Base:
         self.batch_size = params.pop('batch_size', 64)
         self.num_workers = params.pop('num_workers', 8)
         self.shuffle = params.pop('shuffle', True)
-        self.results = params.pop('score', None)
         self.stop_criteria_epsilon = params.pop('stop_criteria_epsilon', 1e-6)
         self.min_value_to_stop = params.pop('min_value_to_stop', 10)
         self.sucess_bad_epoch = params.pop('sucess_bad_epoch', 2)
+        self.score_file = params.pop('score_file', None)
         params.pop('saved_files', None)
         if params:
             logger.error('Unexpected **params: %r' % params)
             raise TypeError('Unexpected **params: %r' % params)
 
+        self.results = None
+        self.data = None
         if self.curr_epoch != 0:
             self.load()
 
+    @staticmethod
+    def creat_dataset(params, env_var):
+        transform = dict()
+        for name, content in params['param_class']['transform'].items():
+            transform[name] = list()
+            for diff_tf in content:
+                if diff_tf['param_class']:
+                    transform[name].append(eval(diff_tf['class'])(**diff_tf['param_class']))
+                else:
+                    transform[name].append(eval(diff_tf['class'])())
+        params['param_class'].pop('transform')
+        name = env_var + params['param_class']['root']
+        params['param_class'].pop('root')
+        return eval(params['class'])(root=name, transform=transform, **params['param_class'])
+
     def train(self):
-        raise NotImplementedError()
+        logger.info('Initial saving before training.')
+        self.save(self.trainer.serialize())
+
+        logger.info('Getting the first validation score...')
+        self.trainer.eval(dataset=self.data['val'],
+                          score_function=self.eval_func,
+                          ep=self.curr_epoch)
+
+        dtload = utils.data.DataLoader(self.data['train'],
+                                       batch_size=self.batch_size,
+                                       num_workers=self.num_workers,
+                                       shuffle=self.shuffle)
+
+        try:
+            # End training criteria initiation
+            criteria_loss = [False] * self.sucess_bad_epoch
+            criteria_val = [False] * self.sucess_bad_epoch
+
+            for ep in range(self.curr_epoch, self.max_epoch):
+                logger.info('Training network for ep {}'.format(ep + 1))
+                for b in tqdm.tqdm(dtload):
+                    self.trainer.train(b)
+                self.curr_epoch += 1
+                self.trainer.eval(dataset=self.data['val'],
+                                  score_function=self.eval_func,
+                                  ep=self.curr_epoch)
+
+                loss = [sum(elem) for elem in zip(*self.trainer.loss_log.values())]
+                criteria_loss.pop()
+                criteria_loss.append(self.compute_stop_criteria(loss, float.__lt__))
+                criteria_val.pop()
+                criteria_val.append(self.compute_stop_criteria(self.trainer.val_score, self.eval_func.rank_score))
+                if False not in criteria_loss + criteria_val:
+                    break
+        except KeyboardInterrupt:
+            logger.error('Aborting training with interruption:\n{}'.format(sys.exc_info()[0]))
+        finally:
+            self.save(self.trainer.serialize())
 
     def test(self):
-        raise NotImplementedError()
+        self.results = self.trainer.test(dataset=self.data['test'],
+                                         score_functions=self.test_func)
+        self.save(self.trainer.serialize())
 
     def save(self, datas):
         self.params['saved_files'] = dict()
@@ -79,7 +137,8 @@ class Base:
             torch.save(data, self.root + name + '.pth')
 
         self.params['curr_epoch'] = self.curr_epoch
-        self.params['score'] = self.results
+        self.params['score_file'] = self.root + 'score_file.pth'
+        torch.save(self.results, self.root + 'score_file.pth')
         with open(self.root + self.param_file, 'wt') as f:
             f.write(yaml.safe_dump(self.params))
         logger.info('Checkpoint saved at epoch {}'.format(self.curr_epoch))
@@ -89,6 +148,7 @@ class Base:
         for name, file in self.params['saved_files'].items():
             datas[name] = torch.load(file)
         self.trainer.load(datas)
+        self.results = torch.load(self.params['score_file'])
 
     def plot(self, **kwargs):
         print_loss = kwargs.pop('print_loss', True)
@@ -98,7 +158,6 @@ class Base:
 
         if print_loss:
             nbtch = round(size_dataset/self.batch_size)
-            print(nbtch, size_dataset, self.batch_size)
             losses = self.trainer.loss_log
             f, axes = plt.subplots(len(losses) + 1, sharex=True)
             for i, (name, vals) in enumerate(losses.items()):
@@ -147,7 +206,6 @@ class Base:
             if len(scores_to_plot):
                 f, axes = plt.subplots(len(scores_to_plot) + 1, sharex=True)
                 for i, (name, vals) in enumerate(scores_to_plot):
-                    print(vals)
                     axes[i].plot(vals)
                     axes[i].set_title(name)
                 handles = list()
@@ -169,16 +227,11 @@ class Base:
 
         moy = sum(derive[:seuil])/seuil
         logger.info('[STOP CRITERIA] Mean of latest derivative value is {}'.format(moy))
-        if criteria == 'minimize':
-            if moy + self.stop_criteria_epsilon > 0:
-                return True  # Stop training
-            else:
-                return False  # Continue training
-        elif criteria == 'maximize':
-            if moy - self.stop_criteria_epsilon > 0:
-                return False  # Continue training
-            else:
-                return True  # Stop training
+
+        if criteria(moy, 0):
+            return False  # Stop training
+        else:
+            return True  # Continue training
 
 
 if __name__ == '__main__':
