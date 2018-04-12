@@ -21,7 +21,7 @@ class BaseTrainer:
         self.loss_log = dict()
 
         self.network.cpu()
-        self.best_net = (0, copy.deepcopy(self.network.state_dict()))
+        self.best_net = (None, copy.deepcopy(self.network.state_dict()))
         self.cuda_func(self.network)
         self.optimizer = None
 
