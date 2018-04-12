@@ -31,7 +31,10 @@ class RecallAtN:
 
     @staticmethod
     def rank_score(new_score, old_score):
-        return new_score > old_score
+        if old_score == None:
+            return True
+        else:
+            return new_score > old_score
 
 
 class MeanRecallAtN:
@@ -63,7 +66,10 @@ class MeanRecallAtN:
 
     @staticmethod
     def rank_score(new_score, old_score):
-        return new_score > old_score
+        if old_score == None:
+            return True
+        else:
+            return new_score > old_score
 
 
 class Recall:
@@ -114,7 +120,10 @@ class GlobalPoseError:
 
     @staticmethod
     def rank_score(new_score, old_score):
-        return new_score < old_score
+        if old_score == None:
+            return True
+        else:
+            return new_score < old_score
 
 if __name__ == '__main__':
     n_queries = 200
