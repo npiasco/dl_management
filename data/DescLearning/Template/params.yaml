@@ -1,7 +1,8 @@
-batch_size: 5
-curr_epoch: 23
-max_epoch: 25
-saved_files: {best_network: /home/nathan/Dev/Code/dl_management/data/testing_sys/best_network.pth,
-  loss: /home/nathan/Dev/Code/dl_management/data/testing_sys/loss.pth, network: /home/nathan/Dev/Code/dl_management/data/testing_sys/network.pth,
-  optimizer: /home/nathan/Dev/Code/dl_management/data/testing_sys/optimizer.pth, val_score: /home/nathan/Dev/Code/dl_management/data/testing_sys/val_score.pth}
-score_file: /home/nathan/Dev/Code/dl_management/data/testing_sys/score_file.pth
+batch_size: 25
+curr_epoch: 0
+max_epoch: 50
+num_workers: 16
+shuffle: True
+min_value_to_stop: 10  # Required 10 validation value (10 ep) before considering stop training
+sucess_bad_epoch: 2  # When to stop on consecutive bad ep
+score_file: None
