@@ -14,33 +14,49 @@ def mean_dist(predicted, gt):
 
 
 class AlphaWeights:
-    def __init__(self, init_weight=(0, -3), cuda=True):
+    def __init__(self, init_weight=(0, -3), cuda=False):
+
         self.alpha = torch.nn.Parameter(torch.Tensor(init_weight),
                                         requires_grad=True)
-        self.cuda = cuda
-
-    def cuda_func(self, elem):
-        return elem.cuda() if self.cuda else elem
+        if cuda:
+            self.cuda()
 
     def combine(self, l1, l2):
-        return l1 * torch.exp(-1 * self.cuda_func(self.alpha[0])) + \
-               l2 * torch.exp(-1 * self.cuda_func(self.alpha[1]))
+        return l1 * torch.exp(-1 * self.alpha[0]) + \
+               l2 * torch.exp(-1 * self.alpha[1])
 
     @property
     def params(self):
         return [
-            {'params': self.cuda_func(self.alpha)}
+            {'params': self.alpha}
         ]
+
+    def cuda(self):
+        self.alpha.data = self.alpha.data.cuda()
+
+    def cpu(self):
+        self.alpha.data = self.alpha.data.cpu()
+
+    def state_directory(self):
+        return self.alpha.data
+
+    def load_state_directory(self, data):
+        self.alpha.data = data
 
 
 class BetaWeights:
-    def __init__(self, init_weight=312, cuda=True):
+    def __init__(self, init_weight=312):
         self.beta = init_weight
-        self.cuda = cuda
 
-    def combine(self, l1, l2):
+    def combine(self, l1, l2, cuda_func):
         return l1 + l2 * self.beta
 
     @property
     def params(self):
         return []
+
+    def state_directory(self):
+        return self.beta
+
+    def load_state_directory(self, data):
+        self.beta = data

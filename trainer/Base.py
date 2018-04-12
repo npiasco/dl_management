@@ -1,6 +1,8 @@
 import setlog
 import torch.optim as optim
 import copy
+import torch
+
 
 logger = setlog.get_logger(__name__)
 
@@ -40,7 +42,7 @@ class BaseTrainer:
         if self.cuda_on:
             return x.cuda()
         else:
-            return x
+            return x.cpu()
 
     def train(self, batch):
         raise NotImplementedError()
@@ -52,19 +54,49 @@ class BaseTrainer:
         raise NotImplementedError()
 
     def serialize(self):
+        self.network.cpu()
+        for state in self.optimizer.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = v.cpu()
+
         ser = {
-            'network': self.network.state_dict(),
-            'best_network': self.best_net,
-            'optimizer': self.optimizer.state_dict(),
-            'loss': self.loss_log,
-            'val_score': self.val_score
+            'network': copy.deepcopy(self.network.state_dict()),
+            'best_network': copy.deepcopy(self.best_net),
+            'optimizer': copy.deepcopy(self.optimizer.state_dict()),
+            'loss': copy.deepcopy(self.loss_log),
+            'val_score': copy.deepcopy(self.val_score)
         }
+
+        self.cuda_func(self.network)
+        for state in self.optimizer.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = self.cuda_func(v)
 
         return ser
 
     def load(self, datas):
+        self.network.cpu()
+        for state in self.optimizer.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = v.cpu()
+
         self.network.load_state_dict(datas['network'])
         self.best_net = datas['best_network']
-        self.optimizer.load_state_dict(datas['optimizer'])
         self.loss_log = datas['loss']
         self.val_score = datas['val_score']
+
+        self.cuda_func(self.network)
+
+        self.optimizer = self.init_optimizer(
+            self.network.get_training_layers()
+        )
+
+        self.optimizer.load_state_dict(datas['optimizer'])
+
+        for state in self.optimizer.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = self.cuda_func(v)

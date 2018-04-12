@@ -50,9 +50,9 @@ class Trainer(Base.BaseTrainer):
         # Reset gradients
         self.optimizer.zero_grad()
         # Forward pass
-        pose = self.network(self.cuda_func(auto.Variable(batch[self.mod], requires_grad=True)))
-        gt_pos, gt_ori = (self.cuda_func(auto.Variable(batch['pose']['position'].float())),
-                          self.cuda_func(auto.Variable(batch['pose']['orientation'].float())))
+        pose = self.network(auto.Variable(self.cuda_func(batch[self.mod]), requires_grad=True))
+        gt_pos, gt_ori = (auto.Variable(self.cuda_func(batch['pose']['position'].float())),
+                          auto.Variable(self.cuda_func(batch['pose']['orientation'].float())))
 
         pos_loss = self.pos_loss(pose['p'], gt_pos)
         ori_loss = self.ori_loss(pose['q'], gt_ori)
@@ -98,11 +98,11 @@ class Trainer(Base.BaseTrainer):
         }
         logger.info('Computing position and orientation errors')
         for example in tqdm.tqdm(dataloader):
-            pose = network(self.cuda_func(auto.Variable(example[self.mod],
-                                                        requires_grad=False)))
-            errors['position'].append(np.linalg.norm(pose['p'].data.numpy() -
+            pose = network(auto.Variable(self.cuda_func(example[self.mod]),
+                                         requires_grad=False))
+            errors['position'].append(np.linalg.norm(pose['p'].cpu().data.numpy() -
                                                      example['pose']['position'].numpy()))
-            errors['orientation'].append(self.distance_between_q(pose['q'].data.numpy()[0],
+            errors['orientation'].append(self.distance_between_q(pose['q'].cpu().data.numpy()[0],
                                                                  example['pose']['orientation'].numpy()[0]))
         return errors
 
@@ -123,12 +123,41 @@ class Trainer(Base.BaseTrainer):
 
     def serialize(self):
         ser = Base.BaseTrainer.serialize(self)
-        ser['combining_loss'] = self.combining_loss
+        self.combining_loss.cpu()
+        ser['combining_loss'] = copy.deepcopy(self.combining_loss.state_directory())
+        self.cuda_func(self.combining_loss)
         return ser
 
     def load(self, datas):
-        Base.BaseTrainer.load(self, datas)
-        self.combining_loss = datas['combining_loss']
+        self.combining_loss.cpu()
+        self.network.cpu()
+
+        self.optimizer.load_state_dict(datas['optimizer'])
+
+        for state in self.optimizer.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = self.cuda_func(v)
+
+        self.combining_loss.load_state_directory(datas['combining_loss'])
+        self.network.load_state_dict(datas['network'])
+        self.best_net = datas['best_network']
+        self.loss_log = datas['loss']
+        self.val_score = datas['val_score']
+
+        self.cuda_func(self.combining_loss)
+        self.cuda_func(self.network)
+
+        self.optimizer = self.init_optimizer(
+            self.network.get_training_layers() + self.combining_loss.params
+        )
+
+        self.optimizer.load_state_dict(datas['optimizer'])
+
+        for key, state in self.optimizer.state.items():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = self.cuda_func(v)
 
 
 if __name__ == '__main__':
