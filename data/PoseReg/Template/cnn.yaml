@@ -2,12 +2,10 @@ class: 'networks.Pose.Main'
 param_class:
     end_relu: True
     batch_norm: False
-    num_inter_layers: 0
-    batch_norm: False
-    base_archi: Alexnet
+    base_archi: 'Alexnet'
     load_imagenet: True
     input_im_size: 224
-    layers_to_train: all
+    layers_to_train: 'all'
     size_layer: 2048
     num_inter_layers: 1
     custom_input_size: 3  # i.e adaptive max pooling over last features map (R*R)
