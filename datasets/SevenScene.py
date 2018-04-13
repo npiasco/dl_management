@@ -68,7 +68,7 @@ class Base(utils.Dataset):
             if 'first' in self.transform:
                 sample = torchvis.transforms.Compose(self.transform['first'])(sample)
             for mod in self.transform:
-                if mod not in ('first',):
+                if mod not in ('first',) and mod in self.used_mod:
                     sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod: sample[mod]})[mod]
 
         pose_file = self.folders[fold] + 'frame-' + num + '.pose.txt'
