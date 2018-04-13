@@ -1,8 +1,9 @@
 import setlog
 import yaml
 import os
-import trainers.minning_function
 import system.BaseClass as BaseClass
+import trainers.minning_function
+import trainers.TripletTrainers
 import datasets.Robotcar                # Needed for class creation with eval
 import torch.nn.functional
 import networks.Descriptor              # Needed for class creation with eval
@@ -44,13 +45,13 @@ class Default(BaseClass.Base):
         self.training_mod = dataset_params['training_mod']
         self.testing_mod = dataset_params['testing_mod']
 
-        self._network = eval(self.network_params['class'])(**self.network_params['param_class'])
+        self.network = eval(self.network_params['class'])(**self.network_params['param_class'])
 
         triplet_loss = self.trainer_params['param_class'].pop('triplet_loss',
                                                               'torch.nn.functional.triplet_margin_loss')
         minning_func = self.trainer_params['param_class'].pop('minning_func',
                                                               'trainers.minning_function.random')
-        self.trainer = eval(self.trainer_params['class'])(network=self._network,
+        self.trainer = eval(self.trainer_params['class'])(network=self.network,
                                                           triplet_loss=eval(triplet_loss),
                                                           minning_func=eval(minning_func),
                                                           **self.trainer_params['param_class'])

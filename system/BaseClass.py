@@ -64,7 +64,7 @@ class Base:
 
         self.results = None
         self.data = None
-        self._network = None
+        self.network = None
         self.trainer = None
 
     @staticmethod
@@ -102,7 +102,7 @@ class Base:
             criteria_val = [False] * self.sucess_bad_epoch
 
             for ep in range(self.curr_epoch, self.max_epoch):
-                logger.info('Training _network for ep {}'.format(ep + 1))
+                logger.info('Training network for ep {}'.format(ep + 1))
                 for b in tqdm.tqdm(dtload):
                     self.trainer.train(b)
                 self.curr_epoch += 1

@@ -3,7 +3,9 @@ import yaml
 import os
 import system.BaseClass as BaseClass
 import datasets.SevenScene              # Needed for class creation with eval
-
+import trainers.loss_functions
+import trainers.PoseTrainers
+import networks.Pose
 
 logger = setlog.get_logger(__name__)
 
@@ -29,8 +31,20 @@ class Default(BaseClass.Base):
         self.testing_mod = dataset_params['testing_mod']
 
         self.network = eval(self.network_params['class'])(**self.network_params['param_class'])
+
+        pos_loss = self.trainer_params['param_class'].pop('pos_loss',
+                                                          'trainers.loss_functions.mean_dist')
+        ori_loss = self.trainer_params['param_class'].pop('ori_loss',
+                                                          'trainers.loss_functions.mean_dist')
+        combining_loss = self.trainer_params['param_class'].pop('combining_loss',
+                                                                'trainers.loss_functions.AlphaWeights')
+
         self.trainer = eval(self.trainer_params['class'])(network=self.network,
+                                                          pos_loss=eval(pos_loss),
+                                                          ori_loss=eval(ori_loss),
+                                                          combining_loss=eval(combining_loss)(),
                                                           **self.trainer_params['param_class'])
+
         if self.curr_epoch != 0:
             self.load()
 
