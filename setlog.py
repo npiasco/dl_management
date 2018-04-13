@@ -1,7 +1,7 @@
 import logging.config
 import logging
 import yaml
-import time
+import time, os
 
 
 # Default configuration
@@ -33,11 +33,16 @@ logger.debug('Log set to default behaviour:')
 logger.debug(str(def_config))
 
 
-def config_log(conf_file, log_file):
+def config_log(conf_file, log_folder):
     logger.debug('Loading logging file {}'.format(conf_file))
     with open(conf_file, 'rt') as f:
         config = yaml.safe_load(f.read())
-    config['handlers']['file']['filename'] = log_file + 'run_{}.log'.format(time.time())
+    try:
+        os.mkdir(log_folder)
+    except FileExistsError:
+        print('Directory {} already exist'.format(log_folder))
+
+    config['handlers']['file']['filename'] = log_folder + 'run_{}.log'.format(time.time())
     return config
 
 
