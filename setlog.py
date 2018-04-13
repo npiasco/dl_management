@@ -33,17 +33,17 @@ logger.debug('Log set to default behaviour:')
 logger.debug(str(def_config))
 
 
-def config_log(file, root='/home/nathan/Dev/Code/dl_management/'):
-    logger.debug('Loading logging file {}'.format(root + file))
-    with open(root + file, 'rt') as f:
+def config_log(conf_file, log_file):
+    logger.debug('Loading logging file {}'.format(conf_file))
+    with open(conf_file, 'rt') as f:
         config = yaml.safe_load(f.read())
-    config['handlers']['file']['filename'] = root + '.log/run_{}.log'.format(time.time())
+    config['handlers']['file']['filename'] = log_file + 'run_{}.log'.format(time.time())
     return config
 
 
-def reconfigure(file, root):
-    logger.debug('Reconfiguring logging with file {}'.format(root + file))
-    config = config_log(file, root)
+def reconfigure(conf_file, log_file):
+    logger.debug('Reconfiguring logging with file {}'.format(conf_file))
+    config = config_log(conf_file, log_file)
     logging.config.dictConfig(config)
 
 
