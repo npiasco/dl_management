@@ -111,9 +111,9 @@ class Base:
                                   ep=self.curr_epoch)
 
                 loss = [sum(elem) for elem in zip(*self.trainer.loss_log.values())]
-                criteria_loss.pop()
+                criteria_loss.pop(0)
                 criteria_loss.append(self.compute_stop_criteria(loss, float.__lt__))
-                criteria_val.pop()
+                criteria_val.pop(0)
                 criteria_val.append(self.compute_stop_criteria(self.trainer.val_score, self.eval_func.rank_score))
                 if False not in criteria_loss + criteria_val:
                     break
