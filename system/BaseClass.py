@@ -224,11 +224,13 @@ class Base:
 
         moy = sum(derive[:seuil])/seuil
         logger.info('[STOP CRITERIA] Mean of latest derivative value is {}'.format(moy))
+        if abs(moy) < self.stop_criteria_epsilon:
+            return True  # Stop training, derivative vanishing
 
         if criteria(moy, 0):
-            return False  # Stop training
+            return False  # Continue training
         else:
-            return True  # Continue training
+            return True  # Stop training
 
 
 if __name__ == '__main__':
