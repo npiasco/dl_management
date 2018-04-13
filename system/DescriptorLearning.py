@@ -4,6 +4,7 @@ import os
 import system.BaseClass as BaseClass
 import trainers.minning_function
 import trainers.TripletTrainers
+import trainers.loss_functions
 import datasets.Robotcar                # Needed for class creation with eval
 import torch.nn.functional
 import networks.Descriptor              # Needed for class creation with eval

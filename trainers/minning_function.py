@@ -18,3 +18,17 @@ def random(trainer, batch, mode):
 
 def hard_minning(trainer, batch, mode):
     raise NotImplementedError
+
+
+def no_selection(trainer, batch, mode):
+    exemples = {
+        'desc': list(),
+        'feat': list()
+    }
+
+    for ex in batch[mode]:
+        forward = trainer.network(auto.Variable(trainer.cuda_func(ex[trainer.mod]), requires_grad=True))
+        exemples['desc'].append(forward['desc'])
+        exemples['feat'].append(forward['feat'])
+
+    return exemples
