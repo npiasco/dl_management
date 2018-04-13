@@ -130,13 +130,13 @@ class Base:
     def save(self, datas):
         self.params['saved_files'] = dict()
         for name, data in datas.items():
-            self.params['saved_files'][name] = self.root + name + '.pth'
-            torch.save(data, self.root + name + '.pth')
+            self.params['saved_files'][name] = name + '.pth'
+            torch.save(data, name + '.pth')
 
         self.params['curr_epoch'] = self.curr_epoch
-        self.params['score_file'] = self.root + 'score_file.pth'
-        torch.save(self.results, self.root + 'score_file.pth')
-        with open(self.root + self.param_file, 'wt') as f:
+        self.params['score_file'] = 'score_file.pth'
+        torch.save(self.results, 'score_file.pth')
+        with open(self.param_file, 'wt') as f:
             f.write(yaml.safe_dump(self.params))
         logger.info('Checkpoint saved at epoch {}'.format(self.curr_epoch))
 
