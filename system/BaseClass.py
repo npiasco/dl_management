@@ -22,7 +22,7 @@ class Base:
     def __init__(self, **kwargs):
         self.root = kwargs.pop('root', None)
         self.param_file = kwargs.pop('dataset_file', 'params.yaml')
-        self.trainer_file = kwargs.pop('trainer_file', 'trainers.yaml')
+        self.trainer_file = kwargs.pop('trainer_file', 'trainer.yaml')
         self.cnn_file = kwargs.pop('cnn_type', 'cnn.yaml')
         if kwargs:
             logger.error('Unexpected **kwargs: %r' % kwargs)
