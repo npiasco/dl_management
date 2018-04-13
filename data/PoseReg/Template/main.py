@@ -11,7 +11,7 @@ import system.PoseRegression as System
 
 
 if __name__ == '__main__':
-    machine = System.Default(root=os.path.dirname(sys.argv[0]) + '/')
+    machine = System.Default(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])])
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':
         machine.train()
