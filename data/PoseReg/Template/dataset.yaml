@@ -4,10 +4,15 @@ train:
         root: 'heads/'
         transform:
             first:
+                - {class: 'datasets.multmodtf.Resize', param_class: {size: 360}}
                 - {class: 'datasets.multmodtf.RandomResizedCrop', param_class: {size: 224}}
             rgb:
+                - {class: 'datasets.multmodtf.ColorJitter', param_class:}
                 - {class: 'datasets.multmodtf.ToTensor', param_class:}
-                - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.485, 0.456, 0.406], std: [0.229, 0.224, 0.225]}}
+                - {class: 'datasets.multmodtf.Normalize', param_class:}
+            depth:
+                - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                - {class: 'datasets.multmodtf.DepthTransform', param_class:}
 test:
     class: datasets.SevenScene.Test
     param_class:
@@ -17,7 +22,10 @@ test:
                 - {class: 'datasets.multmodtf.Resize', param_class: {size: [224,224]}}
             rgb:
                 - {class: 'datasets.multmodtf.ToTensor', param_class:}
-                - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.485, 0.456, 0.406], std: [0.229, 0.224, 0.225]}}
+                - {class: 'datasets.multmodtf.Normalize', param_class:}
+            depth:
+                - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                - {class: 'datasets.multmodtf.DepthTransform', param_class:}
 val:
     class: datasets.SevenScene.Val
     param_class:
@@ -27,6 +35,10 @@ val:
                 - {class: 'datasets.multmodtf.Resize', param_class: {size: [224,224]}}
             rgb:
                 - {class: 'datasets.multmodtf.ToTensor', param_class:}
-                - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.485, 0.456, 0.406], std: [0.229, 0.224, 0.225]}}
+                - {class: 'datasets.multmodtf.Normalize', param_class:}
+            depth:
+                - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                - {class: 'datasets.multmodtf.DepthTransform', param_class:}
+
 testing_mod: ['rgb']
 training_mod: ['rgb']

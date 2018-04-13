@@ -2,16 +2,17 @@
 import os, sys
 import setlog
 
-file = '.log/logging.yaml'
-root = os.environ['DEV'] + 'dl_management/'
-setlog.reconfigure(file, root)
+conf_file = os.environ['DEV'] + 'dl_management/.log/logging.yaml'
+save_file = os.path.abspath(sys.argv[0])[:-len(sys.argv[0])] + 'log/'
+setlog.reconfigure(conf_file, save_file)
+
 
 import system.PoseRegression as System
 
 
 if __name__ == '__main__':
     machine = System.Default(root=os.path.dirname(sys.argv[0]) + '/')
-    action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test')
+    action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':
         machine.train()
     elif action == 'e':

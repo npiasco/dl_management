@@ -1,6 +1,15 @@
-class: 'trainer.PoseTrainers.Trainer'
+class: 'trainers.PoseTrainers.Trainer'
 param_class:
     cuda_on: True
+    lr: 0.00001
+    momentum: 0.9
+    weight_decay: 0.001
+    optimizer_type: 'ADAM'
+    val_num_workers: 8
+    pos_loss: 'trainers.loss_functions.mean_dist'
+    ori_loss: 'trainers.loss_functions.mean_dist'
+    combining_loss: 'trainers.loss_functions.AlphaWeights'
+    mod: 'rgb'
 eval_class: 'score.Functions.GlobalPoseError'
 param_eval_class:
     data_type: 'position'
