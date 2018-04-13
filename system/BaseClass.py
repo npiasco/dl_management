@@ -3,17 +3,16 @@ import yaml
 import torch.utils.data
 import copy
 import matplotlib.pyplot as plt
-import networks.Descriptor              # Needed for class creation with eval
-import networks.Pose                    # Needed for class creation with eval
-import trainer.TripletTrainers          # Needed for class creation with eval
-import trainer.PoseTrainers             # Needed for class creation with eval
-import score.Functions                  # Needed for class creation with eval
-import datasets.Robotcar                # Needed for class creation with eval
-import datasets.SevenScene              # Needed for class creation with eval
-
 import torch.utils as utils
 import tqdm
 import sys
+import networks.Descriptor              # Needed for class creation with eval
+import networks.Pose                    # Needed for class creation with eval
+import trainers.TripletTrainers          # Needed for class creation with eval
+import trainers.PoseTrainers             # Needed for class creation with eval
+import score.Functions                  # Needed for class creation with eval
+import datasets.Robotcar                # Needed for class creation with eval
+import datasets.SevenScene              # Needed for class creation with eval
 
 
 logger = setlog.get_logger(__name__)
@@ -23,7 +22,7 @@ class Base:
     def __init__(self, **kwargs):
         self.root = kwargs.pop('root', None)
         self.param_file = kwargs.pop('dataset_file', 'params.yaml')
-        self.trainer_file = kwargs.pop('trainer_file', 'trainer.yaml')
+        self.trainer_file = kwargs.pop('trainer_file', 'trainers.yaml')
         self.cnn_file = kwargs.pop('cnn_type', 'cnn.yaml')
         if kwargs:
             logger.error('Unexpected **kwargs: %r' % kwargs)
@@ -36,7 +35,7 @@ class Base:
 
         with open(self.root + self.trainer_file, 'rt') as f:
             self.trainer_params = yaml.safe_load(f)
-            logger.debug('_trainer param files is {}:'.format(self.root + self.trainer_file))
+            logger.debug('trainer param files is {}:'.format(self.root + self.trainer_file))
             logger.debug(yaml.safe_dump(self.trainer_params))
 
         self.eval_func = eval(self.trainer_params['eval_class'])(**self.trainer_params['param_eval_class'])
@@ -66,7 +65,7 @@ class Base:
         self.results = None
         self.data = None
         self._network = None
-        self._trainer = None
+        self.trainer = None
 
     @staticmethod
     def creat_dataset(params, env_var):
@@ -85,10 +84,10 @@ class Base:
 
     def train(self):
         logger.info('Initial saving before training.')
-        self.save(self._trainer.serialize())
+        self.save(self.trainer.serialize())
 
         logger.info('Getting the first validation score...')
-        self._trainer.eval(dataset=self.data['val'],
+        self.trainer.eval(dataset=self.data['val'],
                           score_function=self.eval_func,
                           ep=self.curr_epoch)
 
@@ -105,28 +104,28 @@ class Base:
             for ep in range(self.curr_epoch, self.max_epoch):
                 logger.info('Training _network for ep {}'.format(ep + 1))
                 for b in tqdm.tqdm(dtload):
-                    self._trainer.train(b)
+                    self.trainer.train(b)
                 self.curr_epoch += 1
-                self._trainer.eval(dataset=self.data['val'],
+                self.trainer.eval(dataset=self.data['val'],
                                   score_function=self.eval_func,
                                   ep=self.curr_epoch)
 
-                loss = [sum(elem) for elem in zip(*self._trainer.loss_log.values())]
+                loss = [sum(elem) for elem in zip(*self.trainer.loss_log.values())]
                 criteria_loss.pop()
                 criteria_loss.append(self.compute_stop_criteria(loss, float.__lt__))
                 criteria_val.pop()
-                criteria_val.append(self.compute_stop_criteria(self._trainer.val_score, self.eval_func.rank_score))
+                criteria_val.append(self.compute_stop_criteria(self.trainer.val_score, self.eval_func.rank_score))
                 if False not in criteria_loss + criteria_val:
                     break
         except KeyboardInterrupt:
             logger.error('Aborting training with interruption:\n{}'.format(sys.exc_info()[0]))
         finally:
-            self.save(self._trainer.serialize())
+            self.save(self.trainer.serialize())
 
     def test(self):
-        self.results = self._trainer.test(dataset=self.data['test'],
+        self.results = self.trainer.test(dataset=self.data['test'],
                                          score_functions=self.test_func)
-        self.save(self._trainer.serialize())
+        self.save(self.trainer.serialize())
 
     def save(self, datas):
         self.params['saved_files'] = dict()
@@ -145,7 +144,7 @@ class Base:
         datas = dict()
         for name, file in self.params['saved_files'].items():
             datas[name] = torch.load(file)
-        self._trainer.load(datas)
+        self.trainer.load(datas)
         self.results = torch.load(self.params['score_file'])
 
     def plot(self, **kwargs):
@@ -156,7 +155,7 @@ class Base:
 
         if print_loss:
             nbtch = round(size_dataset/self.batch_size)
-            losses = self._trainer.loss_log
+            losses = self.trainer.loss_log
             f, axes = plt.subplots(len(losses) + 1, sharex=True)
             for i, (name, vals) in enumerate(losses.items()):
                 axes[i].plot(vals)
@@ -188,11 +187,11 @@ class Base:
 
         if print_val:
             plt.figure()
-            plt.plot(self._trainer.val_score)
+            plt.plot(self.trainer.val_score)
             plt.title('Validation score')
 
         if print_score:
-            print('Validation score is {}'.format(self._trainer.best_net[0]))
+            print('Validation score is {}'.format(self.trainer.best_net[0]))
             scores_to_plot = list()
             for i, (name, vals) in enumerate(self.results.items()):
                 try:

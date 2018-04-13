@@ -26,7 +26,9 @@ class Main(nn.Module):
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
         if base_archi == 'Alexnet':
-            self.feature = Alexnet.Feat(batch_norm=batch_norm, end_relu=end_relu, load_imagenet=load_imagenet)
+            self.feature = Alexnet.Feat(batch_norm=batch_norm,
+                                        end_relu=end_relu,
+                                        load_imagenet=load_imagenet)
 
         if agg_method == 'RMAC':
             self.descriptor = Agg.RMAC(R=R, norm=desc_norm)

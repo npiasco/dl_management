@@ -1,8 +1,8 @@
 import setlog
-import trainer.Base as Base
+import trainers.Base as Base
 import torch.nn.functional as func
 import torch.autograd as auto
-import trainer.minning_function as minning
+import trainers.minning_function as minning
 import datasets.Robotcar as Robotcar
 import torch.utils as utils
 import torch.utils.data

@@ -1,7 +1,7 @@
 import setlog
-import trainer.Base as Base
+import trainers.Base as Base
 import torch.autograd as auto
-import trainer.loss_functions as loss_func
+import trainers.loss_functions as loss_func
 import torch.utils as utils
 import torch.utils.data
 import os

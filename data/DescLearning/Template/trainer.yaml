@@ -8,7 +8,7 @@ param_class:
     val_num_workers: 8
     triplet_loss: 'torch.nn.functional.triplet_margin_loss'
     margin: 0.25
-    minning_func: 'trainer.minning_function.random'
+    minning_func: 'trainers.minning_function.random'
     mod: 'rgb'
 
 eval_class: 'score.Functions.RecallAtN'
