@@ -20,7 +20,7 @@ train:
                 transform:
                     first:
                         - {class: 'datasets.multmodtf.Resize', param_class: {size: 280}}
-                        - {class: 'datasets.multmodtf.RandomCrop', param_class: {size: [224, 224]}}
+                        - {class: 'datasets.multmodtf.RandomCrop', param_class: {size: 224}}
                     rgb:
                         - {class: 'datasets.multmodtf.ToTensor', param_class:}
                     depth:
@@ -41,7 +41,7 @@ train:
                             first:
                                 [
                                     {class: 'datasets.multmodtf.Resize', param_class: {size: 280}},
-                                    {class: 'datasets.multmodtf.RandomCrop', param_class: {size: [224, 224]}}
+                                    {class: 'datasets.multmodtf.RandomCrop', param_class: {size: 224}}
                                 ],
                             rgb:
                                 [
@@ -71,7 +71,7 @@ train:
                             first:
                                 [
                                     {class: 'datasets.multmodtf.Resize', param_class: {size: 280}},
-                                    {class: 'datasets.multmodtf.RandomCrop', param_class: {size: [224, 224]}}
+                                    {class: 'datasets.multmodtf.RandomCrop', param_class: {size: 224}}
                                 ],
                             rgb:
                                 [
@@ -116,9 +116,9 @@ val:
     queries:
         class: datasets.Robotcar.VBLDataset
         param_class:
-            root: 'training/TrainDataset2/'
+            root: 'training/TrainDataset3v2/'
             modalities: {rgb: 'dataset.txt'}
-            coord_file: 'coordxIm.txt'
+            coord_file: 'val_coordxIm.txt'
             bearing: False
             transform:
                 first:
@@ -127,9 +127,9 @@ val:
     data:
         class: datasets.Robotcar.VBLDataset
         param_class:
-            root: 'training/TrainDataset3/'
+            root: 'training/TrainDataset2v2/'
             modalities: {rgb: 'dataset.txt'}
-            coord_file: 'coordxIm.txt'
+            coord_file: 'val_coordxIm.txt'
             bearing: False
             transform:
                 first:
