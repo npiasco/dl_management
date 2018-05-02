@@ -65,11 +65,11 @@ class TripletDataset(utils.data.Dataset):
 
         self.main = kwargs.pop('main', None)
         self.examples = kwargs.pop('examples', None)
-        self.num_positive = kwargs.pop('num_positives', 2)
+        self.num_positive = kwargs.pop('num_positives', 4)
         self.num_negative = kwargs.pop('num_negatives', 20)
         self.num_triplets = kwargs.pop('num_triplets', 1000)
-        self.max_pose_dist = kwargs.pop('max_pose_dist', 10)        # meters
-        self.min_neg_dist = kwargs.pop('min_neg_dist', 500)         # meters
+        self.max_pose_dist = kwargs.pop('max_pose_dist', 7)        # meters
+        self.min_neg_dist = kwargs.pop('min_neg_dist', 700)         # meters
         self.max_angle = kwargs.pop('max_angle', 0.174533)          # radians, 20 degrees
         load_triplets = kwargs.pop('load_triplets', None)
         self._used_mod = kwargs.pop('used_mod', ['rgb'])
@@ -88,7 +88,7 @@ class TripletDataset(utils.data.Dataset):
 
     def build_triplets(self):
         triplets = list()
-        for i in tqdm.tqdm(np.random.choice(range(len(self.main.coord)), size=len(self.main.coord), replace=False)):
+        for i in np.random.choice(range(len(self.main.coord)), size=len(self.main.coord), replace=False):
             q = self.main.coord.values[i]
             triplet = {
                 'positives': [],
@@ -108,9 +108,12 @@ class TripletDataset(utils.data.Dataset):
                     and len(triplet['positives']) >= self.num_positive \
                     and len(triplet['negatives']) >= self.num_negative:
                 triplet['query'] = i
-                np.random.shuffle(triplet['negatives'])  # Random shuffeling to have diversity when calling
+                np.random.shuffle(triplet['negatives'])  # Random shuffling to have diversity when calling
+                np.random.shuffle(triplet['positives'])  # Random shuffling to have diversity when calling
                 triplets.append(triplet)
-                logger.debug('Number of triplets {}'.format(len(triplets)))
+                logger.debug('New triplet with {} positives and {} negatives'.format(len(triplet['positives']),
+                                                                                     len(triplet['negatives'])))
+                logger.debug('Totoal number of triplets {}'.format(len(triplets)))
                 if len(triplets) == self.num_triplets:
                     break
 
@@ -160,8 +163,8 @@ if __name__ == '__main__':
 
     modtouse = {'rgb': 'dataset.txt', 'depth': 'depth_dataset.txt', 'ref': 'ref_dataset.txt'}
     transform = {
-        'first': (tf.RandomResizedCrop((420, 420)),),
-        'rgb': (tf.ToTensor(), tf.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])),
+        'first': (tf.Resize(280), tf.RandomCrop(224)),
+        'rgb': (tf.ToTensor(), ),
         'depth': (tf.ToTensor(),),
         'ref': (tf.ToTensor(),)
     }
@@ -195,7 +198,7 @@ if __name__ == '__main__':
                            transform=transform)
 
     triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_2, dataset_3],
-                                     num_triplets=200, num_positives=2, num_negative=20)
+                                     num_triplets=200, num_positives=4, num_negative=20)
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
     for b in dtload:
