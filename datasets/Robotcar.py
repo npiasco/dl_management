@@ -195,7 +195,8 @@ if __name__ == '__main__':
                            transform=transform)
 
     triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_2, dataset_3],
-                                     num_triplets=200, num_positives=2, num_negative=20)
+                                     num_triplets=400, num_positives=2, num_negatives=20)
+    torch.save(triplet_dataset.triplets, '400triplets.pth')
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
     for b in dtload:
