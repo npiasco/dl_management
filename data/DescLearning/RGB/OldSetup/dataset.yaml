@@ -117,7 +117,7 @@ val:
         class: datasets.Robotcar.VBLDataset
         param_class:
             root: 'training/TrainDataset3v2/'
-            modalities: {rgb: 'dataset.txt'}
+            modalities: {rgb: 'val_dataset.txt'}
             coord_file: 'val_coordxIm.txt'
             bearing: False
             transform:
@@ -128,7 +128,7 @@ val:
         class: datasets.Robotcar.VBLDataset
         param_class:
             root: 'training/TrainDataset2v2/'
-            modalities: {rgb: 'dataset.txt'}
+            modalities: {rgb: 'val_dataset.txt'}
             coord_file: 'val_coordxIm.txt'
             bearing: False
             transform:
