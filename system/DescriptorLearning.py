@@ -2,11 +2,14 @@ import setlog
 import yaml
 import os
 import system.BaseClass as BaseClass
+import torch.utils.data as data
+import torchvision as torchvis
+import matplotlib.pyplot as plt
+import torch.nn.functional
 import trainers.minning_function
 import trainers.TripletTrainers
 import trainers.loss_functions
 import datasets.Robotcar                # Needed for class creation with eval
-import torch.nn.functional
 import networks.Descriptor              # Needed for class creation with eval
 
 
@@ -74,8 +77,54 @@ class Default(BaseClass.Base):
         BaseClass.Base.plot(self, **kwargs, size_dataset=len(self.data['train']))
 
 
+    def print(self, dataset_name):
+        if dataset_name == 'train':
+            dtload = data.DataLoader(self.data[dataset_name], batch_size=4)
+        elif dataset_name == 'val_query':
+            dtload = data.DataLoader(self.data['val']['query'], batch_size=4)
+        elif dataset_name == 'val_data':
+            dtload = data.DataLoader(self.data['val']['data'], batch_size=4)
+        elif dataset_name == 'test_query':
+            dtload = data.DataLoader(self.data['test']['query'], batch_size=4)
+        elif dataset_name == 'test_data':
+            dtload = data.DataLoader(self.data['test']['data'], batch_size=4)
+        else:
+            raise AttributeError('No dataset {}'.format(dataset_name))
+
+        for b in dtload:
+            self.batch_print(b, dataset_name)
+            plt.show()
+
+    def batch_print(self, batch, data_name):
+        if data_name == 'train':
+            plt.figure(1)
+            plt.title('Query')
+            self._format_batch(batch['query'])
+            for i in range(2, 2 + len(batch['positives'])):
+                plt.figure(i)
+                plt.title('Positive ' + str(i))
+                self._format_batch(batch['positives'][i-2])
+            plt.figure(i+1)
+            plt.title('Negative')
+            self._format_batch(batch['negatives'][0])
+        else:
+            plt.figure(1)
+            self._format_batch(batch)
+
+    def _format_batch(self, batch):
+        buffer = tuple()
+        for name, mod in batch.items():
+            if name not in ('coord',):
+                buffer += (mod,)
+
+        images_batch = torch.cat(buffer, 0)
+        grid = torchvis.utils.make_grid(images_batch, nrow=4)
+        plt.imshow(grid.numpy().transpose((1, 2, 0)))
+
+
 if __name__ == '__main__':
-    system = Default(root=os.environ['DATA'] + 'DescLearning/')
+    system = Default(root=os.environ['DATA'] + 'DescLearning/RGB/OldSetup/')
+    system.print('train')
     system.train()
     system.test()
     system.plot()
