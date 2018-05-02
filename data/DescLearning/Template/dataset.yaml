@@ -3,7 +3,7 @@ train:
     param_class:
         load_triplets: '200triplets.pth'
         # In case of load_triplets: None
-        num_positives: 2
+        num_positives: 4
         num_negatives: 20
         num_triplets: 1000
         max_pose_dist: 10  # metre
