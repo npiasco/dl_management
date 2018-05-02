@@ -113,7 +113,7 @@ class TripletDataset(utils.data.Dataset):
                 triplets.append(triplet)
                 logger.debug('New triplet with {} positives and {} negatives'.format(len(triplet['positives']),
                                                                                      len(triplet['negatives'])))
-                logger.debug('Totoal number of triplets {}'.format(len(triplets)))
+                logger.debug('Total number of triplets {}'.format(len(triplets)))
                 if len(triplets) == self.num_triplets:
                     break
 
@@ -161,10 +161,16 @@ def show_batch(sample_batched):
 if __name__ == '__main__':
     root_to_folders = os.environ['ROBOTCAR'] + 'training/TrainDataset_02_10_15/'
 
-    modtouse = {'rgb': 'dataset.txt', 'depth': 'depth_dataset.txt', 'ref': 'ref_dataset.txt'}
+    modtouse = {'rgb': 'dataset.txt'}#, 'depth': 'depth_dataset.txt', 'ref': 'ref_dataset.txt'}
     transform = {
-        'first': (tf.Resize(280), tf.RandomCrop(224)),
-        'rgb': (tf.ToTensor(), ),
+        'first': (tf.Resize((420,420)),),
+        'rgb': (tf.Equalize(), tf.ToTensor(), ),
+        'depth': (tf.ToTensor(),),
+        'ref': (tf.ToTensor(),)
+    }
+    transform_wo_q = {
+        'first': (tf.Resize((420,420)),),
+        'rgb': (tf.ToTensor(),),
         'depth': (tf.ToTensor(),),
         'ref': (tf.ToTensor(),)
     }
@@ -192,13 +198,17 @@ if __name__ == '__main__':
                            modalities=modtouse,
                            coord_file='coordxImbearing.txt',
                            transform=transform)
+    dataset_2 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_05_19_15/',
+                           modalities=modtouse,
+                           coord_file='coordxImbearing.txt',
+                           transform=transform_wo_q)
     dataset_3 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_11_10_15/',
                            modalities=modtouse,
                            coord_file='coordxImbearing.txt',
                            transform=transform)
 
-    triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_2, dataset_3],
-                                     num_triplets=400, num_positives=4, num_negatives=20)
+    triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_2, ],
+                                     num_triplets=20, num_positives=1, num_negatives=20)
     torch.save(triplet_dataset.triplets, '400triplets.pth')
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 

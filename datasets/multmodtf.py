@@ -1,5 +1,6 @@
 import torchvision.transforms.functional as func
 import PIL.Image
+import PIL.ImageOps
 import torchvision.transforms as tf
 import setlog
 
@@ -97,5 +98,16 @@ class Normalize(tf.Normalize):
     def __call__(self, sample):
         for name, mod in sample.items():
             sample[name] = func.normalize(mod, self.mean, self.std)
+
+        return sample
+
+
+class Equalize:
+    def __init__(self, mask=None):
+        self.mask = mask
+
+    def __call__(self, sample):
+        for name, mod in sample.items():
+            sample[name] = PIL.ImageOps.equalize(mod, mask=self.mask)
 
         return sample

@@ -170,12 +170,12 @@ if __name__ == '__main__':
 
     logger.setLevel('INFO')
     test_tf = {
-            'first': (tf.Resize(240), tf.RandomResizedCrop(224),),
-            'rgb': (tf.ColorJitter(), tf.ToTensor()),
+            'first': (tf.Resize(240),),
+            'rgb': (tf.Equalize(), tf.ToTensor()),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
     test_tf_wo_tf = {
-            'first': (tf.Resize(240), tf.RandomCrop(224),),
+            'first': (tf.Resize(240),),
             'rgb': (tf.ToTensor(),),
         }
     root = os.environ['SEVENSCENES'] + 'chess/'
@@ -194,7 +194,7 @@ if __name__ == '__main__':
     print(len(test_dataset))
     print(len(val_dataset))
 
-    dataloader = data.DataLoader(train_dataset, batch_size=8, shuffle=False, num_workers=2)
+    dataloader = data.DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2)
     dataloader_wo_tf = data.DataLoader(train_dataset_wo_tf, batch_size=8, shuffle=False, num_workers=2)
     plt.figure(1)
     tmp_batch = dataloader.__iter__().__next__()
