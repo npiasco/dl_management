@@ -59,7 +59,7 @@ class Default(BaseClass.Base):
                                                           triplet_loss=eval(triplet_loss),
                                                           minning_func=eval(minning_func),
                                                           **self.trainer_params['param_class'])
-        if self.curr_epoch != 0:
+        if self.score_file is not None:
             self.load()
 
     def train(self):
@@ -81,13 +81,13 @@ class Default(BaseClass.Base):
         if dataset_name == 'train':
             dtload = data.DataLoader(self.data[dataset_name], batch_size=4)
         elif dataset_name == 'val_query':
-            dtload = data.DataLoader(self.data['val']['query'], batch_size=4)
+            dtload = data.DataLoader(self.data['val']['queries'], batch_size=16)
         elif dataset_name == 'val_data':
-            dtload = data.DataLoader(self.data['val']['data'], batch_size=4)
+            dtload = data.DataLoader(self.data['val']['data'], batch_size=16)
         elif dataset_name == 'test_query':
-            dtload = data.DataLoader(self.data['test']['query'], batch_size=4)
+            dtload = data.DataLoader(self.data['test']['queries'], batch_size=16)
         elif dataset_name == 'test_data':
-            dtload = data.DataLoader(self.data['test']['data'], batch_size=4)
+            dtload = data.DataLoader(self.data['test']['data'], batch_size=16)
         else:
             raise AttributeError('No dataset {}'.format(dataset_name))
 
@@ -124,7 +124,7 @@ class Default(BaseClass.Base):
 
 if __name__ == '__main__':
     system = Default(root=os.environ['DATA'] + 'DescLearning/RGB/OldSetup/')
-    system.print('train')
+    system.print('val_data')
     system.train()
     system.test()
     system.plot()
