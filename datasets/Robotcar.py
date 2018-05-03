@@ -4,7 +4,6 @@ import torch.utils.data
 import torchvision as torchvis
 import datasets.multmodtf as tf
 import pandas as pd
-import tqdm
 import PIL.Image
 import torch
 import matplotlib.pyplot as plt
@@ -161,15 +160,15 @@ def show_batch(sample_batched):
 if __name__ == '__main__':
     root_to_folders = os.environ['ROBOTCAR'] + 'training/TrainDataset_02_10_15/'
 
-    modtouse = {'rgb': 'dataset.txt'}#, 'depth': 'depth_dataset.txt', 'ref': 'ref_dataset.txt'}
+    modtouse = {'rgb': 'dataset.txt'}  # , 'depth': 'depth_dataset.txt', 'ref': 'ref_dataset.txt'}
     transform = {
-        'first': (tf.Resize((420,420)),),
+        'first': (tf.Resize((420, 420)),),
         'rgb': (tf.Equalize(), tf.ToTensor(), ),
         'depth': (tf.ToTensor(),),
         'ref': (tf.ToTensor(),)
     }
     transform_wo_q = {
-        'first': (tf.Resize((420,420)),),
+        'first': (tf.Resize((420, 420)),),
         'rgb': (tf.ToTensor(),),
         'depth': (tf.ToTensor(),),
         'ref': (tf.ToTensor(),)

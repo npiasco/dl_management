@@ -1,7 +1,6 @@
 import setlog
 import torch
 import torch.nn.functional as func
-import torch.autograd as auto
 
 
 logger = setlog.get_logger(__name__)
@@ -17,7 +16,7 @@ def mean_dist(predicted, gt):
 class AlphaWeights:
     def __init__(self, init_weight=(0, -3), cuda=False):
 
-        self.alpha = torch.nn.Parameter(torch.Tensor(init_weight),
+        self.alpha = torch.nn.Parameter(torch.FloatTensor(init_weight),
                                         requires_grad=True)
         if cuda:
             self.cuda()

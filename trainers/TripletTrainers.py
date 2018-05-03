@@ -60,9 +60,8 @@ class Trainer(Base.BaseTrainer):
         logger.debug('Triplet loss is {}'.format(loss.data[0]))
 
     def eval(self, **kwargs):
-        data = kwargs.pop('dataset', None)
-        dataset = data['data']
-        queries = data['queries']
+        dataset = kwargs.pop('dataset', None)
+
         score_function = kwargs.pop('score_function', None)
         ep = kwargs.pop('ep', None)
         if kwargs:
@@ -70,7 +69,7 @@ class Trainer(Base.BaseTrainer):
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
         if len(self.val_score) <= ep:
-            ranked = self._compute_sim(self.network, queries, dataset)
+            ranked = self._compute_sim(self.network, dataset['queries'], dataset['data'])
             score = score_function(ranked)
             self.val_score.append(score)
             if score_function.rank_score(score, self.best_net[0]):
@@ -80,16 +79,14 @@ class Trainer(Base.BaseTrainer):
         logger.info('Score is: {}'.format(self.val_score[ep]))
 
     def test(self, **kwargs):
-        data = kwargs.pop('dataset', None)
-        dataset = data['data']
-        queries = data['queries']
+        dataset = kwargs.pop('dataset', None)
         score_functions = kwargs.pop('score_functions', None)
         if kwargs:
             logger.error('Unexpected **kwargs: %r' % kwargs)
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
         net_to_test = copy.deepcopy(self.network)
         net_to_test.load_state_dict(self.best_net[1])
-        ranked = self._compute_sim(net_to_test, queries, dataset)
+        ranked = self._compute_sim(net_to_test, dataset['queries'], dataset['data'])
         results = dict()
         for function_name, score_func in score_functions.items():
             results[function_name] = score_func(ranked)
@@ -170,11 +167,11 @@ if __name__ == '__main__':
 
     net = Desc.Main(end_relu=True, batch_norm=False)
     trainer = Trainer(network=net, cuda_on=True)
-    trainer.eval(dataset={'data':data, 'queries':query_data},
+    trainer.eval(dataset={'data': data, 'queries': query_data},
                  score_function=ScoreFunc.RecallAtN(n=1, radius=25),
                  ep=0)
     for b in tqdm.tqdm(dtload):
         trainer.train(b)
-    trainer.eval(dataset={'data':data, 'queries':query_data},
+    trainer.eval(dataset={'data': data, 'queries': query_data},
                  score_function=ScoreFunc.RecallAtN(n=1, radius=25),
                  ep=1)

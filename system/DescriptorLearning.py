@@ -76,7 +76,6 @@ class Default(BaseClass.Base):
     def plot(self, **kwargs):
         BaseClass.Base.plot(self, **kwargs, size_dataset=len(self.data['train']))
 
-
     def print(self, dataset_name):
         if dataset_name == 'train':
             dtload = data.DataLoader(self.data[dataset_name], batch_size=4)
@@ -104,14 +103,15 @@ class Default(BaseClass.Base):
                 plt.figure(i)
                 plt.title('Positive ' + str(i))
                 self._format_batch(batch['positives'][i-2])
-            plt.figure(i+1)
+            plt.figure(2 + len(batch['positives']))
             plt.title('Negative')
             self._format_batch(batch['negatives'][0])
         else:
             plt.figure(1)
             self._format_batch(batch)
 
-    def _format_batch(self, batch):
+    @staticmethod
+    def _format_batch(batch):
         buffer = tuple()
         for name, mod in batch.items():
             if name not in ('coord',):

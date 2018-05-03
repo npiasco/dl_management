@@ -31,7 +31,7 @@ class RecallAtN:
 
     @staticmethod
     def rank_score(new_score, old_score):
-        if old_score == None:
+        if old_score is None:
             return True
         else:
             return new_score > old_score
@@ -48,12 +48,11 @@ class MeanRecallAtN:
     def __call__(self, ranked_queries):
         logger.info('Computing score')
         scores = [0 for _ in range(self.n)]
-        inc_func = lambda i, val, r: val + 1 if i >= r else val
         for query in tqdm.tqdm(ranked_queries):
             for recall in range(1, self.n+1):
                 is_ranked = [query[i] < self.radius for i in range(recall)]
                 if True in is_ranked:
-                    scores = [inc_func(i + 1, val, recall) for i, val in enumerate(scores)]
+                    scores = [self.inc_func(i + 1, val, recall) for i, val in enumerate(scores)]
                     break
 
         n_query = len(ranked_queries)
@@ -65,8 +64,15 @@ class MeanRecallAtN:
         return 'Mean Recall @{}'.format(self.n)
 
     @staticmethod
+    def inc_func(i, val, r):
+        if i >= r:
+            return val + 1
+        else:
+            return val
+
+    @staticmethod
     def rank_score(new_score, old_score):
-        if old_score == None:
+        if old_score is None:
             return True
         else:
             return new_score > old_score
@@ -83,12 +89,11 @@ class Recall:
     def __call__(self, ranked_queries):
         logger.info('Computing score')
         scores = [0 for _ in range(self.n)]
-        inc_func = lambda i, val, r: val + 1 if i >= r else val
         for query in tqdm.tqdm(ranked_queries):
             for recall in range(1, self.n+1):
                 is_ranked = [query[i] < self.radius for i in range(recall)]
                 if True in is_ranked:
-                    scores = [inc_func(i + 1, val, recall) for i, val in enumerate(scores)]
+                    scores = [self.inc_func(i + 1, val, recall) for i, val in enumerate(scores)]
                     break
         n_query = len(ranked_queries)
         self.score = [s / n_query for s in scores]
@@ -96,6 +101,13 @@ class Recall:
 
     def __str__(self):
         return 'Recall (computed up to {})'.format(self.n)
+
+    @staticmethod
+    def inc_func(i, val, r):
+        if i >= r:
+            return val + 1
+        else:
+            return val
 
 
 class GlobalPoseError:
@@ -120,10 +132,11 @@ class GlobalPoseError:
 
     @staticmethod
     def rank_score(new_score, old_score):
-        if old_score == None:
+        if old_score is None:
             return True
         else:
             return new_score < old_score
+
 
 if __name__ == '__main__':
     n_queries = 200
