@@ -32,7 +32,7 @@ class Trainer(Base.BaseTrainer):
         )
 
         self.triplet_loss = kwargs.pop('triplet_loss', func.triplet_margin_loss)
-        self.margin = kwargs.pop('margin', 0.25)
+        self.loss_parameters = kwargs.pop('loss_parameters', None)
         self.minning_func = kwargs.pop('minning_func', minning.random)
         self.mod = kwargs.pop('mod', 'rgb')
         if kwargs:
@@ -52,7 +52,7 @@ class Trainer(Base.BaseTrainer):
         positive = self.minning_func(self, batch, 'positives')
         negative = self.minning_func(self, batch, 'negatives')
 
-        loss = self.triplet_loss(anchor['desc'], positive['desc'], negative['desc'], margin=self.margin)
+        loss = self.triplet_loss(anchor['desc'], positive['desc'], negative['desc'], **self.loss_parameters)
 
         loss.backward()  # calculate the gradients (backpropagation)
         self.optimizer.step()  # update the weights
