@@ -36,6 +36,10 @@ class Main(nn.Module):
             self.descriptor = Agg.RMAC(R=R, norm=desc_norm)
         elif agg_method == 'RAAC':
             self.descriptor = Agg.RAAC(R=R, norm=desc_norm)
+        elif agg_method == 'RMean':
+            self.descriptor = Agg.RMean(R=R, norm=desc_norm)
+        elif agg_method == 'SPOC':
+            self.descriptor = Agg.SPOC(norm=desc_norm)
         else:
             raise AttributeError("Unknown aggregation method {}".format(agg_method))
 
@@ -90,10 +94,10 @@ if __name__ == '__main__':
     tensor_input = auto.Variable(torch.ones([1, 3, 224, 224]))
     print(net(tensor_input))
     """
-    net = Main(agg_method='RAAC', end_relu=False, desc_norm=False).cuda()
-    tensor_input = torch.rand([5, 3, 224, 224]).cuda()
+    net = Main(agg_method='RMean', end_relu=True, desc_norm=False).cuda()
+    tensor_input = torch.rand([1, 3, 224, 224]).cuda()
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'])
-    net = Main(agg_method='RMAC', end_relu=False, desc_norm=False).cuda()
+    net = Main(agg_method='SPOC', end_relu=True, desc_norm=False).cuda()
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'])

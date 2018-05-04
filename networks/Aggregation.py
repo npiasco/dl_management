@@ -25,6 +25,39 @@ class RMAC(nn.Module):
         return x
 
 
+class RMean(nn.Module):
+    def __init__(self, **kwargs):
+        nn.Module.__init__(self)
+        self.R = kwargs.pop('R', 1)  # R=1, Global Max pooling
+        self.norm = kwargs.pop('norm', True)
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    def forward(self, feature):
+        x = func.adaptive_avg_pool2d(feature, (self.R, self.R))
+        x = x.view(x.size(0), -1)
+        if self.norm:
+            x = func.normalize(x)
+
+        return x
+
+
+class SPOC(nn.Module):
+    def __init__(self, **kwargs):
+        nn.Module.__init__(self)
+        self.norm = kwargs.pop('norm', True)
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    def forward(self, feature):
+        x = torch.sum(torch.sum(feature, dim=-1), dim=-1)
+        x = x.view(x.size(0), -1)
+        if self.norm:
+            x = func.normalize(x)
+
+        return x
+
+
 class RAAC(nn.Module):
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
