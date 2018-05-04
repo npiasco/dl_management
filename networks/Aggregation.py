@@ -34,17 +34,10 @@ class RAAC(nn.Module):
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     def forward(self, feature):
-        x, ind = func.adaptive_max_pool2d(torch.abs(feature), (self.R, self.R), return_indices=True)
-
-        feature = feature.view(feature.size(0), feature.size(1), -1)
-        max_values = auto.Variable(torch.zeros(x.size())).cuda() if feature.is_cuda \
-            else auto.Variable(torch.zeros(x.size()))
-        ind = ind.view(ind.size(0), -1).cpu().data.numpy()
-        for i, indices in enumerate(ind):
-            for j, indice in enumerate(indices):
-                max_values[i, j] = feature[i, j, indice].data
-
-        x = x * torch.sign(max_values)
+        x_pos = func.adaptive_max_pool2d(feature, (self.R, self.R))
+        x_all = func.adaptive_max_pool2d(torch.abs(feature), (self.R, self.R))
+        mask = x_all > x_pos
+        x = x_all * (-(mask == 1).float()) + x_all * (1 - (mask == 1).float())
 
         x = x.view(x.size(0), -1)
         if self.norm:
