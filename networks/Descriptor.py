@@ -29,9 +29,15 @@ class Main(nn.Module):
             self.feature = Alexnet.Feat(batch_norm=batch_norm,
                                         end_relu=end_relu,
                                         load_imagenet=load_imagenet)
+        else:
+            raise AttributeError("Unknown base architecture {}".format(base_archi))
 
         if agg_method == 'RMAC':
             self.descriptor = Agg.RMAC(R=R, norm=desc_norm)
+        elif agg_method == 'RAAC':
+            self.descriptor = Agg.RAAC(R=R, norm=desc_norm)
+        else:
+            raise AttributeError("Unknown aggregation method {}".format(agg_method))
 
         logger.info('Descriptor architecture:')
         logger.info(self.descriptor)
@@ -68,6 +74,7 @@ class Main(nn.Module):
 
 
 if __name__ == '__main__':
+    """
     net = Main().cuda()
     tensor_input = torch.rand([10, 3, 224, 224]).cuda()
     feat_output = net(auto.Variable(tensor_input))
@@ -82,3 +89,11 @@ if __name__ == '__main__':
     net = Main(end_relu=True).eval()
     tensor_input = auto.Variable(torch.ones([1, 3, 224, 224]))
     print(net(tensor_input))
+    """
+    net = Main(agg_method='RAAC', end_relu=False, desc_norm=False).cuda()
+    tensor_input = torch.rand([5, 3, 224, 224]).cuda()
+    feat_output = net(auto.Variable(tensor_input))
+    print(feat_output['desc'])
+    net = Main(agg_method='RMAC', end_relu=False, desc_norm=False).cuda()
+    feat_output = net(auto.Variable(tensor_input))
+    print(feat_output['desc'])
