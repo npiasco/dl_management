@@ -192,6 +192,7 @@ class Base:
 
         if print_score:
             print('Validation score is {}'.format(self.trainer.best_net[0]))
+            print('At epoch {}'.format(self.trainer.val_score.index(self.trainer.best_net[0])))
             scores_to_plot = list()
             for i, (name, vals) in enumerate(self.results.items()):
                 try:

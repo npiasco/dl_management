@@ -123,8 +123,9 @@ class Default(BaseClass.Base):
 
 
 if __name__ == '__main__':
-    system = Default(root=os.environ['DATA'] + 'DescLearning/RGB/OldSetup/')
-    system.print('val_data')
-    system.train()
+    system = Default(root=os.environ['DATA'] + 'DescLearning/Template/')
     system.test()
     system.plot()
+    system.print('val_data')
+    system.train()
+
