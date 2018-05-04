@@ -35,14 +35,16 @@ class RAAC(nn.Module):
 
     def forward(self, feature):
         x, ind = func.adaptive_max_pool2d(torch.abs(feature), (self.R, self.R), return_indices=True)
+
         feature = feature.view(feature.size(0),feature.size(1), -1)
-        max_values = x.clone()
+        max_values = auto.Variable(torch.zeros(x.size()))
         ind = ind.view(ind.size(0), -1).cpu().data.numpy()
         for i, indices in enumerate(ind):
             for j, indice in enumerate(indices):
                 max_values[i, j] = feature[i, j, indice].data
 
         x = x * torch.sign(max_values)
+
         x = x.view(x.size(0), -1)
         if self.norm:
             x = func.normalize(x)
