@@ -41,7 +41,6 @@ class Feat(nn.Module):
             ]
 
         if batch_norm:
-            base_archi.append(('norm4', nn.BatchNorm2d(256)))
             base_archi.insert(9, ('norm3', nn.BatchNorm2d(256)))
             base_archi.insert(7, ('norm2', nn.BatchNorm2d(384)))
             base_archi.insert(4, ('norm1', nn.BatchNorm2d(192)))
