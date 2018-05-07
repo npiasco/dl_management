@@ -3,6 +3,7 @@ import trainers.Base as Base
 import torch.nn.functional as func
 import torch.autograd as auto
 import trainers.minning_function as minning
+import trainers.loss_functions as loss_func
 import datasets.Robotcar as Robotcar
 import torch.utils as utils
 import torch.utils.data
@@ -31,9 +32,9 @@ class Trainer(Base.BaseTrainer):
             val_num_workers=kwargs.pop('val_num_workers', 8)
         )
 
-        self.triplet_loss = kwargs.pop('triplet_loss', func.triplet_margin_loss)
-        self.loss_parameters = kwargs.pop('loss_parameters', None)
-        self.minning_func = kwargs.pop('minning_func', minning.random)
+        self.triplet_loss = kwargs.pop('triplet_loss', {'func': func.triplet_margin_loss,
+                                                        'param': dict()})
+        self.minning_func = kwargs.pop('minning_func', minning.hard_minning)
         self.mod = kwargs.pop('mod', 'rgb')
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -52,7 +53,7 @@ class Trainer(Base.BaseTrainer):
         positive = self.minning_func(self, batch, 'positives')
         negative = self.minning_func(self, batch, 'negatives')
 
-        loss = self.triplet_loss(anchor['desc'], positive['desc'], negative['desc'], **self.loss_parameters)
+        loss = self.triplet_loss['func'](anchor['desc'], positive['desc'], negative['desc'], **self.triplet_loss['param'])
 
         loss.backward()  # calculate the gradients (backpropagation)
         self.optimizer.step()  # update the weights
@@ -118,12 +119,70 @@ class Trainer(Base.BaseTrainer):
         return ranked
 
 
+class DeconvTrainer(Trainer):
+    def __init__(self, **kwargs):
+        self.modal_loss = kwargs.pop('modal_loss', {'func': loss_func.l1_modal_loss,
+                                                    'param': {'p': 1, 'la':3e-4}})
+        self.aux_mod = kwargs.pop('aux_mod', 'depth')
+
+        Trainer.__init__(self, **kwargs)
+
+        self.loss_log['modal_loss'] = list()
+
+    def train(self, batch):
+        self.network.train()
+        # Reset gradients
+        self.optimizer.zero_grad()
+
+        # Forward pass
+        anchor = self.network(auto.Variable(self.cuda_func(batch['query'][self.mod]), requires_grad=True))
+        positive, pos_idx = self.minning_func(self, batch, 'positives', return_idx=True)
+        negative, neg_idx = self.minning_func(self, batch, 'negatives', return_idx=True)
+
+        triplet_loss = self.triplet_loss['func'](anchor['desc'], positive['desc'], negative['desc'],
+                                                 **self.triplet_loss['param'])
+
+        anchor_mod = auto.Variable(self.cuda_func(batch['query'][self.aux_mod]), requires_grad=False)
+        pos_mod = auto.Variable(
+            self.cuda_func(
+                torch.stack(
+                    [batch['positives'][idx][self.aux_mod][i] for i, idx in enumerate(pos_idx)],
+                    dim=0
+                )
+            ),
+            requires_grad=True
+        )
+        neg_mod = auto.Variable(
+            self.cuda_func(
+                torch.stack(
+                    [batch['negatives'][idx][self.aux_mod][i] for i, idx in enumerate(neg_idx)],
+                    dim=0
+                )
+            ),
+            requires_grad=True
+        )
+
+        modal_loss = self.modal_loss['func']((anchor['maps'], positive['maps'], negative['maps']),
+                                             (anchor_mod, pos_mod, neg_mod),
+                                             **self.modal_loss['param'])
+
+        loss = triplet_loss + modal_loss
+        loss.backward()  # calculate the gradients (backpropagation)
+        self.optimizer.step()  # update the weights
+        self.loss_log['triplet_loss'].append(triplet_loss.data[0])
+        logger.debug('Triplet loss is {}'.format(triplet_loss.data[0]))
+        self.loss_log['modal_loss'].append(modal_loss.data[0])
+        logger.debug('Modal loss is {}'.format(modal_loss.data[0]))
+
+
 if __name__ == '__main__':
     logger.setLevel('INFO')
-    modtouse = {'rgb': 'dataset.txt'}
+    modtouse = {'rgb': 'dataset.txt',
+                'depth': 'mono_depth_dataset.txt'}
     transform = {
         'first': (tf.RandomResizedCrop(224),),
-        'rgb': (tf.ToTensor(), tf.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
+        'rgb': (tf.ToTensor(),),
+        'depth': (tf.ToTensor(),)
     }
     transform_eval = {
         'first': (tf.Resize((224, 224)), tf.ToTensor(),),
@@ -156,20 +215,36 @@ if __name__ == '__main__':
     args = {
         'main': dataset_1,
         'examples': [dataset_2, dataset_3],
+        'load_triplets': '200triplets.pth',
         'num_triplets': 100,
-        'num_positives': 2,
-        'num_negative': 20
+        'num_positives': 4,
+        'num_negatives': 20
     }
 
     triplet_dataset = Robotcar.TripletDataset(**args)
 
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
+    """
     net = Desc.Main(end_relu=True, batch_norm=False)
     trainer = Trainer(network=net, cuda_on=True)
     trainer.eval(dataset={'data': data, 'queries': query_data},
                  score_function=ScoreFunc.RecallAtN(n=1, radius=25),
                  ep=0)
+    for b in tqdm.tqdm(dtload):
+        trainer.train(b)
+    trainer.eval(dataset={'data': data, 'queries': query_data},
+                 score_function=ScoreFunc.RecallAtN(n=1, radius=25),
+                 ep=1)
+    """
+
+    net = Desc.Deconv(end_relu=False, batch_norm=False)
+    trainer = DeconvTrainer(network=net, cuda_on=True)
+    '''
+    trainer.eval(dataset={'data': data, 'queries': query_data},
+                 score_function=ScoreFunc.RecallAtN(n=1, radius=25),
+                 ep=0)
+    '''
     for b in tqdm.tqdm(dtload):
         trainer.train(b)
     trainer.eval(dataset={'data': data, 'queries': query_data},
