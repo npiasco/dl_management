@@ -80,3 +80,16 @@ def adaptive_triplet_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e
     dist_hinge = torch.clamp(margin + d_p/l_p - d_n/l_n, min=0.0)
     loss = torch.mean(dist_hinge)
     return loss
+
+
+def l1_modal_loss(predicted_maps, gt_maps, p=1, la=3e-4):
+
+    loss = la*torch.mean(
+        func.pairwise_distance(
+            torch.cat(predicted_maps, dim=0).view(1,-1),
+            torch.cat(gt_maps, dim=0).view(1,-1),
+            p=p
+        )
+    )
+
+    return loss
