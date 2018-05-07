@@ -63,12 +63,12 @@ class Feat(nn.Module):
 
     def forward(self, x):
         if self.indices or self.res:
-            id = list()
+            ind = list()
             res = list()
             for name, lay in self.feature.named_children():
                 if 'pool' in name:
                     x, i = lay(x)
-                    id.append(i)
+                    ind.append(i)
                 else:
                     x = lay(x)
                 if name == 'pool0' or name == 'pool1':
@@ -76,9 +76,9 @@ class Feat(nn.Module):
 
             output = func.relu(x)
             output, i = func.max_pool2d(output, kernel_size=(3, 3), stride=2, return_indices=True)
-            id.append(i)
+            ind.append(i)
 
-            return {'output': output, 'feat': x, 'id': id, 'res': res}
+            return {'output': output, 'feat': x, 'id': ind, 'res': res}
         else:
             return self.feature(x)
 
@@ -166,7 +166,7 @@ class Deconv(nn.Module):
         logger.info(self.deconv)
 
     def forward(self, x, **kwargs):
-        id = kwargs.pop('id', None)
+        ind = kwargs.pop('id', None)
         res = kwargs.pop('res', None)
 
         if kwargs:
@@ -176,11 +176,11 @@ class Deconv(nn.Module):
 
         for name, lay in self.deconv.named_children():
             if name == 'unpool4':
-                x = lay(x, id[2])
+                x = lay(x, ind[2])
             elif name == 'unpool2':
-                x = lay(x, id[1])
+                x = lay(x, ind[1])
             elif name == 'unpool1':
-                x = lay(x, id[0])
+                x = lay(x, ind[0])
             elif self.res and name == 'relu2':
                 x = lay(x + res[1])
             elif self.res and name == 'relu1':
@@ -193,6 +193,23 @@ class Deconv(nn.Module):
         maps['maps'] = x
 
         return maps
+
+    def get_training_layers(self, layers_to_train=None):
+        def sub_layers(name):
+            return {
+                'all': [{'params': self.feature.parameters()}],
+                'up_to_conv4': [{'params': layers.parameters()} for layers in
+                                list(self.feature.children())[list(self.base_archi.keys()).index('conv4'):]],
+                'up_to_conv3': [{'params': layers.parameters()} for layers in
+                                list(self.feature.children())[list(self.base_archi.keys()).index('conv3'):]],
+                'up_to_conv2': [{'params': layers.parameters()} for layers in
+                                list(self.feature.children())[list(self.base_archi.keys()).index('conv2'):]],
+                'up_to_conv1': [{'params': layers.parameters()} for layers in
+                                list(self.feature.children())[list(self.base_archi.keys()).index('conv1'):]]
+            }.get(name)
+        if not layers_to_train:
+            layers_to_train = self.layers_to_train
+        return sub_layers(layers_to_train)
 
 
 if __name__ == '__main__':
