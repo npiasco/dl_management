@@ -24,7 +24,7 @@ def hard_minning(trainer, batch, mode):
                                             requires_grad=False))
     desc_anchors = anchors['desc']
     exemples = torch.FloatTensor(batch['query'][trainer.mod].size())
-
+    trainer.network.eval()
     for i, desc_anchor in enumerate(desc_anchors):
         ex_descs = [trainer.network(auto.Variable(trainer.cuda_func(ex[trainer.mod][i:i+1]),
                                                   requires_grad=False))['desc']
@@ -35,7 +35,7 @@ def hard_minning(trainer, batch, mode):
             exemples[i] = batch[mode][sort_index[-1]][trainer.mod][i]
         elif mode == 'negatives':
             exemples[i] = batch[mode][sort_index[0]][trainer.mod][i]
-
+    trainer.network.train()
     return trainer.network(auto.Variable(trainer.cuda_func(exemples), requires_grad=True))
 
 
