@@ -154,17 +154,31 @@ class Deconv(nn.Module):
     def get_training_layers(self, layers_to_train=None):
         def sub_layers(name):
             return {
-                'all': [{'params': self.descriptor.parameters()}] + self.feature.get_training_layers('all'),
+                'all': [{'params': self.descriptor.parameters()},
+                        {'params': self.deconv.parameters()},
+                        {'params': self.feat_agg.parameters()}] + self.feature.get_training_layers('all'),
                 'only_feat': self.feature.get_training_layers('all'),
-                'only_descriptor': [{'params': self.descriptor.parameters()}],
-                'up_to_conv4': [{'params': self.descriptor.parameters()}] +
-                               self.feature.get_training_layers('up_to_conv4'),
-                'up_to_conv3': [{'params': self.descriptor.parameters()}] +
-                               self.feature.get_training_layers('up_to_conv3'),
-                'up_to_conv2': [{'params': self.descriptor.parameters()}] +
-                               self.feature.get_training_layers('up_to_conv2'),
-                'up_to_conv1': [{'params': self.descriptor.parameters()}] +
-                               self.feature.get_training_layers('up_to_conv1')
+                'only_descriptor': [{'params': self.descriptor.parameters()},
+                                    {'params': self.feat_agg.parameters()}],
+                'only_deconv': [{'params': self.descriptor.parameters()},
+                                {'params': self.feat_agg.parameters()},
+                                {'params': self.deconv.parameters()}],
+                'up_to_conv4': [{'params': self.descriptor.parameters()},
+                                {'params': self.deconv.parameters()},
+                                {'params': self.feat_agg.parameters()}
+                                ] + self.feature.get_training_layers('up_to_conv4'),
+                'up_to_conv3': [{'params': self.descriptor.parameters()},
+                                {'params': self.deconv.parameters()},
+                                {'params': self.feat_agg.parameters()}
+                                ] + self.feature.get_training_layers('up_to_conv3'),
+                'up_to_conv2': [{'params': self.descriptor.parameters()},
+                                {'params': self.deconv.parameters()},
+                                {'params': self.feat_agg.parameters()}
+                                ] + self.feature.get_training_layers('up_to_conv2'),
+                'up_to_conv1': [{'params': self.descriptor.parameters()},
+                                {'params': self.deconv.parameters()},
+                                {'params': self.feat_agg.parameters()}
+                                ] + self.feature.get_training_layers('up_to_conv1')
             }.get(name)
         if not layers_to_train:
             layers_to_train = self.layers_to_train
@@ -207,3 +221,5 @@ if __name__ == '__main__':
 
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'])
+    print(net.get_training_layers('all'))
+    print(net.get_training_layers('only_deconv'))
