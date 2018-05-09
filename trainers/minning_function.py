@@ -13,10 +13,14 @@ def default(trainer, batch, mode):
     return trainer.network(auto.Variable(trainer.cuda_func(batch[mode][trainer.mod]), requires_grad=True))
 
 
-def random(trainer, batch, mode):
+def random(trainer, batch, mode, return_idx=False):
     n = len(batch[mode])
     pick = rd.randint(0, n-1)
-    return trainer.network(auto.Variable(trainer.cuda_func(batch[mode][pick][trainer.mod]), requires_grad=True))
+    if return_idx:
+        return trainer.network(auto.Variable(trainer.cuda_func(batch[mode][pick][trainer.mod]), requires_grad=True)),\
+        [pick for i in range(batch[mode][0][trainer.mod].size(0))]
+    else:
+        return trainer.network(auto.Variable(trainer.cuda_func(batch[mode][pick][trainer.mod]), requires_grad=True))
 
 
 def hard_minning(trainer, batch, mode, return_idx=False):
