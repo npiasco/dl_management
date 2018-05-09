@@ -15,7 +15,7 @@ param_class:
         func: 'loss_func.l1_modal_loss'
         param:
             p: 1
-            la: 3.0e-4
+            factor: 3.0e-4
     minning_func: 'trainers.minning_function.hard_minning'
     mod: 'rgb'
     aux_mod: 'mono_depth'
