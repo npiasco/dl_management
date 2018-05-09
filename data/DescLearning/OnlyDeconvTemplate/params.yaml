@@ -1,0 +1,7 @@
+batch_size: 25
+curr_epoch: 0
+max_epoch: 60
+min_value_to_stop: 20
+num_workers: 8
+shuffle: true
+sucess_bad_epoch: 2
