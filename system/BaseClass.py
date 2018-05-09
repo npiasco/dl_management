@@ -140,9 +140,10 @@ class Base:
             f.write(yaml.safe_dump(self.params))
         logger.info('Checkpoint saved at epoch {}'.format(self.curr_epoch))
 
-    def serialize_net(self):
+    def serialize_net(self, final=False):
         tmp_net = copy.deepcopy(self.network)
-        tmp_net.load_state_dict(self.trainer.best_net[-1])
+        if not final:
+            tmp_net.load_state_dict(self.trainer.best_net[-1])
         serlz = tmp_net.full_save()
         for name, data in serlz.items():
             torch.save(data, name + '.pth')

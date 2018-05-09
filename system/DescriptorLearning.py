@@ -12,6 +12,7 @@ import trainers.TripletTrainers
 import trainers.loss_functions
 import datasets.Robotcar                # Needed for class creation with eval
 import networks.Descriptor              # Needed for class creation with eval
+import copy
 
 
 logger = setlog.get_logger(__name__)
@@ -149,8 +150,11 @@ class Deconv(Default):
                     torch.load(os.environ['CNN_WEIGHTS'] + agg_weight)
                 )
 
-    def map_print(self):
-        self.network.train()  # To have the infered map
+    def map_print(self, final=False):
+        tmp_net = copy.deepcopy(self.network)
+        tmp_net.train()  # To have the infered map
+        if not final:
+            tmp_net.load_state_dict(self.trainer.best_net[1])
         self.data['train'].used_mod = self.training_mod
         dtload = data.DataLoader(self.data['train'], batch_size=4)
         plt.figure()

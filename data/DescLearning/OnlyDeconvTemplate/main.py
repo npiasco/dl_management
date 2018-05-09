@@ -18,7 +18,9 @@ if __name__ == '__main__':
     [p]\tprint (console)
     [P]\tprint (full)
     [m]\tsee maps
+    [mf]\tsee maps of final net
     [s]\tserialize net
+    [sf]\tserialize final net
     [ ]\ttrain+test\n""")
     if action == 't':
         machine.train()
@@ -30,8 +32,12 @@ if __name__ == '__main__':
         machine.plot()
     elif action == 'm':
         machine.map_print()
-    elif action == 'm':
+    elif action == 'mf':
+        machine.map_print(final=True)
+    elif action == 's':
         machine.serialize_net()
+    elif action == 'sf':
+        machine.serialize_net(final=True)
     elif action == '':
         machine.train()
         machine.test()
