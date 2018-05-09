@@ -150,7 +150,7 @@ class DeconvTrainer(Trainer):
                     dim=0
                 )
             ),
-            requires_grad=True
+            requires_grad=False
         )
         neg_mod = auto.Variable(
             self.cuda_func(
@@ -159,7 +159,7 @@ class DeconvTrainer(Trainer):
                     dim=0
                 )
             ),
-            requires_grad=True
+            requires_grad=False
         )
 
         modal_loss = self.modal_loss['func']((anchor['maps'], positive['maps'], negative['maps']),
