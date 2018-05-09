@@ -85,12 +85,12 @@ class Deconv(nn.Module):
         agg_method = kwargs.pop('agg_method', 'RMAC')
         feat_agg_method = kwargs.pop('feat_agg_method', 'Concat')
         feat_agg_params = kwargs.pop('feat_agg_params', None)
+        self.auxilary_feat = kwargs.pop('auxilary_feat', 'conv1')
         if feat_agg_params is None:
             feat_agg_params = dict()
         desc_norm = kwargs.pop('desc_norm', True)
         self.end_relu = kwargs.pop('end_relu', False)
         base_archi = kwargs.pop('base_archi', 'Alexnet')
-        self.auxilary_feat = kwargs.pop('auxilary_feat', 'conv1')
         R = kwargs.pop('R', 1)
         load_imagenet = kwargs.pop('load_imagenet', True)
         self.res = kwargs.pop('res', False)

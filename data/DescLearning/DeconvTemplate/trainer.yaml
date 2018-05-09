@@ -5,17 +5,17 @@ param_class:
     momentum: 0.9
     weight_decay: 0.001
     optimizer_type: SGD
-    val_num_workers: 8
+    val_num_workers: 16
     triplet_loss:
         func: 'torch.nn.functional.triplet_margin_loss'
         param:
             margin: 0.25
             swap: True
     modal_loss:
-        func: l1_modal_loss
+        func: 'loss_func.l1_modal_loss'
         param:
-            p=1
-            la=3.0e-4
+            p: 1
+            la: 3.0e-4
     minning_func: 'trainers.minning_function.hard_minning'
     mod: 'rgb'
     aux_mod: 'mono_depth'

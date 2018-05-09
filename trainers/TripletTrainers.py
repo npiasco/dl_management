@@ -39,6 +39,8 @@ class Trainer(Base.BaseTrainer):
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
+        if type(self.triplet_loss['func']) == type(str()):
+            self.triplet_loss['func'] = eval(self.triplet_loss['func'])
         self.optimizer = self.init_optimizer(self.network.get_training_layers())
         self.loss_log['triplet_loss'] = list()
 
@@ -127,6 +129,8 @@ class DeconvTrainer(Trainer):
 
         Trainer.__init__(self, **kwargs)
 
+        if type(self.modal_loss['func']) == type(str()):
+            self.modal_loss['func'] = eval(self.modal_loss['func'])
         self.loss_log['modal_loss'] = list()
 
     def train(self, batch):
@@ -161,7 +165,6 @@ class DeconvTrainer(Trainer):
             ),
             requires_grad=False
         )
-
         modal_loss = self.modal_loss['func']((anchor['maps'], positive['maps'], negative['maps']),
                                              (anchor_mod, pos_mod, neg_mod),
                                              **self.modal_loss['param'])

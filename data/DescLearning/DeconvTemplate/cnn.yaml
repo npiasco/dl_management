@@ -9,6 +9,6 @@ param_class:
     load_imagenet: True
     layers_to_train: 'all'
     # Specific to Deconv
-    feat_agg_method = 'Concat'
-    feat_agg_params = None
-    auxilary_feat = 'conv1'
+    feat_agg_method: 'Concat'
+    # feat_agg_params:
+    auxilary_feat: 'conv1'

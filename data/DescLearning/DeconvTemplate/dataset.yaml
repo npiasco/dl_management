@@ -14,7 +14,7 @@ train:
             class: datasets.Robotcar.VBLDataset
             param_class:
                 root: 'training/TrainDataset_05_19_15/'
-                modalities: {rgb: 'dataset.txt', mono_depth: 'depth_dataset.txt', ref: 'mono_ref_dataset.txt'}
+                modalities: {rgb: 'dataset.txt', mono_depth: 'mono_depth_dataset.txt', mono_ref: 'mono_ref_dataset.txt'}
                 coord_file: 'coordxImbearing.txt'
                 bearing: True
                 transform:
@@ -23,9 +23,9 @@ train:
                         - {class: 'datasets.multmodtf.RandomCrop', param_class: {size: 224}}
                     rgb:
                         - {class: 'datasets.multmodtf.ToTensor', param_class:}
-                    depth:
+                    mono_depth:
                         - {class: 'datasets.multmodtf.ToTensor', param_class:}
-                    ref:
+                    mono_ref:
                         - {class: 'datasets.multmodtf.ToTensor', param_class:}
         examples:
             - {
@@ -33,7 +33,7 @@ train:
                 param_class:
                     {
                         root: 'training/TrainDataset_08_28_15/',
-                        modalities: {rgb: 'dataset.txt', depth: 'depth_dataset.txt', ref: 'ref_dataset.txt'},
+                        modalities: {rgb: 'dataset.txt', mono_depth: 'mono_depth_dataset.txt', mono_ref: 'mono_ref_dataset.txt'},
                         coord_file: 'coordxImbearing.txt',
                         bearing: True,
                         transform:
@@ -63,7 +63,7 @@ train:
                 param_class:
                     {
                         root: 'training/TrainDataset_11_10_15/',
-                        modalities: {rgb: 'dataset.txt', depth: 'depth_dataset.txt', ref: 'ref_dataset.txt'},
+                        modalities: {rgb: 'dataset.txt', mono_depth: 'mono_depth_dataset.txt', mono_ref: 'mono_ref_dataset.txt'},
                         coord_file: 'coordxImbearing.txt',
                         bearing: True,
                         transform:
