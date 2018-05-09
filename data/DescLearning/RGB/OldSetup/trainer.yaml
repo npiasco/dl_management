@@ -1,13 +1,14 @@
 class: 'trainers.TripletTrainers.Trainer'
 param_class:
     cuda_on: True
-    lr: 0.001
+    lr: 0.005
     momentum: 0
     weight_decay: 0.001
     optimizer_type: SGD
     val_num_workers: 8
     triplet_loss: 'torch.nn.functional.triplet_margin_loss'
-    margin: 0.25
+    loss_parameters:
+        margin: 0.25
     minning_func: 'trainers.minning_function.hard_minning'
     mod: 'rgb'
 
