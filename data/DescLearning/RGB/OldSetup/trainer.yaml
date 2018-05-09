@@ -1,7 +1,7 @@
 class: 'trainers.TripletTrainers.Trainer'
 param_class:
     cuda_on: True
-    lr: 0.001
+    lr: 0.005
     momentum: 0
     weight_decay: 0.001
     optimizer_type: SGD
