@@ -6,9 +6,11 @@ param_class:
     weight_decay: 0.001
     optimizer_type: SGD
     val_num_workers: 8
-    triplet_loss: 'torch.nn.functional.triplet_margin_loss'
-    loss_parameters:
-        margin: 0.25
+    triplet_loss:
+        func: 'torch.nn.functional.triplet_margin_loss'
+        param:
+            margin: 0.25
+            swap: false
     minning_func: 'trainers.minning_function.hard_minning'
     mod: 'rgb'
 

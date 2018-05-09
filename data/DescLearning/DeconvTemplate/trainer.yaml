@@ -1,18 +1,24 @@
-class: 'trainers.TripletTrainers.Trainer'
+class: 'trainers.TripletTrainers.DeconvTrainer'
 param_class:
     cuda_on: True
     lr: 0.0001
     momentum: 0.9
     weight_decay: 0.001
     optimizer_type: SGD
-    val_num_workers: 8
+    val_num_workers: 16
     triplet_loss:
         func: 'torch.nn.functional.triplet_margin_loss'
         param:
             margin: 0.25
             swap: True
-    minning_func: 'trainers.minning_function.random'
+    modal_loss:
+        func: 'loss_func.l1_modal_loss'
+        param:
+            p: 1
+            la: 3.0e-4
+    minning_func: 'trainers.minning_function.hard_minning'
     mod: 'rgb'
+    aux_mod: 'mono_depth'
 
 eval_class: 'score.Functions.RecallAtN'
 param_eval_class:

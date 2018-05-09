@@ -6,6 +6,7 @@ import torch.utils.data as data
 import torchvision as torchvis
 import matplotlib.pyplot as plt
 import torch.nn.functional
+import torch.autograd as auto
 import trainers.minning_function
 import trainers.TripletTrainers
 import trainers.loss_functions
@@ -52,11 +53,11 @@ class Default(BaseClass.Base):
         self.network = eval(self.network_params['class'])(**self.network_params['param_class'])
 
         triplet_loss = self.trainer_params['param_class'].pop('triplet_loss',
-                                                              'torch.nn.functional.triplet_margin_loss')
+                                                              None)
         minning_func = self.trainer_params['param_class'].pop('minning_func',
                                                               'trainers.minning_function.random')
         self.trainer = eval(self.trainer_params['class'])(network=self.network,
-                                                          triplet_loss=eval(triplet_loss),
+                                                          triplet_loss=triplet_loss,
                                                           minning_func=eval(minning_func),
                                                           **self.trainer_params['param_class'])
         if self.score_file is not None:
@@ -122,10 +123,38 @@ class Default(BaseClass.Base):
         plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
 
+class Deconv(Default):
+    def map_print(self):
+        self.network.train()  # To have the infered map
+        self.data['train'].used_mod = self.training_mod
+        dtload = data.DataLoader(self.data['train'], batch_size=4)
+        plt.figure()
+        ccmap = plt.get_cmap('jet', lut=1024)
+        for b in dtload:
+            modality = b['query'][self.trainer.aux_mod].contiguous().view(4, 1, 224, 224)
+            output = self.network(
+                auto.Variable(
+                    self.trainer.cuda_func(
+                        b['query'][self.trainer.mod]
+                    ),
+                    requires_grad=False
+                )
+            )
+
+            images_batch = torch.cat((modality.cpu(), output['maps'].data.cpu()))
+            grid = torchvis.utils.make_grid(images_batch, nrow=4)
+            plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
+            plt.colorbar()
+            plt.show()
+
+
 if __name__ == '__main__':
+    '''
     system = Default(root=os.environ['DATA'] + 'DescLearning/Template/')
+    system.train()
     system.test()
     system.plot()
     system.print('val_data')
-    system.train()
-
+    '''
+    system = Deconv(root=os.environ['DATA'] + 'DescLearning/DeconvTemplate/')
+    system.map_print()

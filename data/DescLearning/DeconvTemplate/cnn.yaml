@@ -1,0 +1,14 @@
+class: 'networks.Descriptor.Deconv'
+param_class:
+    end_relu: False
+    batch_norm: False
+    agg_method: 'RMAC'
+    desc_norm: True
+    base_archi: 'Alexnet'
+    R: 1
+    load_imagenet: True
+    layers_to_train: 'all'
+    # Specific to Deconv
+    feat_agg_method: 'Concat'
+    # feat_agg_params:
+    auxilary_feat: 'conv1'

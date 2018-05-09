@@ -2,7 +2,6 @@ import setlog
 import torch.nn.functional as func
 import torch.nn as nn
 import torch
-import torch.autograd as auto
 
 
 logger = setlog.get_logger(__name__)
