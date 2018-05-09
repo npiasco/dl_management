@@ -124,6 +124,31 @@ class Default(BaseClass.Base):
 
 
 class Deconv(Default):
+    def __init__(self, **kwargs):
+        Default.__init__(self, **kwargs)
+        if self.curr_epoch == 0:
+            encoder_weight = self.network_params.get('encoder_weight', False)
+            decoder_weight = self.network_params.get('decoder_weight', False)
+            desc_weight = self.network_params.get('desc_weight', False)
+            agg_weight = self.network_params.get('agg_weight', False)
+
+            if encoder_weight:
+                self.network.feature.load_state_dict(
+                    torch.load(os.environ['CNN_WEIGHTS'] + encoder_weight)
+                )
+            if decoder_weight:
+                self.network.deconv.load_state_dict(
+                    torch.load(os.environ['CNN_WEIGHTS'] + decoder_weight)
+                )
+            if desc_weight:
+                self.network.descriptor.load_state_dict(
+                    torch.load(os.environ['CNN_WEIGHTS'] + desc_weight)
+                )
+            if agg_weight:
+                self.network.feat_agg.load_state_dict(
+                    torch.load(os.environ['CNN_WEIGHTS'] + agg_weight)
+                )
+
     def map_print(self):
         self.network.train()  # To have the infered map
         self.data['train'].used_mod = self.training_mod

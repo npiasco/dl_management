@@ -140,6 +140,13 @@ class Base:
             f.write(yaml.safe_dump(self.params))
         logger.info('Checkpoint saved at epoch {}'.format(self.curr_epoch))
 
+    def serialize_net(self):
+        tmp_net = copy.deepcopy(self.network)
+        tmp_net.load_state_dict(self.trainer.best_net[-1])
+        serlz = tmp_net.full_save()
+        for name, data in serlz.items():
+            torch.save(data, name + '.pth')
+
     def load(self):
         datas = dict()
         for name, file in self.params['saved_files'].items():
@@ -192,7 +199,12 @@ class Base:
 
         if print_score:
             print('Validation score is {}'.format(self.trainer.best_net[0]))
-            print('At epoch {}'.format(self.trainer.val_score.index(self.trainer.best_net[0])))
+
+            try:
+                print('At epoch {}'.format(self.trainer.val_score.index(self.trainer.best_net[0])))
+            except ValueError:
+                print('Initial weights')
+
             scores_to_plot = list()
             for i, (name, vals) in enumerate(self.results.items()):
                 try:

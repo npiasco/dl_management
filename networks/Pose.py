@@ -139,6 +139,11 @@ class Main(nn.Module):
             layers_to_train = self.layers_to_train
         return sub_layers(layers_to_train)
 
+    def full_save(self):
+        return {'feature': self.feature.state_dict(),
+                'regressor': self.regressor.state_dict()}
+
+
 
 if __name__ == '__main__':
     net = Main().cuda()

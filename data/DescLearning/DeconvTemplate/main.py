@@ -12,7 +12,14 @@ import system.DescriptorLearning as System
 
 if __name__ == '__main__':
     machine = System.Deconv(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])])
-    action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[m]\tsee maps\n[ ]\ttrain+test\n')
+    action = input("""Exec:
+    [t]\ttrain
+    [e]\ttest
+    [p]\tprint (console)
+    [P]\tprint (full)
+    [m]\tsee maps
+    [s]\tserialize net
+    [ ]\ttrain+test\n""")
     if action == 't':
         machine.train()
     elif action == 'e':
@@ -23,6 +30,8 @@ if __name__ == '__main__':
         machine.plot()
     elif action == 'm':
         machine.map_print()
+    elif action == 'm':
+        machine.serialize_net()
     elif action == '':
         machine.train()
         machine.test()

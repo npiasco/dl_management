@@ -76,6 +76,10 @@ class Main(nn.Module):
             layers_to_train = self.layers_to_train
         return sub_layers(layers_to_train)
 
+    def full_save(self):
+        return {'feature': self.feature.state_dict(),
+                'descriptor': self.descriptor.state_dict()}
+
 
 class Deconv(nn.Module):
     def __init__(self, **kwargs):
@@ -84,10 +88,8 @@ class Deconv(nn.Module):
         batch_norm = kwargs.pop('batch_norm', False)
         agg_method = kwargs.pop('agg_method', 'RMAC')
         feat_agg_method = kwargs.pop('feat_agg_method', 'Concat')
-        feat_agg_params = kwargs.pop('feat_agg_params', None)
+        feat_agg_params = kwargs.pop('feat_agg_params', dict())
         self.auxilary_feat = kwargs.pop('auxilary_feat', 'conv1')
-        if feat_agg_params is None:
-            feat_agg_params = dict()
         desc_norm = kwargs.pop('desc_norm', True)
         self.end_relu = kwargs.pop('end_relu', False)
         base_archi = kwargs.pop('base_archi', 'Alexnet')
@@ -183,6 +185,13 @@ class Deconv(nn.Module):
         if not layers_to_train:
             layers_to_train = self.layers_to_train
         return sub_layers(layers_to_train)
+
+    def full_save(self):
+        return {'feature': self.feature.state_dict(),
+                'deconv': self.deconv.state_dict(),
+                'descriptor': self.descriptor.state_dict(),
+                'feature_agg': self.feat_agg.state_dict()}
+
 
 if __name__ == '__main__':
     """
