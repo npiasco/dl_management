@@ -75,7 +75,7 @@ class MeanRecallAtN:
         if old_score is None:
             return True
         else:
-            return new_score > old_score
+            return new_score >= old_score
 
 
 class Recall:
@@ -135,7 +135,7 @@ class GlobalPoseError:
         if old_score is None:
             return True
         else:
-            return new_score < old_score
+            return new_score <= old_score
 
 
 if __name__ == '__main__':
