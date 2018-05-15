@@ -86,7 +86,7 @@ def triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e-6
     return factor*func.triplet_margin_loss(anchor, positives, negatives, margin=margin, p=p, eps=eps, swap=swap)
 
 
-def mult_triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e-6, factor=None,swap=False):
+def mult_triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e-6, factor=None, swap=False):
     loss = dict()
     for part, part_factor in factor.items():
         loss[part] = part_factor*func.triplet_margin_loss(anchor[part],
@@ -98,12 +98,17 @@ def mult_triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps
 
 def l1_modal_loss(predicted_maps, gt_maps, p=1, factor=3e-4):
 
-    loss = factor*torch.mean(
-        func.pairwise_distance(
-            torch.cat(predicted_maps, dim=0).view(1,-1),
-            torch.cat(gt_maps, dim=0).view(1,-1),
-            p=p
+    if p == 1:
+        loss = factor * func.l1_loss(
+            torch.cat(predicted_maps, dim=1),
+            torch.cat(gt_maps, dim=1)
         )
-    )
+    elif p == 2:
+        loss = factor * func.mse_loss(
+            torch.cat(predicted_maps, dim=1),
+            torch.cat(gt_maps, dim=1)
+        )
+    else:
+        raise AttributeError('No behaviour for p = {}'.format(p))
 
     return loss
