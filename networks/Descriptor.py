@@ -97,6 +97,7 @@ class Deconv(nn.Module):
         load_imagenet = kwargs.pop('load_imagenet', True)
         self.res = kwargs.pop('res', False)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
+        self.return_all_desc = kwargs.pop('return_all_desc', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -147,7 +148,18 @@ class Deconv(nn.Module):
         )
 
         if self.training:
-            forward_pass = {'desc': x_desc, 'maps': x_deconv_output['maps']}
+            if self.return_all_desc:
+                forward_pass = {
+                    'desc':
+                        {
+                            'main':self.descriptor(x_feat_ouput['feat']),
+                            'aux':self.descriptor(x_deconv_output[self.auxilary_feat]),
+                            'full': x_desc,
+                        },
+                    'maps': x_deconv_output['maps']
+                }
+            else:
+                forward_pass = {'desc': x_desc, 'maps': x_deconv_output['maps']}
         else:
             forward_pass = x_desc
 
@@ -225,7 +237,8 @@ if __name__ == '__main__':
                  auxilary_feat='conv1',
                  batch_norm=True,
                  feat_agg_method='Concat',
-                 R=2
+                 R=2,
+                 return_all_desc=True
                  ).cuda()
 
     feat_output = net(auto.Variable(tensor_input))

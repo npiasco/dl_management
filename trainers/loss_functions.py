@@ -81,8 +81,19 @@ def adaptive_triplet_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e
     loss = torch.mean(dist_hinge)
     return loss
 
+
 def triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e-6, factor=1,swap=False):
     return factor*func.triplet_margin_loss(anchor, positives, negatives, margin=margin, p=p, eps=eps, swap=swap)
+
+
+def mult_triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e-6, factor=None,swap=False):
+    loss = dict()
+    for part, part_factor in factor.items():
+        loss[part] = part_factor*func.triplet_margin_loss(anchor[part],
+                                                          positives[part],
+                                                          negatives[part],
+                                                          margin=margin, p=p, eps=eps, swap=swap)
+    return sum(loss.values())
 
 
 def l1_modal_loss(predicted_maps, gt_maps, p=1, factor=3e-4):
