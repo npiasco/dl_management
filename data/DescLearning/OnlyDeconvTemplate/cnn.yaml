@@ -10,6 +10,6 @@ param_class:
     layers_to_train: 'only_deconv'
     # Specific to Deconv
     feat_agg_method: 'Concat'
-    res: True
+    res: false
     # feat_agg_params:
     auxilary_feat: 'conv1'
