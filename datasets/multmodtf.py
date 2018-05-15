@@ -52,12 +52,15 @@ class ColorJitter(tf.ColorJitter):
 
 
 class Resize(tf.Resize):
-    def __init__(self, size):
-        tf.Resize.__init__(self, size)
+    def __init__(self, size, interpolation=PIL.Image.BILINEAR):
+        tf.Resize.__init__(self, size, interpolation=interpolation)
 
     def __call__(self, sample):
         for name, mod in sample.items():
-            sample[name] = func.resize(mod, self.size, self.interpolation)
+            if name in ['rgb']:
+                sample[name] = func.resize(mod, self.size, self.interpolation)
+            else:
+                sample[name] = func.resize(mod, self.size, PIL.Image.NEAREST)
 
         return sample
 
@@ -72,7 +75,10 @@ class RandomResizedCrop(tf.RandomResizedCrop):
         i, j, h, w = self.get_params(first_mod, self.scale, self.ratio)
 
         for name, mod in sample.items():
-            sample[name] = func.resized_crop(mod, i, j, h, w, self.size, self.interpolation)
+            if name in ['rgb']:
+                sample[name] = func.resized_crop(mod, i, j, h, w, self.size, self.interpolation)
+            else:
+                sample[name] = func.resized_crop(mod, i, j, h, w, self.size, PIL.Image.NEAREST)
 
         return sample
 
