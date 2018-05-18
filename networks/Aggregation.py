@@ -100,19 +100,20 @@ class Embedding(nn.Module):
         nn.Module.__init__(self)
         agg = kwargs.pop('agg', 'RMAC')
         agg_params = kwargs.pop('agg_params', {'R': 1, 'norm': True})
-        size = kwargs.pop('size', 256)
+        input_size = kwargs.pop('input_size', 256)
+        size_feat = kwargs.pop('size_feat', 256)
         self.gate = kwargs.pop('gate', False)
         self.res = kwargs.pop('res', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-        self.embed = nn.Conv2d(size, size, kernel_size=1)
+        self.embed = nn.Conv2d(input_size, size_feat, kernel_size=1)
         self.descriptor = select_desc(agg, agg_params)
 
         if self.gate:
             self.gatenet = nn.Sequential(
-                nn.Conv2d(size, size, kernel_size=1),
+                nn.Conv2d(input_size, size_feat, kernel_size=1),
                 nn.Sigmoid()
             )
 
