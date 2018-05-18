@@ -34,7 +34,7 @@ class RecallAtN:
         if old_score is None:
             return True
         else:
-            return new_score > old_score
+            return new_score >= old_score
 
 
 class MeanRecallAtN:
