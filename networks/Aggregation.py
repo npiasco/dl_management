@@ -88,7 +88,7 @@ class Embedding(nn.Module):
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-        self.embeds = nn.Conv2d(size, size, [1, 1])
+        self.embed = nn.Conv2d(size, size, kernel_size=1)
 
         if agg == 'RMAC':
             self.descriptor = RMAC(R=R, norm=norm)
@@ -102,7 +102,7 @@ class Embedding(nn.Module):
             raise AttributeError("Unknown aggregation method {}".format(agg))
 
     def forward(self, feature):
-        feature = self.embeds(feature)
+        feature = self.embed(feature)
         desc = self.descriptor(feature)
 
         return desc

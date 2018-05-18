@@ -9,16 +9,32 @@ import networks.FeatAggregation as FeatAggregation
 logger = setlog.get_logger(__name__)
 
 
+def select_desc(name, params):
+    if name == 'RMAC':
+        agg = Agg.RMAC(**params)
+    elif name == 'RAAC':
+        agg = Agg.RAAC(**params)
+    elif name == 'RMean':
+        agg = Agg.RMean(**params)
+    elif name == 'SPOC':
+        agg = Agg.SPOC(**params)
+    elif name == 'Embedding':
+        agg = Agg.Embedding(**params)
+    else:
+        raise ValueError('Unknown aggregation method {}'.format(name))
+
+    return agg
+
+
 class Main(nn.Module):
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
 
         batch_norm = kwargs.pop('batch_norm', False)
         agg_method = kwargs.pop('agg_method', 'RMAC')
-        desc_norm = kwargs.pop('desc_norm', True)
+        agg_method_param = kwargs.pop('agg_method_param', {'R': 1, 'norm': True})
         end_relu = kwargs.pop('end_relu', False)
         base_archi = kwargs.pop('base_archi', 'Alexnet')
-        R = kwargs.pop('R', 1)
         load_imagenet = kwargs.pop('load_imagenet', True)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
 
@@ -32,16 +48,7 @@ class Main(nn.Module):
         else:
             raise AttributeError("Unknown base architecture {}".format(base_archi))
 
-        if agg_method == 'RMAC':
-            self.descriptor = Agg.RMAC(R=R, norm=desc_norm)
-        elif agg_method == 'RAAC':
-            self.descriptor = Agg.RAAC(R=R, norm=desc_norm)
-        elif agg_method == 'RMean':
-            self.descriptor = Agg.RMean(R=R, norm=desc_norm)
-        elif agg_method == 'SPOC':
-            self.descriptor = Agg.SPOC(norm=desc_norm)
-        else:
-            raise AttributeError("Unknown aggregation method {}".format(agg_method))
+        self.descriptor = select_desc(agg_method, agg_method_param)
 
         logger.info('Descriptor architecture:')
         logger.info(self.descriptor)
@@ -87,13 +94,14 @@ class Deconv(nn.Module):
 
         batch_norm = kwargs.pop('batch_norm', False)
         agg_method = kwargs.pop('agg_method', 'RMAC')
+        agg_method_param = kwargs.pop('agg_method_param', {'R': 1, 'norm': True})
+        aux_agg = kwargs.pop('aux_agg', 'RMAC')
+        aux_agg_param = kwargs.pop('aux_agg_param', {'R': 1, 'norm': True})
         feat_agg_method = kwargs.pop('feat_agg_method', 'Concat')
         feat_agg_params = kwargs.pop('feat_agg_params', dict())
         self.auxilary_feat = kwargs.pop('auxilary_feat', 'conv1')
-        desc_norm = kwargs.pop('desc_norm', True)
         self.end_relu = kwargs.pop('end_relu', False)
         base_archi = kwargs.pop('base_archi', 'Alexnet')
-        R = kwargs.pop('R', 1)
         load_imagenet = kwargs.pop('load_imagenet', True)
         self.res = kwargs.pop('res', False)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
@@ -113,16 +121,8 @@ class Deconv(nn.Module):
         else:
             raise AttributeError("Unknown base architecture {}".format(base_archi))
 
-        if agg_method == 'RMAC':
-            self.descriptor = Agg.RMAC(R=R, norm=desc_norm)
-        elif agg_method == 'RAAC':
-            self.descriptor = Agg.RAAC(R=R, norm=desc_norm)
-        elif agg_method == 'RMean':
-            self.descriptor = Agg.RMean(R=R, norm=desc_norm)
-        elif agg_method == 'SPOC':
-            self.descriptor = Agg.SPOC(norm=desc_norm)
-        else:
-            raise AttributeError("Unknown aggregation method {}".format(agg_method))
+        self.descriptor = select_desc(agg_method, agg_method_param)
+        self.aux_descriptor = select_desc(aux_agg, aux_agg_param)
 
         if feat_agg_method == 'Concat':
             self.feat_agg = FeatAggregation.Concat(**feat_agg_params)
@@ -144,7 +144,7 @@ class Deconv(nn.Module):
 
         x_desc = self.feat_agg(
             self.descriptor(x_feat_ouput['feat']),
-            self.descriptor(x_deconv_output[self.auxilary_feat])
+            self.aux_descriptor(x_deconv_output[self.auxilary_feat])
         )
 
         if self.training:
@@ -153,7 +153,7 @@ class Deconv(nn.Module):
                     'desc':
                         {
                             'main':self.descriptor(x_feat_ouput['feat']),
-                            'aux':self.descriptor(x_deconv_output[self.auxilary_feat]),
+                            'aux':self.aux_descriptor(x_deconv_output[self.auxilary_feat]),
                             'full': x_desc,
                         },
                     'maps': x_deconv_output['maps']
@@ -237,7 +237,8 @@ if __name__ == '__main__':
                  auxilary_feat='conv1',
                  batch_norm=True,
                  feat_agg_method='Concat',
-                 R=2,
+                 aux_agg='Embedding',
+                 aux_agg_param={'size': 64},
                  return_all_desc=True
                  ).cuda()
 

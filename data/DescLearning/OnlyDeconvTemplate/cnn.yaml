@@ -3,13 +3,18 @@ param_class:
     end_relu: False
     batch_norm: False
     agg_method: 'RMAC'
-    desc_norm: True
+    agg_method_param:
+        desc_norm: True
+        R: 1
     base_archi: 'Alexnet'
-    R: 1
     load_imagenet: True
     layers_to_train: 'only_deconv'
     # Specific to Deconv
     feat_agg_method: 'Concat'
     res: false
     # feat_agg_params:
+    aux_agg: 'RMAC'
+    aux_agg_param:
+        desc_norm: True
+        R: 1
     auxilary_feat: 'conv1'
