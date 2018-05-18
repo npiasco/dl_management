@@ -7,6 +7,23 @@ import torch
 logger = setlog.get_logger(__name__)
 
 
+def select_desc(name, params):
+    if name == 'RMAC':
+        agg = RMAC(**params)
+    elif name == 'RAAC':
+        agg = RAAC(**params)
+    elif name == 'RMean':
+        agg = RMean(**params)
+    elif name == 'SPOC':
+        agg = SPOC(**params)
+    elif name == 'Embedding':
+        agg = Embedding(**params)
+    else:
+        raise ValueError('Unknown aggregation method {}'.format(name))
+
+    return agg
+
+
 class RMAC(nn.Module):
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
@@ -82,24 +99,13 @@ class Embedding(nn.Module):
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
         agg = kwargs.pop('agg', 'RMAC')
-        R = kwargs.pop('R', 1)
+        agg_params = kwargs.pop('agg_params', {'R': 1, 'norm': True})
         size = kwargs.pop('size', 256)
-        norm = kwargs.pop('norm', True)
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
         self.embed = nn.Conv2d(size, size, kernel_size=1)
-
-        if agg == 'RMAC':
-            self.descriptor = RMAC(R=R, norm=norm)
-        elif agg == 'RAAC':
-            self.descriptor = RAAC(R=R, norm=norm)
-        elif agg == 'RMean':
-            self.descriptor = RMean(R=R, norm=norm)
-        elif agg == 'SPOC':
-            self.descriptor = SPOC(norm=norm)
-        else:
-            raise AttributeError("Unknown aggregation method {}".format(agg))
+        self.descriptor = select_desc(agg, agg_params)
 
     def forward(self, feature):
         feature = self.embed(feature)

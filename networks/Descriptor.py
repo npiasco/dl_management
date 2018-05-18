@@ -9,23 +9,6 @@ import networks.FeatAggregation as FeatAggregation
 logger = setlog.get_logger(__name__)
 
 
-def select_desc(name, params):
-    if name == 'RMAC':
-        agg = Agg.RMAC(**params)
-    elif name == 'RAAC':
-        agg = Agg.RAAC(**params)
-    elif name == 'RMean':
-        agg = Agg.RMean(**params)
-    elif name == 'SPOC':
-        agg = Agg.SPOC(**params)
-    elif name == 'Embedding':
-        agg = Agg.Embedding(**params)
-    else:
-        raise ValueError('Unknown aggregation method {}'.format(name))
-
-    return agg
-
-
 class Main(nn.Module):
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
@@ -48,7 +31,7 @@ class Main(nn.Module):
         else:
             raise AttributeError("Unknown base architecture {}".format(base_archi))
 
-        self.descriptor = select_desc(agg_method, agg_method_param)
+        self.descriptor = Agg.select_desc(agg_method, agg_method_param)
 
         logger.info('Descriptor architecture:')
         logger.info(self.descriptor)
@@ -121,8 +104,8 @@ class Deconv(nn.Module):
         else:
             raise AttributeError("Unknown base architecture {}".format(base_archi))
 
-        self.descriptor = select_desc(agg_method, agg_method_param)
-        self.aux_descriptor = select_desc(aux_agg, aux_agg_param)
+        self.descriptor = Agg.select_desc(agg_method, agg_method_param)
+        self.aux_descriptor = Agg.select_desc(aux_agg, aux_agg_param)
 
         if feat_agg_method == 'Concat':
             self.feat_agg = FeatAggregation.Concat(**feat_agg_params)
@@ -169,27 +152,34 @@ class Deconv(nn.Module):
         def sub_layers(name):
             return {
                 'all': [{'params': self.descriptor.parameters()},
+                        {'params': self.aux_descriptor.parameters()},
                         {'params': self.deconv.parameters()},
                         {'params': self.feat_agg.parameters()}] + self.feature.get_training_layers('all'),
                 'only_feat': self.feature.get_training_layers('all'),
                 'only_descriptor': [{'params': self.descriptor.parameters()},
+                                    {'params': self.aux_descriptor.parameters()},
                                     {'params': self.feat_agg.parameters()}],
                 'only_deconv': [{'params': self.descriptor.parameters()},
+                                {'params': self.aux_descriptor.parameters()},
                                 {'params': self.feat_agg.parameters()},
                                 {'params': self.deconv.parameters()}],
                 'up_to_conv4': [{'params': self.descriptor.parameters()},
+                                {'params': self.aux_descriptor.parameters()},
                                 {'params': self.deconv.parameters()},
                                 {'params': self.feat_agg.parameters()}
                                 ] + self.feature.get_training_layers('up_to_conv4'),
                 'up_to_conv3': [{'params': self.descriptor.parameters()},
+                                {'params': self.aux_descriptor.parameters()},
                                 {'params': self.deconv.parameters()},
                                 {'params': self.feat_agg.parameters()}
                                 ] + self.feature.get_training_layers('up_to_conv3'),
                 'up_to_conv2': [{'params': self.descriptor.parameters()},
+                                {'params': self.aux_descriptor.parameters()},
                                 {'params': self.deconv.parameters()},
                                 {'params': self.feat_agg.parameters()}
                                 ] + self.feature.get_training_layers('up_to_conv2'),
                 'up_to_conv1': [{'params': self.descriptor.parameters()},
+                                {'params': self.aux_descriptor.parameters()},
                                 {'params': self.deconv.parameters()},
                                 {'params': self.feat_agg.parameters()}
                                 ] + self.feature.get_training_layers('up_to_conv1')
@@ -238,11 +228,16 @@ if __name__ == '__main__':
                  batch_norm=True,
                  feat_agg_method='Concat',
                  aux_agg='Embedding',
-                 aux_agg_param={'size': 64},
+                 aux_agg_param={'size': 64,
+                                'agg': 'Embedding',
+                                'agg_params': {'size': 64}},
                  return_all_desc=True
                  ).cuda()
 
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'])
     print(net.get_training_layers('all'))
-    print(net.get_training_layers('only_deconv'))
+    for i, p in enumerate(net.get_training_layers('only_descriptor')):
+        print(i)
+        for pp in p['params']:
+            print(pp)
