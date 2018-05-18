@@ -12,5 +12,6 @@ param_class:
     feat_agg_method: 'Concat'
     # feat_agg_params:
     auxilary_feat: 'conv1'
+    return_all_desc: true
 
 #encoder_weight: 'Template/feature.pth'

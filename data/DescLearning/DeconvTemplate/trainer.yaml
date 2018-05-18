@@ -7,10 +7,14 @@ param_class:
     optimizer_type: SGD
     val_num_workers: 16
     triplet_loss:
-        func: 'torch.nn.functional.triplet_margin_loss'
+        func: 'loss_func.mult_triplet_margin_loss'
         param:
             margin: 0.25
             swap: True
+            factor:
+                main: 0.5
+                aux: 0.5
+                full: 1
     modal_loss:
         func: 'loss_func.l1_modal_loss'
         param:
