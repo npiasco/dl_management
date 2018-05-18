@@ -202,7 +202,9 @@ class Base:
             print('Validation score is {}'.format(self.trainer.best_net[0]))
 
             try:
-                print('At epoch {}'.format(self.trainer.val_score.index(self.trainer.best_net[0])))
+                print('At epoch {}'.format(
+                    len(self.trainer.val_score) - 1 - self.trainer.val_score[::-1].index(self.trainer.best_net[0])
+                ))
             except ValueError:
                 print('Initial weights')
 
