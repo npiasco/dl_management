@@ -113,7 +113,9 @@ class Deconv(nn.Module):
             raise AttributeError("Unknown feat aggregation method {}".format(feat_agg_method))
 
         logger.info('Descriptor architecture:')
-        logger.info(self.descriptor)
+        logger.info('Main:\n{}'.format(self.descriptor))
+        logger.info('Aux:\n{}'.format(self.aux_descriptor))
+        logger.info('Fuse:\n{}'.format(self.feat_agg))
 
     def forward(self, x):
         x_feat_ouput = self.feature(x)
@@ -230,14 +232,10 @@ if __name__ == '__main__':
                  aux_agg='Embedding',
                  aux_agg_param={'size': 64,
                                 'agg': 'Embedding',
-                                'agg_params': {'size': 64}},
+                                'agg_params': {'size': 64, 'res': True, 'gate': True}},
                  return_all_desc=True
                  ).cuda()
 
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'])
     print(net.get_training_layers('all'))
-    for i, p in enumerate(net.get_training_layers('only_descriptor')):
-        print(i)
-        for pp in p['params']:
-            print(pp)
