@@ -3,8 +3,9 @@ param_class:
     end_relu: True
     batch_norm: False
     agg_method: 'RMAC'
-    desc_norm: True
+    agg_method_param:
+        R: 1
+        desc_norm: True
     base_archi: 'Alexnet'
-    R: 1
     load_imagenet: True
     layers_to_train: 'all'
