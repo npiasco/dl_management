@@ -27,6 +27,9 @@ class BaseTrainer:
         self.cuda_func(self.network)
         self.optimizer = None
 
+        if self.cuda_on == False:
+            logger.warning('CUDA DISABLE, Training may take a while')
+
     def init_optimizer(self, param):
         if self.optimizer_type == "SGD":
             optimizer = optim.SGD(param, lr=self.lr, weight_decay=self.weight_decay, momentum=self.momentum)
