@@ -76,3 +76,34 @@ class RAAC(nn.Module):
             x = func.normalize(x)
 
         return x
+
+
+class Embedding(nn.Module):
+    def __init__(self, **kwargs):
+        nn.Module.__init__(self)
+        agg = kwargs.pop('agg', 'RMAC')
+        R = kwargs.pop('R', 1)
+        size = kwargs.pop('size', 256)
+        norm = kwargs.pop('norm', True)
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        self.embeds = nn.Conv2d(size, size, [1, 1])
+
+        if agg == 'RMAC':
+            self.descriptor = RMAC(R=R, norm=norm)
+        elif agg == 'RAAC':
+            self.descriptor = RAAC(R=R, norm=norm)
+        elif agg == 'RMean':
+            self.descriptor = RMean(R=R, norm=norm)
+        elif agg == 'SPOC':
+            self.descriptor = SPOC(norm=norm)
+        else:
+            raise AttributeError("Unknown aggregation method {}".format(agg))
+
+    def forward(self, feature):
+        feature = self.embeds(feature)
+        desc = self.descriptor(feature)
+
+        return desc
+
