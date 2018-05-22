@@ -242,12 +242,21 @@ if __name__ == '__main__':
 
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
-    """
+
     net = Desc.Main(end_relu=True, batch_norm=False)
-    trainer = Trainer(network=net, cuda_on=True)
+    trainer = Trainer(network=net,
+                      cuda_on=True,
+                      minning_func=minning.no_selection,
+                      triplet_loss={
+                          'func': loss_func.adaptive_triplet_loss,
+                          'param': dict()
+                      }
+                      )
+    '''
     trainer.eval(dataset={'data': data, 'queries': query_data},
                  score_function=ScoreFunc.RecallAtN(n=1, radius=25),
                  ep=0)
+    '''
     for b in tqdm.tqdm(dtload):
         trainer.train(b)
     trainer.eval(dataset={'data': data, 'queries': query_data},
@@ -267,3 +276,4 @@ if __name__ == '__main__':
     trainer.eval(dataset={'data': data, 'queries': query_data},
                  score_function=ScoreFunc.RecallAtN(n=1, radius=25),
                  ep=1)
+    """

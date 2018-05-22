@@ -62,27 +62,30 @@ class BetaWeights:
         self.beta = data
 
 
-def adaptive_triplet_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e-6):
-    d_p = None
-    d_n = None
+def adaptive_triplet_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e-6, swap=True):
+    tt_loss = None
     for positive in positives:
-        if d_p is None:
-            d_p = func.pairwise_distance(anchor, positive, p, eps)
-        else:
-            d_p += func.pairwise_distance(anchor, positive, p, eps)
-    for negative in negatives:
-        if d_n is None:
-            d_n = func.pairwise_distance(anchor, negative, p, eps)
-        else:
-            d_n += func.pairwise_distance(anchor, negative, p, eps)
-    l_p = len(positives)
-    l_n = len(negatives)
-    dist_hinge = torch.clamp(margin + d_p/l_p - d_n/l_n, min=0.0)
-    loss = torch.mean(dist_hinge)
-    return loss
+        for negative in negatives:
+            if tt_loss is None:
+                tt_loss = func.triplet_margin_loss(anchor,
+                                                   positive,
+                                                   negative,
+                                                   margin=margin,
+                                                   eps=eps,
+                                                   p=p,
+                                                   swap=swap)
+            else:
+                tt_loss += func.triplet_margin_loss(anchor,
+                                                    positive,
+                                                    negative,
+                                                    margin=margin,
+                                                    eps=eps,
+                                                    p=p,
+                                                    swap=swap)
+    return tt_loss
 
 
-def triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e-6, factor=1,swap=False):
+def triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e-6, factor=1, swap=False):
     return factor*func.triplet_margin_loss(anchor, positives, negatives, margin=margin, p=p, eps=eps, swap=swap)
 
 
