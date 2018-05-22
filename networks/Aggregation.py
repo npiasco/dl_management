@@ -101,7 +101,7 @@ class Embedding(nn.Module):
         agg = kwargs.pop('agg', 'RMAC')
         agg_params = kwargs.pop('agg_params', {'R': 1, 'norm': True})
         input_size = kwargs.pop('input_size', 256)
-        size_feat = kwargs.pop('size_feat', 256)
+        size_feat = kwargs.pop('feat_size', 256)
         self.gate = kwargs.pop('gate', False)
         self.res = kwargs.pop('res', False)
 
