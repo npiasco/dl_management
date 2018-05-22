@@ -125,6 +125,7 @@ class DeconvTrainer(Trainer):
     def __init__(self, **kwargs):
         self.modal_loss = kwargs.pop('modal_loss', {'func': loss_func.l1_modal_loss,
                                                     'param': {'p': 1, 'la':3e-4}})
+        aux_loss = kwargs.pop('aux_loss', dict())
         self.aux_mod = kwargs.pop('aux_mod', 'depth')
 
         Trainer.__init__(self, **kwargs)
@@ -132,6 +133,13 @@ class DeconvTrainer(Trainer):
         if type(self.modal_loss['func']) == type(str()):
             self.modal_loss['func'] = eval(self.modal_loss['func'])
         self.loss_log['modal_loss'] = list()
+
+        self.aux_loss = dict()
+        for name, info in aux_loss.items():
+            self.aux_loss[name] = info
+            self.aux_loss[name]['func'] = eval(aux_loss[name]['func'])
+            self.loss_log[name] = list()
+
 
     def train(self, batch):
         self.network.train()
@@ -170,6 +178,12 @@ class DeconvTrainer(Trainer):
                                              **self.modal_loss['param'])
 
         loss = triplet_loss + modal_loss
+        for name, aux_los in self.aux_loss.items():
+            val = aux_los['func'](anchor['desc'], positive['desc'], negative['desc'], **aux_los['param'])
+            loss += val
+            self.loss_log[name].append(val.data[0])
+            logger.debug(name + ' loss is {}'.format(val.data[0]))
+
         loss.backward()  # calculate the gradients (backpropagation)
         self.optimizer.step()  # update the weights
         self.loss_log['triplet_loss'].append(triplet_loss.data[0])

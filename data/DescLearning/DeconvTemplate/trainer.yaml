@@ -12,19 +12,33 @@ param_class:
             margin: 0.25
             swap: True
             factor:
-                main: 0.5
-                aux: 0.5
                 full: 1
     modal_loss:
         func: 'loss_func.l1_modal_loss'
         param:
             p: 1
-            factor: 3.0e-4
+            factor: 1
+    aux_loss:
+        main_triplet:
+            func: 'loss_func.mult_triplet_margin_loss'
+            param:
+                margin: 0.25
+                swap: True
+                factor:
+                    main: 1
+        aux_triplet:
+            func: 'loss_func.mult_triplet_margin_loss'
+            param:
+                margin: 0.25
+                swap: True
+                factor:
+                    aux: 1
+
     minning_func: 'trainers.minning_function.hard_minning'
     mod: 'rgb'
     aux_mod: 'mono_depth'
 
-eval_class: 'score.Functions.RecallAtN'
+eval_class: 'score.Functions.MeanRecallAtN'
 param_eval_class:
     n: 5
     radius: 25
