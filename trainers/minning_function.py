@@ -23,12 +23,21 @@ def random(trainer, batch, mode, return_idx=False):
         return trainer.network(auto.Variable(trainer.cuda_func(batch[mode][pick][trainer.mod]), requires_grad=True))
 
 
-def hard_minning(trainer, batch, mode, return_idx=False):
+def hard_minning(trainer, batch, mode, **kwargs):
+    return_idx = kwargs.pop('return_idx', False)
+    n_ex = kwargs.pop('n_ex', {'positives': 2, 'negatives': 5})
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    n_ex = n_ex[mode]
+
     trainer.network.eval()
     anchors = trainer.network(auto.Variable(trainer.cuda_func(batch['query'][trainer.mod]),
                                             requires_grad=False))
     desc_anchors = anchors
-    exemples = torch.FloatTensor(batch['query'][trainer.mod].size())
+    size = batch['query'][trainer.mod].size()
+    size = torch.Size((n_ex, size[0], size[1], size[2], size[3]))
+    exemples = torch.FloatTensor(size)
     idxs = list()
     for i, desc_anchor in enumerate(desc_anchors):
         ex_descs = [trainer.network(auto.Variable(trainer.cuda_func(ex[trainer.mod][i:i+1]),
@@ -37,26 +46,44 @@ def hard_minning(trainer, batch, mode, return_idx=False):
         diff = [func.pairwise_distance(desc_anchor.unsqueeze(0), x).data.cpu().numpy()[0, 0] for x in ex_descs]
         sort_index = np.argsort(diff)
         if mode == 'positives':
-            idx = sort_index[-1]
+            idx = sort_index[-1*n_ex:]
         elif mode == 'negatives':
-            idx = sort_index[0]
-        exemples[i] = batch[mode][idx][trainer.mod][i]
+            idx = sort_index[:n_ex]
+        for j in range(n_ex):
+            exemples[j][i] = batch[mode][idx[j]][trainer.mod][i]
         idxs.append(idx)
+
     trainer.network.train()
+    # Forward
+    forwarded_ex = None
+    for ex in exemples:
+        forward = trainer.network(auto.Variable(trainer.cuda_func(ex), requires_grad=True))
+        if forwarded_ex is None:
+            forwarded_ex = dict()
+            for name, val in forward.items():
+                forwarded_ex[name] = list()
+                forwarded_ex[name].append(val)
+        else:
+            for name, val in forward.items():
+                forwarded_ex[name].append(val)
+
     if return_idx:
-        return trainer.network(auto.Variable(trainer.cuda_func(exemples), requires_grad=True)), idxs
+        return forwarded_ex, idxs
     else:
-        return trainer.network(auto.Variable(trainer.cuda_func(exemples), requires_grad=True))
+        return forwarded_ex
 
 
 def no_selection(trainer, batch, mode):
-    exemples = {
-        'desc': list(),
-        'feat': list()
-    }
+    exemples = None
     for ex in batch[mode]:
         forward = trainer.network(auto.Variable(trainer.cuda_func(ex[trainer.mod]), requires_grad=True))
-        exemples['desc'].append(forward['desc'])
-        exemples['feat'].append(forward['feat'])
+        if exemples is None:
+            exemples = dict()
+            for name, val in forward.items():
+                exemples[name] = list()
+                exemples[name].append(val)
+        else:
+            for name, val in forward.items():
+                exemples[name].append(val)
 
     return exemples

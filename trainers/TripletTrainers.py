@@ -34,13 +34,16 @@ class Trainer(Base.BaseTrainer):
 
         self.triplet_loss = kwargs.pop('triplet_loss', {'func': func.triplet_margin_loss,
                                                         'param': dict()})
-        self.minning_func = kwargs.pop('minning_func', minning.hard_minning)
+        self.minning_func = kwargs.pop('minning_func', {'func': minning.hard_minning,
+                                                        'param': dict()})
         self.mod = kwargs.pop('mod', 'rgb')
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-        if type(self.triplet_loss['func']) == type(str()):
+        if isinstance(self.triplet_loss['func'], str):
             self.triplet_loss['func'] = eval(self.triplet_loss['func'])
+        if isinstance(self.minning_func['func'], str):
+            self.minning_func['func'] = eval(self.minning_func['func'])
         self.optimizer = self.init_optimizer(self.network.get_training_layers())
         self.loss_log['triplet_loss'] = list()
 
@@ -52,10 +55,11 @@ class Trainer(Base.BaseTrainer):
 
         # Forward pass
         anchor = self.network(auto.Variable(self.cuda_func(batch['query'][self.mod]), requires_grad=True))
-        positive = self.minning_func(self, batch, 'positives')
-        negative = self.minning_func(self, batch, 'negatives')
+        positive = self.minning_func['func'](self, batch, 'positives', **self.minning_func['param'])
+        negative = self.minning_func['func'](self, batch, 'negatives', **self.minning_func['param'])
 
-        loss = self.triplet_loss['func'](anchor['desc'], positive['desc'], negative['desc'], **self.triplet_loss['param'])
+        loss = self.triplet_loss['func'](anchor['desc'], positive['desc'], negative['desc'],
+                                         **self.triplet_loss['param'])
 
         loss.backward()  # calculate the gradients (backpropagation)
         self.optimizer.step()  # update the weights
@@ -130,7 +134,7 @@ class DeconvTrainer(Trainer):
 
         Trainer.__init__(self, **kwargs)
 
-        if type(self.modal_loss['func']) == type(str()):
+        if isinstance(self.modal_loss['func'], str):
             self.modal_loss['func'] = eval(self.modal_loss['func'])
         self.loss_log['modal_loss'] = list()
 
@@ -148,8 +152,11 @@ class DeconvTrainer(Trainer):
 
         # Forward pass
         anchor = self.network(auto.Variable(self.cuda_func(batch['query'][self.mod]), requires_grad=True))
-        positive, pos_idx = self.minning_func(self, batch, 'positives', return_idx=True)
-        negative, neg_idx = self.minning_func(self, batch, 'negatives', return_idx=True)
+        positive, pos_idx  = self.minning_func['func'](self, batch, 'positives',
+                                                       return_idx=True, **self.minning_func['param'])
+        negative, neg_idx  = self.minning_func['func'](self, batch, 'negatives',
+                                                       return_idx=True, **self.minning_func['param'])
+
 
         triplet_loss = self.triplet_loss['func'](anchor['desc'], positive['desc'], negative['desc'],
                                                  **self.triplet_loss['param'])

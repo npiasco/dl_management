@@ -53,13 +53,7 @@ class Default(BaseClass.Base):
 
         self.network = eval(self.network_params['class'])(**self.network_params['param_class'])
 
-        triplet_loss = self.trainer_params['param_class'].pop('triplet_loss',
-                                                              None)
-        minning_func = self.trainer_params['param_class'].pop('minning_func',
-                                                              'trainers.minning_function.random')
         self.trainer = eval(self.trainer_params['class'])(network=self.network,
-                                                          triplet_loss=triplet_loss,
-                                                          minning_func=eval(minning_func),
                                                           **self.trainer_params['param_class'])
         if self.score_file is not None:
             self.load()
@@ -169,7 +163,7 @@ class Deconv(Default):
                     requires_grad=False
                 )
             )
-
+            print(output['desc'])
             images_batch = torch.cat((modality.cpu(), output['maps'].data.cpu()))
             grid = torchvis.utils.make_grid(images_batch, nrow=4)
             plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
