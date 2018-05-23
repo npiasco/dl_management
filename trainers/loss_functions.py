@@ -62,7 +62,15 @@ class BetaWeights:
         self.beta = data
 
 
-def adaptive_triplet_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e-6, swap=True):
+def adaptive_triplet_loss(anchor, positives, negatives, **kwargs):
+    margin = kwargs.pop('margin', 0.25)
+    p = kwargs.pop('p', 2)
+    eps = kwargs.pop('eps', 1e-6)
+    swap = kwargs.pop('swap', True)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
     tt_loss = None
     for positive in positives:
         for negative in negatives:
@@ -114,4 +122,20 @@ def l1_modal_loss(predicted_maps, gt_maps, p=1, factor=3e-4):
     else:
         raise AttributeError('No behaviour for p = {}'.format(p))
 
+    return loss
+
+
+def diversification_loss(anchor, positives, negatives, **kwargs):
+    original_loss = kwargs.pop('original_loss', dict())
+    factor = kwargs.pop('factor', 1)
+    marge = kwargs.pop('marge', 0.1)
+
+    if isinstance(original_loss['func'], str):
+        original_loss['func'] = eval(original_loss['func'])
+
+    main = original_loss['func'](anchor['main'], positives['main'], negatives['main'], **original_loss['param'])
+    aux = original_loss['func'](anchor['aux'], positives['aux'], negatives['aux'], **original_loss['param'])
+    full = original_loss['func'](anchor['full'], positives['full'], negatives['full'], **original_loss['param'])
+
+    loss = factor*(torch.clamp(full + marge - main, min=0) + torch.clamp(full + marge - aux, min=0))
     return loss
