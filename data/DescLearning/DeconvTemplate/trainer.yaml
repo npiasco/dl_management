@@ -13,6 +13,12 @@ param_class:
             swap: True
             factor:
                 full: 1
+    minning_func:
+        func: 'minning.hard_minning'
+        param:
+            n_ex:
+                positives: 2
+                negatives: 5
     modal_loss:
         func: 'loss_func.l1_modal_loss'
         param:
@@ -33,8 +39,16 @@ param_class:
                 swap: True
                 factor:
                     aux: 1
+        diver_loss:
+            func: 'loss_func.diversification_loss'
+            param:
+                margin: 0.1
+                factor: 1.0
+                original_loss:
+                    func: adaptive_triplet_loss
+                    param:
+                        margin: 0.25
 
-    minning_func: 'trainers.minning_function.hard_minning'
     mod: 'rgb'
     aux_mod: 'mono_depth'
 
