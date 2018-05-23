@@ -38,7 +38,7 @@ def hard_minning(trainer, batch, mode, **kwargs):
     size = batch['query'][trainer.mod].size()
     size = torch.Size((n_ex, size[0], size[1], size[2], size[3]))
     exemples = torch.FloatTensor(size)
-    idxs = list()
+    idxs = [list() for _ in range(n_ex)]
     for i, desc_anchor in enumerate(desc_anchors):
         ex_descs = [trainer.network(auto.Variable(trainer.cuda_func(ex[trainer.mod][i:i+1]),
                                                   requires_grad=False))
@@ -51,7 +51,7 @@ def hard_minning(trainer, batch, mode, **kwargs):
             idx = sort_index[:n_ex]
         for j in range(n_ex):
             exemples[j][i] = batch[mode][idx[j]][trainer.mod][i]
-        idxs.append(idx)
+            idxs[j].append(idx[j])
 
     trainer.network.train()
     # Forward
@@ -61,11 +61,22 @@ def hard_minning(trainer, batch, mode, **kwargs):
         if forwarded_ex is None:
             forwarded_ex = dict()
             for name, val in forward.items():
-                forwarded_ex[name] = list()
-                forwarded_ex[name].append(val)
+                # TODO: improve this part
+                if isinstance(val, dict):
+                    forwarded_ex[name] = dict()
+                    for name_2, val_2 in val.items():
+                        forwarded_ex[name][name_2] = list()
+                        forwarded_ex[name][name_2].append(val_2)
+                else:
+                    forwarded_ex[name] = list()
+                    forwarded_ex[name].append(val)
         else:
             for name, val in forward.items():
-                forwarded_ex[name].append(val)
+                if isinstance(val, dict):
+                    for name_2, val_2 in val.items():
+                        forwarded_ex[name][name_2].append(val_2)
+                else:
+                    forwarded_ex[name].append(val)
 
     if return_idx:
         return forwarded_ex, idxs
@@ -80,10 +91,20 @@ def no_selection(trainer, batch, mode):
         if exemples is None:
             exemples = dict()
             for name, val in forward.items():
-                exemples[name] = list()
-                exemples[name].append(val)
+                if isinstance(val, dict):
+                    exemples[name] = dict()
+                    for name_2, val_2 in val.items():
+                        exemples[name][name_2] = list()
+                        exemples[name][name_2].append(val_2)
+                else:
+                    exemples[name] = list()
+                    exemples[name].append(val)
         else:
             for name, val in forward.items():
-                exemples[name].append(val)
+                if isinstance(val, dict):
+                    for name_2, val_2 in val.items():
+                        exemples[name][name_2].append(val_2)
+                else:
+                    exemples[name].append(val)
 
     return exemples

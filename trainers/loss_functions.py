@@ -100,10 +100,10 @@ def triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e-6
 def mult_triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e-6, factor=None, swap=False):
     loss = dict()
     for part, part_factor in factor.items():
-        loss[part] = part_factor*func.triplet_margin_loss(anchor[part],
-                                                          positives[part],
-                                                          negatives[part],
-                                                          margin=margin, p=p, eps=eps, swap=swap)
+        loss[part] = part_factor*adaptive_triplet_loss(anchor[part],
+                                                            positives[part],
+                                                            negatives[part],
+                                                            margin=margin, p=p, eps=eps, swap=swap)
     return sum(loss.values())
 
 

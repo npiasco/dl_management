@@ -162,26 +162,30 @@ class DeconvTrainer(Trainer):
                                                  **self.triplet_loss['param'])
 
         anchor_mod = auto.Variable(self.cuda_func(batch['query'][self.aux_mod]), requires_grad=False)
-        pos_mod = auto.Variable(
-            self.cuda_func(
-                torch.stack(
-                    [batch['positives'][idx][self.aux_mod][i] for i, idx in enumerate(pos_idx)],
-                    dim=0
-                )
-            ),
-            requires_grad=False
-        )
-        neg_mod = auto.Variable(
-            self.cuda_func(
-                torch.stack(
-                    [batch['negatives'][idx][self.aux_mod][i] for i, idx in enumerate(neg_idx)],
-                    dim=0
-                )
-            ),
-            requires_grad=False
-        )
-        modal_loss = self.modal_loss['func']((anchor['maps'], positive['maps'], negative['maps']),
-                                             (anchor_mod, pos_mod, neg_mod),
+        pos_mod = [
+                auto.Variable(
+                self.cuda_func(
+                    torch.stack(
+                        [batch['positives'][b][self.aux_mod][i] for i, b in enumerate(idxs)],
+                        dim=0
+                    )
+                ),
+                requires_grad=False
+            ) for idxs in pos_idx
+            ]
+        neg_mod = [
+            auto.Variable(
+                self.cuda_func(
+                    torch.stack(
+                        [batch['negatives'][b][self.aux_mod][i] for i, b in enumerate(idxs)],
+                        dim=0
+                    )
+                ),
+                requires_grad=False
+            ) for idxs in neg_idx
+            ]
+        modal_loss = self.modal_loss['func']((anchor['maps'], *positive['maps'], *negative['maps']),
+                                             (anchor_mod, *pos_mod, *neg_mod),
                                              **self.modal_loss['param'])
 
         loss = triplet_loss + modal_loss
