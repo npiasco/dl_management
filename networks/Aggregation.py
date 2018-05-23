@@ -104,11 +104,19 @@ class Embedding(nn.Module):
         size_feat = kwargs.pop('feat_size', 256)
         self.gate = kwargs.pop('gate', False)
         self.res = kwargs.pop('res', False)
+        kernel_size = kwargs.pop('kernel_size', 1)
+        stride = kwargs.pop('stride', 1)
+        padding = kwargs.pop('padding', 0)
+        dilation = kwargs.pop('dilation', 1)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-        self.embed = nn.Conv2d(input_size, size_feat, kernel_size=1)
+        self.embed = nn.Conv2d(input_size, size_feat,
+                               kernel_size=kernel_size,
+                               stride=stride,
+                               padding=padding,
+                               dilation=dilation)
         self.descriptor = select_desc(agg, agg_params)
 
         if self.gate:
