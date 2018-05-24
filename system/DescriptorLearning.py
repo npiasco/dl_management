@@ -13,6 +13,9 @@ import trainers.loss_functions
 import datasets.Robotcar                # Needed for class creation with eval
 import networks.Descriptor              # Needed for class creation with eval
 import copy
+import tqdm
+import sklearn.cluster as skclust
+import sklearn.preprocessing as skpre
 
 
 logger = setlog.get_logger(__name__)
@@ -117,6 +120,27 @@ class Default(BaseClass.Base):
         grid = torchvis.utils.make_grid(images_batch, nrow=4)
         plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
+    def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=8):
+        self.network.train()
+        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=jobs)
+        logger.info('Computing feats for clustering')
+        feats = [self.network(auto.Variable(self.trainer.cuda_func(example[self.trainer.mod]),
+                                            requires_grad=False))['feat'].squeeze().view(-1, size_feat).cpu().data.numpy()
+                 for example in tqdm.tqdm(dataset_loader)]
+
+        logger.info('Normalizing feats')
+        normalized_feats = list()
+        for feature in tqdm.tqdm(feats):
+            normalized_feats += [f.tolist() for f in feature]
+            if len(normalized_feats) >= n_ex:
+                break
+
+        normalized_feats = skpre.normalize(normalized_feats)
+        logger.info('Computing clusters')
+        kmean = skclust.KMeans(n_clusters=size_cluster, n_jobs=jobs)
+        kmean.fit(normalized_feats)
+        torch.save(kmean.cluster_centers_, 'kmean_' + str(size_cluster) + '_clusters.pth')
+
 
 class Deconv(Default):
     def __init__(self, **kwargs):
@@ -172,12 +196,16 @@ class Deconv(Default):
 
 
 if __name__ == '__main__':
-    '''
+
     system = Default(root=os.environ['DATA'] + 'DescLearning/Template/')
+    system.creat_clusters(64)
+    '''
     system.train()
     system.test()
     system.plot()
     system.print('val_data')
     '''
+    '''
     system = Deconv(root=os.environ['DATA'] + 'DescLearning/DeconvTemplate/')
     system.map_print()
+    '''
