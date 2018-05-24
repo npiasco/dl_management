@@ -52,6 +52,8 @@ class Concat(nn.Module):
         nn.Module.__init__(self)
 
         self.norm = kwargs.pop('norm', True)
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     def forward(self, x1, x2):
 
