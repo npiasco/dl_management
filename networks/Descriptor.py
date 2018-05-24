@@ -200,7 +200,6 @@ class Deconv(nn.Module):
 if __name__ == '__main__':
     """
     net = Main().cuda()
-    tensor_input = torch.rand([10, 3, 224, 224]).cuda()
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'][0])
     net = Main(batch_norm=False, end_relu=False).cuda()
@@ -218,9 +217,17 @@ if __name__ == '__main__':
     tensor_input = torch.rand([1, 3, 224, 224]).cuda()
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'])
-    net = Main(agg_method='SPOC', end_relu=True, desc_norm=False).cuda()
+    """
+    tensor_input = torch.rand([5, 3, 224, 224]).cuda()
+
+    net = Main(agg_method='NetVLAD',
+               agg_method_param={
+                   'cluster_size': 64,
+                   'feature_size': 256
+               },
+               end_relu=False).cuda()
     feat_output = net(auto.Variable(tensor_input))
-    print(feat_output['desc'])
+    print(feat_output['desc'].size())
     """
     tensor_input = torch.rand([10, 3, 224, 224]).cuda()
     net = Deconv(agg_method='RMAC',
@@ -230,12 +237,15 @@ if __name__ == '__main__':
                  batch_norm=True,
                  feat_agg_method='Concat',
                  aux_agg='Embedding',
-                 aux_agg_param={'size': 64,
-                                'agg': 'Embedding',
-                                'agg_params': {'size': 64, 'res': True, 'gate': True}},
+                 aux_agg_param={'input_size': 64,
+                                'feat_size':32,
+                                 'agg_params':{
+                                     'R':2
+                                 }},
                  return_all_desc=True
                  ).cuda()
 
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'])
     print(net.get_training_layers('all'))
+    """
