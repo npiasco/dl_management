@@ -165,7 +165,7 @@ class NetVLAD(nn.Module):
         if load is not None:
             clusters = torch.load(os.environ['DATA'] + load)
             self.clusters2.data = clusters
-            self.clusters1.data = 2*alpha*clusters.squeeze()
+            self.clusters.data = 2*alpha*clusters.squeeze()
             logger.info('Custom clusters {} have been loaded')
         self.add_batch_norm = add_batch_norm
         self.batch_norm = nn.BatchNorm1d(cluster_size)
