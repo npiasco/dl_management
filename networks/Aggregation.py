@@ -147,18 +147,26 @@ class NetVLAD(nn.Module):
         Code from Antoine Miech
         @ https://github.com/antoine77340/Mixture-of-Embedding-Experts/blob/master/loupe.py
     """
-    def __init__(self, cluster_size, feature_size, add_batch_norm=False, load=None):
+    def __init__(self, cluster_size, feature_size, add_batch_norm=False, load=None, alpha=1e3):
         super(NetVLAD, self).__init__()
         self.feature_size = feature_size
         self.cluster_size = cluster_size
         # Reweighting
         self.clusters = nn.Parameter((1 / math.sqrt(feature_size))
                                      * torch.randn(feature_size, cluster_size))
+        '''
+        # Bias
+        self.bias = nn.Parameter((1 / math.sqrt(feature_size))
+                                 * torch.randn(cluster_size))
+        '''
         # Cluster
         self.clusters2 = nn.Parameter((1 / math.sqrt(feature_size))
                                       * torch.randn(1, feature_size, cluster_size))
         if load is not None:
-            self.clusters2.data = torch.load(os.environ['DATA'] + load)
+            clusters = torch.load(os.environ['DATA'] + load)
+            self.clusters2.data = clusters
+            self.clusters1.data = 2*alpha*clusters.squeeze()
+            logger.info('Custom clusters {} have been loaded')
         self.add_batch_norm = add_batch_norm
         self.batch_norm = nn.BatchNorm1d(cluster_size)
         self.out_dim = cluster_size * feature_size
@@ -169,7 +177,7 @@ class NetVLAD(nn.Module):
         x = func.normalize(x)
         x = x.view(x.size(0), self.feature_size, max_sample).transpose(1,2).contiguous()
         x = x.view(-1, self.feature_size)
-        assignment = torch.matmul(x, self.clusters)
+        assignment = torch.matmul(x, self.clusters) + torch.add
         if self.add_batch_norm:
             assignment = self.batch_norm(assignment)
 
