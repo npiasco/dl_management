@@ -166,7 +166,7 @@ class NetVLAD(nn.Module):
             clusters = torch.load(os.environ['DATA'] + load)
             self.clusters2.data = clusters
             self.clusters.data = 2*alpha*clusters.squeeze()
-            logger.info('Custom clusters {} have been loaded')
+            logger.info('Custom clusters {} have been loaded'.format(os.environ['DATA'] + load))
         self.add_batch_norm = add_batch_norm
         self.batch_norm = nn.BatchNorm1d(cluster_size)
         self.out_dim = cluster_size * feature_size
@@ -177,7 +177,7 @@ class NetVLAD(nn.Module):
         x = func.normalize(x)
         x = x.view(x.size(0), self.feature_size, max_sample).transpose(1,2).contiguous()
         x = x.view(-1, self.feature_size)
-        assignment = torch.matmul(x, self.clusters) + torch.add
+        assignment = torch.matmul(x, self.clusters)
         if self.add_batch_norm:
             assignment = self.batch_norm(assignment)
 
