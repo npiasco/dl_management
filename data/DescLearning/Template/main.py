@@ -12,7 +12,16 @@ import system.DescriptorLearning as System
 
 if __name__ == '__main__':
     machine = System.Default(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])])
-    action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[s]\tserialize net\n[ ]\ttrain+test\n')
+    action = input('''
+    Exec:
+    [t]\ttrain
+    [e]\ttest
+    [p]\tprint (console)
+    [P]\tprint (full)
+    [s]\tserialize net
+    [c]\tcreat clusters
+    [ ]\ttrain+test
+    ''')
     if action == 't':
         machine.train()
     elif action == 'e':
@@ -23,6 +32,8 @@ if __name__ == '__main__':
         machine.plot()
     elif action == 's':
         machine.serialize_net()
+    elif action == 'c':
+        machine.creat_clusters(size_cluster=64)
     elif action == '':
         machine.train()
         machine.test()
