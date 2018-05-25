@@ -167,6 +167,7 @@ class NetVLAD(nn.Module):
         max_sample = x.size(2)*x.size(3)
         # Descriptor-wise L2-normalization (see paper)
         x = func.normalize(x)
+        x = x.view(x.size(0), self.feature_size, max_sample).transpose(1,2).contiguous()
         x = x.view(-1, self.feature_size)
         assignment = torch.matmul(x, self.clusters)
         if self.add_batch_norm:
