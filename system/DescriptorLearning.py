@@ -120,9 +120,9 @@ class Default(BaseClass.Base):
         grid = torchvis.utils.make_grid(images_batch, nrow=4)
         plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
-    def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=8):
+    def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1):
         self.network.train()
-        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=jobs)
+        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
         logger.info('Computing feats for clustering')
         feats = [self.network(auto.Variable(self.trainer.cuda_func(example[self.trainer.mod]),
                                             requires_grad=False))['feat'].squeeze().view(-1, size_feat).cpu().data.numpy()
@@ -139,7 +139,9 @@ class Default(BaseClass.Base):
         logger.info('Computing clusters')
         kmean = skclust.KMeans(n_clusters=size_cluster, n_jobs=jobs)
         kmean.fit(normalized_feats)
-        torch.save(kmean.cluster_centers_, 'kmean_' + str(size_cluster) + '_clusters.pth')
+        torch_clusters = torch.Tensor(kmean.cluster_centers_).unsqueeze(0).transpose(1,2)
+
+        torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_clusters.pth')
 
 
 class Deconv(Default):
