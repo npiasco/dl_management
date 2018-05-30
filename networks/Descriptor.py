@@ -145,6 +145,10 @@ class Deconv(nn.Module):
                 }
             else:
                 forward_pass = {'desc': x_desc, 'maps': x_deconv_output['maps']}
+            forward_pass['feat'] = {
+                'main': x_feat_ouput['feat'],
+                'aux': x_deconv_output[self.auxilary_feat]
+            }
         else:
             forward_pass = x_desc
 
