@@ -128,7 +128,7 @@ class Default(BaseClass.Base):
         feats = list()
         for example in tqdm.tqdm(dataset_loader):
             feat = self.network(auto.Variable(self.trainer.cuda_func(example[self.trainer.mod]),
-                                          requires_grad=False))['feat']
+                                              requires_grad=False))['feat']
             max_sample = feat.size(2)*feat.size(3)
             feat = feat.view(feat.size(0), size_feat, max_sample).transpose(1, 2).contiguous()
             feat = feat.view(-1, size_feat).cpu().data.numpy()
@@ -203,14 +203,14 @@ class Deconv(Default):
             plt.colorbar()
             plt.show()
 
-    def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1, feat='main'):
+    def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1, feat_type='main'):
         self.network.train()
         dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
         logger.info('Computing feats for clustering')
         feats = list()
         for example in tqdm.tqdm(dataset_loader):
             feat = self.network(auto.Variable(self.trainer.cuda_func(example[self.trainer.mod]),
-                                          requires_grad=False))['feat'][feat]
+                                              requires_grad=False))['feat'][feat_type]
             max_sample = feat.size(2)*feat.size(3)
             feat = feat.view(feat.size(0), size_feat, max_sample).transpose(1, 2).contiguous()
             feat = feat.view(-1, size_feat).cpu().data.numpy()
