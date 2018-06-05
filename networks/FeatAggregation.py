@@ -8,7 +8,6 @@ logger = setlog.get_logger(__name__)
 
 
 class GatedFuse(nn.Module):
-
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
 

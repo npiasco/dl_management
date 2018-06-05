@@ -148,7 +148,7 @@ class NetVLAD(nn.Module):
         @ https://github.com/antoine77340/Mixture-of-Embedding-Experts/blob/master/loupe.py
     """
     def __init__(self, cluster_size, feature_size, add_batch_norm=False, load=None, alpha=1e3):
-        super(NetVLAD, self).__init__()
+        super().__init__()
         self.feature_size = feature_size
         self.cluster_size = cluster_size
         # Reweighting
@@ -183,6 +183,7 @@ class NetVLAD(nn.Module):
 
         assignment = func.softmax(assignment, dim=1)
         assignment = assignment.view(-1, max_sample, self.cluster_size)
+        #print(torch.max(assignment[0,0]))
         a_sum = torch.sum(assignment, -2, keepdim=True)
         a = a_sum * self.clusters2
 
