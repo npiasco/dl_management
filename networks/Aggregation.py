@@ -188,11 +188,14 @@ class NetVLAD(nn.Module):
         if self.trace:
         # print(torch.max(assignment[0,0]))
             s_tmp = list()
+            soft_idx = list()
             for assa in assignment:
                 for assa2 in assa:
                     sorted = torch.sort(assa2, descending=True)
                     s_tmp.append(sorted[0][0]/sorted[0][1])
+                    soft_idx.append(sorted[1][0])
             print(sum(s_tmp)/len(s_tmp))
+            print(soft_idx)
 
         a_sum = torch.sum(assignment, -2, keepdim=True)
         a = a_sum * self.clusters2
