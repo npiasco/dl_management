@@ -147,7 +147,7 @@ class NetVLAD(nn.Module):
         Code from Antoine Miech
         @ https://github.com/antoine77340/Mixture-of-Embedding-Experts/blob/master/loupe.py
     """
-    def __init__(self, cluster_size, feature_size, add_batch_norm=False, load=None, alpha=1e3):
+    def __init__(self, cluster_size, feature_size, add_batch_norm=False, load=None, alpha=50, trace=False):
         super().__init__()
         self.feature_size = feature_size
         self.cluster_size = cluster_size
@@ -170,6 +170,7 @@ class NetVLAD(nn.Module):
         self.add_batch_norm = add_batch_norm
         self.batch_norm = nn.BatchNorm1d(cluster_size)
         self.out_dim = cluster_size * feature_size
+        self.trace = trace
 
     def forward(self, x):
         max_sample = x.size(2)*x.size(3)
@@ -183,7 +184,16 @@ class NetVLAD(nn.Module):
 
         assignment = func.softmax(assignment, dim=1)
         assignment = assignment.view(-1, max_sample, self.cluster_size)
-        #print(torch.max(assignment[0,0]))
+
+        if self.trace:
+        # print(torch.max(assignment[0,0]))
+            s_tmp = list()
+            for assa in assignment:
+                for assa2 in assa:
+                    sorted = torch.sort(assa2, descending=True)
+                    s_tmp.append(sorted[0][0]/sorted[0][1])
+            print(sum(s_tmp)/len(s_tmp))
+
         a_sum = torch.sum(assignment, -2, keepdim=True)
         a = a_sum * self.clusters2
 
