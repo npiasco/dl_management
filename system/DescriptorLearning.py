@@ -237,7 +237,7 @@ class Deconv(Default):
         kmean.fit(normalized_feats)
         torch_clusters = torch.Tensor(kmean.cluster_centers_).unsqueeze(0).transpose(1,2)
 
-        torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_{}_'.format(feat_type) + '_clusters.pth')
+        torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_{}_'.format(feat_type) + 'clusters.pth')
 
 
 if __name__ == '__main__':
