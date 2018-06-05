@@ -184,9 +184,12 @@ class Deconv(Default):
             tmp_net.load_state_dict(self.trainer.best_net[1])
         self.data['train'].used_mod = self.training_mod
         dtload = data.DataLoader(self.data['train'], batch_size=4)
-        plt.figure()
+        plt.figure(1)
+        plt.figure(2)
         ccmap = plt.get_cmap('jet', lut=1024)
+        print(ccmap)
         for b in dtload:
+            main_mod = b['query'][self.trainer.mod].contiguous().view(4, 3, 224, 224)
             modality = b['query'][self.trainer.aux_mod].contiguous().view(4, 1, 224, 224)
             output = self.network(
                 auto.Variable(
@@ -199,8 +202,12 @@ class Deconv(Default):
             print(output['desc'])
             images_batch = torch.cat((modality.cpu(), output['maps'].data.cpu()))
             grid = torchvis.utils.make_grid(images_batch, nrow=4)
+            plt.figure(1)
             plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
             plt.colorbar()
+            plt.figure(2)
+            grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=4)
+            plt.imshow(grid.numpy().transpose(1, 2, 0))
             plt.show()
 
     def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1, feat_type='main'):
