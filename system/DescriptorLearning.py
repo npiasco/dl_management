@@ -150,6 +150,36 @@ class Default(BaseClass.Base):
 
         torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_clusters.pth')
 
+    def compute_mean_std(self, jobs=16):
+        dtload = data.DataLoader(self.data['train'], batch_size=1, num_workers=jobs)
+        mean =  None
+        std =  None
+        for batch in tqdm.tqdm(dtload):
+            if mean is None:
+                mean = torch.mean(batch['query'][self.trainer.mod].squeeze(), 0)
+                std = torch.std(batch['query'][self.trainer.mod].squeeze(), 0)
+            else:
+                mean = (mean + torch.mean(batch['query'][self.trainer.mod].squeeze(), 0))/2
+                std = (std + torch.std(batch['query'][self.trainer.mod].squeeze(), 0))/2
+            for ex in batch['positives']:
+                mean = (mean + torch.mean(ex[self.trainer.mod].squeeze(), 0)) / 2
+                std = (std + torch.std(ex[self.trainer.mod].squeeze(), 0)) / 2
+            for ex in batch['negatives']:
+                mean = (mean + torch.mean(ex[self.trainer.mod].squeeze(), 0)) / 2
+                std = (std + torch.std(ex[self.trainer.mod].squeeze(), 0)) / 2
+
+        dtload = data.DataLoader(self.data['val']['queries'], batch_size=1, num_workers=jobs)
+        for batch in tqdm.tqdm(dtload):
+            mean = (mean + torch.mean(batch[self.trainer.mod].squeeze(), 0)) / 2
+            std = (std + torch.std(batch[self.trainer.mod].squeeze(), 0)) / 2
+
+        dtload = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=jobs)
+        for batch in tqdm.tqdm(dtload):
+            mean = (mean + torch.mean(batch[self.trainer.mod].squeeze(), 0)) / 2
+            std = (std + torch.std(batch[self.trainer.mod].squeeze(), 0)) / 2
+
+        logger.info('Mean = {}\nSTD = {}'.format(mean, std))
+
 
 class Deconv(Default):
     def __init__(self, **kwargs):
@@ -243,7 +273,8 @@ class Deconv(Default):
 if __name__ == '__main__':
 
     system = Default(root=os.environ['DATA'] + 'DescLearning/Template/')
-    system.creat_clusters(64)
+    system.compute_mean_std()
+    # system.creat_clusters(64)
     '''
     system.train()
     system.test()
