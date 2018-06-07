@@ -110,7 +110,6 @@ def hard_mining_augmented(trainer, batch, mode, **kwargs):
     ckwargs = copy.deepcopy(kwargs)
     neg_pool = ckwargs.pop('neg_pool', None)
 
-    print(hard_mining_augmented.dataset)
     if hard_mining_augmented.dataset is None:
         env_var = os.environ[neg_pool['env_var']]
         hard_mining_augmented.dataset = system.BaseClass.Base.creat_dataset(neg_pool['dataset'], env_var)
