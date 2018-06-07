@@ -12,6 +12,14 @@ import copy
 logger = setlog.get_logger(__name__)
 
 
+def static_vars(**kwargs):
+    def decorate(func):
+        for k, v in kwargs.items():
+            setattr(func, k, v)
+        return func
+    return decorate
+
+
 def default(trainer, batch, mode):
     return trainer.network(auto.Variable(trainer.cuda_func(batch[mode][trainer.mod]), requires_grad=True))
 
@@ -86,7 +94,7 @@ def hard_minning(trainer, batch, mode, **kwargs):
     else:
         return forwarded_ex
 
-
+@static_vars(dataset=None)
 def hard_mining_augmented(trainer, batch, mode, **kwargs):
     ckwargs = copy.deepcopy(kwargs)
     neg_pool = ckwargs.pop('neg_pool', None)
@@ -102,10 +110,12 @@ def hard_mining_augmented(trainer, batch, mode, **kwargs):
     ckwargs = copy.deepcopy(kwargs)
     neg_pool = ckwargs.pop('neg_pool', None)
 
-    env_var = os.environ[neg_pool['env_var']]
-    neg_pool_dataset = system.BaseClass.Base.creat_dataset(neg_pool['dataset'], env_var)
+    print(hard_mining_augmented.dataset)
+    if hard_mining_augmented.dataset is None:
+        env_var = os.environ[neg_pool['env_var']]
+        hard_mining_augmented.dataset = system.BaseClass.Base.creat_dataset(neg_pool['dataset'], env_var)
 
-    dload = torch.utils.data.DataLoader(neg_pool_dataset, **neg_pool['loader_param'])
+    dload = torch.utils.data.DataLoader(hard_mining_augmented.dataset, **neg_pool['loader_param'])
     dload = dload.__iter__()
     random_batch = {
         'query': batch['query'],
