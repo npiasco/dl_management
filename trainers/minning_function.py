@@ -4,6 +4,9 @@ import random as rd
 import torch.nn.functional as func
 import numpy as np
 import torch
+import system
+import os
+import copy
 
 
 logger = setlog.get_logger(__name__)
@@ -79,6 +82,48 @@ def hard_minning(trainer, batch, mode, **kwargs):
                     forwarded_ex[name].append(val)
 
     if return_idx:
+        return forwarded_ex, idxs
+    else:
+        return forwarded_ex
+
+
+def hard_mining_augmented(trainer, batch, mode, **kwargs):
+    ckwargs = copy.deepcopy(kwargs)
+    neg_pool = ckwargs.pop('neg_pool', None)
+
+    if mode == 'positives':
+        return hard_minning(trainer, batch, mode, **ckwargs)
+    else:
+        if ckwargs.get('return_idx', False):
+            forwarded_ex, idxs = hard_minning(trainer, batch, mode, **ckwargs)
+        else:
+            forwarded_ex = hard_minning(trainer, batch, mode, **ckwargs)
+
+    ckwargs = copy.deepcopy(kwargs)
+    neg_pool = ckwargs.pop('neg_pool', None)
+
+    env_var = os.environ[neg_pool['env_var']]
+    neg_pool_dataset = system.BaseClass.Base.creat_dataset(neg_pool['dataset'], env_var)
+
+    dload = torch.utils.data.DataLoader(neg_pool_dataset, **neg_pool['loader_param'])
+    dload = dload.__iter__()
+    random_batch = {
+        'query': batch['query'],
+        'negatives': [dload.__next__() for i in range(neg_pool['num_ex'])]
+    }
+    if ckwargs.get('return_idx', False):
+        augmented_forwarded_ex, _ = hard_minning(trainer, random_batch, mode, **ckwargs)
+    else:
+        augmented_forwarded_ex = hard_minning(trainer, random_batch, mode, **ckwargs)
+
+    for name, val in augmented_forwarded_ex.items():
+        if isinstance(val, dict):
+            for name_2, val_2 in val.items():
+                forwarded_ex[name][name_2] += val_2
+        else:
+            forwarded_ex[name] += val
+
+    if ckwargs.get('return_idx', False):
         return forwarded_ex, idxs
     else:
         return forwarded_ex
