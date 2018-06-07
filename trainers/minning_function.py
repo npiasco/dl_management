@@ -94,7 +94,7 @@ def hard_minning(trainer, batch, mode, **kwargs):
     else:
         return forwarded_ex
 
-@static_vars(dataset=None)
+@static_vars(dload=None)
 def hard_mining_augmented(trainer, batch, mode, **kwargs):
     ckwargs = copy.deepcopy(kwargs)
     neg_pool = ckwargs.pop('neg_pool', None)
@@ -110,15 +110,15 @@ def hard_mining_augmented(trainer, batch, mode, **kwargs):
     ckwargs = copy.deepcopy(kwargs)
     neg_pool = ckwargs.pop('neg_pool', None)
 
-    if hard_mining_augmented.dataset is None:
+    if hard_mining_augmented.dload is None or hard_mining_augmented.dload__length_hint__() < neg_pool['num_ex']:
         env_var = os.environ[neg_pool['env_var']]
-        hard_mining_augmented.dataset = system.BaseClass.Base.creat_dataset(neg_pool['dataset'], env_var)
+        dataset = system.BaseClass.Base.creat_dataset(neg_pool['dataset'], env_var)
+        hard_mining_augmented.dload = torch.utils.data.DataLoader(dataset, **neg_pool['loader_param'])
+        hard_mining_augmented.dload = hard_mining_augmented.dload.__iter__()
 
-    dload = torch.utils.data.DataLoader(hard_mining_augmented.dataset, **neg_pool['loader_param'])
-    dload = dload.__iter__()
     random_batch = {
         'query': batch['query'],
-        'negatives': [dload.__next__() for i in range(neg_pool['num_ex'])]
+        'negatives': [hard_mining_augmented.dload.__next__() for i in range(neg_pool['num_ex'])]
     }
     if ckwargs.get('return_idx', False):
         augmented_forwarded_ex, _ = hard_minning(trainer, random_batch, mode, **ckwargs)
