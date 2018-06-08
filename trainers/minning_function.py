@@ -122,6 +122,7 @@ def hard_mining_augmented(trainer, batch, mode, **kwargs):
             'negatives': [hard_mining_augmented.dload.__next__() for i in range(neg_pool['num_ex'])]
         }
     except StopIteration:
+        logger.info("Restarting hard neg pool")
         hard_mining_augmented.dload = torch.utils.data.DataLoader(hard_mining_augmented.dload.dataset,
                                                                   **neg_pool['loader_param'])
         hard_mining_augmented.dload = hard_mining_augmented.dload.__iter__()
