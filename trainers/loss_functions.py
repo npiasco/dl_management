@@ -67,6 +67,7 @@ def adaptive_triplet_loss(anchor, positives, negatives, **kwargs):
     p = kwargs.pop('p', 2)
     eps = kwargs.pop('eps', 1e-6)
     swap = kwargs.pop('swap', True)
+    adaptive_factor = kwargs.pop('adaptive_factor', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -75,24 +76,25 @@ def adaptive_triplet_loss(anchor, positives, negatives, **kwargs):
     cpt = 0
     for positive in positives:
         for negative in negatives:
-            if tt_loss is None:
-                tt_loss = func.triplet_margin_loss(anchor,
+            c_loss = func.triplet_margin_loss(anchor,
                                                    positive,
                                                    negative,
                                                    margin=margin,
                                                    eps=eps,
                                                    p=p,
                                                    swap=swap)
+            if tt_loss is None:
+                tt_loss = c_loss
             else:
-                tt_loss += func.triplet_margin_loss(anchor,
-                                                    positive,
-                                                    negative,
-                                                    margin=margin,
-                                                    eps=eps,
-                                                    p=p,
-                                                    swap=swap)
-            cpt += 1
-    return tt_loss/cpt
+                tt_loss += c_loss
+
+            if adaptive_factor:
+                cpt += 1 if c_loss>0 else 0
+            else:
+                cpt += 1
+
+    tt_loss /= cpt if cpt else 1
+    return tt_loss
 
 
 def triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps=1e-6, factor=1, swap=False):
