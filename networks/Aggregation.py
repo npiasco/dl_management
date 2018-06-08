@@ -147,10 +147,19 @@ class NetVLAD(nn.Module):
         Code from Antoine Miech
         @ https://github.com/antoine77340/Mixture-of-Embedding-Experts/blob/master/loupe.py
     """
-    def __init__(self, cluster_size, feature_size, add_batch_norm=False, load=None, alpha=50, trace=False):
+    def __init__(self, cluster_size, feature_size, **kwargs):
         super().__init__()
         self.feature_size = feature_size
         self.cluster_size = cluster_size
+        add_batch_norm = kwargs.pop('add_batch_norm', False)
+        load = kwargs.pop('load', None)
+        alpha = kwargs.pop('alpha', 50)
+        trace = kwargs.pop('trace', False)
+        self.feat_norm = kwargs.pop('feat_norm', True)
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
         # Reweighting
         self.clusters = nn.Parameter((1 / math.sqrt(feature_size))
                                      * torch.randn(feature_size, cluster_size))
@@ -174,8 +183,11 @@ class NetVLAD(nn.Module):
 
     def forward(self, x):
         max_sample = x.size(2)*x.size(3)
-        # Descriptor-wise L2-normalization (see paper)
-        x = func.normalize(x)
+
+        if self.feat_norm:
+            # Descriptor-wise L2-normalization (see paper)
+            x = func.normalize(x)
+
         x = x.view(x.size(0), self.feature_size, max_sample).transpose(1,2).contiguous()
         x = x.view(-1, self.feature_size)
         assignment = torch.matmul(x, self.clusters)
