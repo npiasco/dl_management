@@ -151,6 +151,7 @@ class Base:
     def load(self):
         datas = dict()
         for name, file in self.params['saved_files'].items():
+            logger.info('Loading ' + name)
             datas[name] = torch.load(file)
         self.trainer.load(datas)
         self.results = torch.load(self.params['score_file'])

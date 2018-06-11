@@ -29,7 +29,6 @@ class GatedFuse(nn.Module):
             )
 
     def forward(self, x1, x2):
-
         x_cat = torch.cat((x1, x2), dim=1)
 
         g = self.gate(x_cat)
