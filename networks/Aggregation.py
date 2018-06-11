@@ -156,6 +156,7 @@ class NetVLAD(nn.Module):
         alpha = kwargs.pop('alpha', 50)
         trace = kwargs.pop('trace', False)
         self.feat_norm = kwargs.pop('feat_norm', True)
+        self.add_bias = kwargs.pop('bias', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -163,16 +164,20 @@ class NetVLAD(nn.Module):
         # Reweighting
         self.clusters = nn.Parameter((1 / math.sqrt(feature_size))
                                      * torch.randn(feature_size, cluster_size))
-        '''
+
         # Bias
-        self.bias = nn.Parameter((1 / math.sqrt(feature_size))
-                                 * torch.randn(cluster_size))
-        '''
+        if self.add_bias:
+            self.bias = nn.Parameter((1 / math.sqrt(feature_size))
+                                     * torch.randn(cluster_size))
+
         # Cluster
         self.clusters2 = nn.Parameter((1 / math.sqrt(feature_size))
                                       * torch.randn(1, feature_size, cluster_size))
         if load is not None:
             clusters = torch.load(os.environ['DATA'] + load)
+            if self.add_bias:
+                self.bias.data = -1*alpha*torch.norm(clusters, p=2, dim=1)
+                print(self.bias.size())
             self.clusters2.data = clusters
             self.clusters.data = 2*alpha*clusters.squeeze()
             logger.info('Custom clusters {} have been loaded'.format(os.environ['DATA'] + load))
@@ -190,7 +195,7 @@ class NetVLAD(nn.Module):
 
         x = x.view(x.size(0), self.feature_size, max_sample).transpose(1,2).contiguous()
         x = x.view(-1, self.feature_size)
-        assignment = torch.matmul(x, self.clusters)
+        assignment = torch.matmul(x, self.clusters) + self.bias if self.add_bias else  torch.matmul(x, self.clusters)
         if self.add_batch_norm:
             assignment = self.batch_norm(assignment)
 
@@ -207,7 +212,7 @@ class NetVLAD(nn.Module):
                     s_tmp.append(sorted[0][0]/sorted[0][1])
                     soft_idx.append(sorted[1][0])
             print(sum(s_tmp)/len(s_tmp))
-            print(soft_idx)
+            #print(soft_idx)
 
         a_sum = torch.sum(assignment, -2, keepdim=True)
         a = a_sum * self.clusters2
