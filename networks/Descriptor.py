@@ -98,7 +98,8 @@ class Deconv(nn.Module):
                                         end_relu=self.end_relu,
                                         load_imagenet=load_imagenet,
                                         res=self.res,
-                                        indices=True)
+                                        indices=True,
+                                        end_max_polling=True)
             self.deconv = Alexnet.Deconv(batch_norm=batch_norm,
                                          res=self.res)
         else:
@@ -222,14 +223,16 @@ if __name__ == '__main__':
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'])
     """
+    """
     tensor_input = torch.rand([5, 3, 224, 224]).cuda()
 
     net = Main(agg_method='NetVLAD',
                agg_method_param={
                    'cluster_size': 64,
-                   'feature_size': 256
+                   'feature_size': 256,
+                   'bias': True
                },
-               end_relu=False).cuda()
+               end_relu=False,).cuda()
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'].size())
     """
@@ -252,4 +255,4 @@ if __name__ == '__main__':
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'])
     print(net.get_training_layers('all'))
-    """
+

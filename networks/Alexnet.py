@@ -50,7 +50,7 @@ class Feat(nn.Module):
             base_archi.append(('relu4', nn.ReLU(inplace=True)))
 
         if end_max_polling:
-            base_archi.append(('pool3', nn.MaxPool2d(kernel_size=3, stride=2)))
+            base_archi.append(('pool3', nn.MaxPool2d(kernel_size=3, stride=2, return_indices=self.indices)))
 
         self.base_archi = coll.OrderedDict(base_archi)
         self.feature = nn.Sequential(self.base_archi)
@@ -73,12 +73,10 @@ class Feat(nn.Module):
                     x = lay(x)
                 if name == 'pool0' or name == 'pool1':
                     res.append(x)
+                if name == 'conv4':
+                    feat = x
 
-            output = func.relu(x)
-            output, i = func.max_pool2d(output, kernel_size=(3, 3), stride=2, return_indices=True)
-            ind.append(i)
-
-            return {'output': output, 'feat': x, 'id': ind, 'res': res}
+            return {'output': x, 'feat': feat, 'id': ind, 'res': res}
         else:
             return self.feature(x)
 
@@ -244,4 +242,3 @@ if __name__ == '__main__':
 
     print(returned_maps['deconv0'].size())
     print(returned_maps.keys())
-
