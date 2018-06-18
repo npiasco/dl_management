@@ -162,6 +162,20 @@ class Deconv(nn.Module):
         self.deconv = nn.Sequential(self.base_archi)
         logger.info('Final feature extractor architecture:')
         logger.info(self.deconv)
+        self.down_ratio = {
+            'unpool4': 6/13,
+            'conv4': 6/13,
+            'relu4': 6/13,
+            'conv3': 6/13,
+            'relu3': 6/13,
+            'conv2': 6/13,
+            'relu2': 6/13,
+            'unpool2': 6/27,
+            'conv1': 6/27,
+            'relu1': 6/27,
+            'unpool1': 6/55,
+            'deconv0': 6/224,
+        }
 
     def forward(self, x, **kwargs):
         ind = kwargs.pop('id', None)
@@ -211,8 +225,8 @@ class Deconv(nn.Module):
 
 
 if __name__ == '__main__':
-    net = Feat().cuda()
     tensor_input = torch.rand([10, 3, 224, 224]).cuda()
+    net = Feat().cuda()
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output[0])
     net = Feat(batch_norm=False, end_relu=True).cuda()
