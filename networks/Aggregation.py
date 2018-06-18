@@ -174,7 +174,7 @@ class NetVLAD(nn.Module):
         self.clusters2 = nn.Parameter((1 / math.sqrt(feature_size))
                                       * torch.randn(1, feature_size, cluster_size))
         if load is not None:
-            clusters = torch.load(os.environ['DATA'] + load)
+            clusters = torch.load(os.environ['CNN_WEIGHTS'] + load)
             if self.add_bias:
                 self.bias.data = -1*alpha*torch.norm(clusters, p=2, dim=1)
                 print(self.bias.size())
