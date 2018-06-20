@@ -128,7 +128,7 @@ class Trainer(Base.BaseTrainer):
 class DeconvTrainer(Trainer):
     def __init__(self, **kwargs):
         self.modal_loss = kwargs.pop('modal_loss', {'func': loss_func.l1_modal_loss,
-                                                    'param': {'p': 1, 'la':3e-4}})
+                                                    'param': {'p': 1, 'factor': 1}})
         aux_loss = kwargs.pop('aux_loss', dict())
         self.aux_mod = kwargs.pop('aux_mod', 'depth')
 
