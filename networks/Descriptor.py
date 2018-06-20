@@ -199,6 +199,7 @@ class Deconv(nn.Module):
         return {'feature': self.feature.state_dict(),
                 'deconv': self.deconv.state_dict(),
                 'descriptor': self.descriptor.state_dict(),
+                'aux_descriptor': self.aux_descriptor.state_dict(),
                 'feature_agg': self.feat_agg.state_dict()}
 
 

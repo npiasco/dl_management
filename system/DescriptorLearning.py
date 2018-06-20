@@ -188,6 +188,7 @@ class Deconv(Default):
             encoder_weight = self.network_params.get('encoder_weight', False)
             decoder_weight = self.network_params.get('decoder_weight', False)
             desc_weight = self.network_params.get('desc_weight', False)
+            aux_desc_weight = self.network_params.get('aux_desc_weight', False)
             agg_weight = self.network_params.get('agg_weight', False)
 
             if encoder_weight:
@@ -201,6 +202,10 @@ class Deconv(Default):
             if desc_weight:
                 self.network.descriptor.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + desc_weight)
+                )
+            if aux_desc_weight:
+                self.network.aux_descriptor.load_state_dict(
+                    torch.load(os.environ['CNN_WEIGHTS'] + aux_desc_weight)
                 )
             if agg_weight:
                 self.network.feat_agg.load_state_dict(
