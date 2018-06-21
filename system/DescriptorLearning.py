@@ -146,37 +146,55 @@ class Default(BaseClass.Base):
         logger.info('Computing clusters')
         kmean = skclust.KMeans(n_clusters=size_cluster, n_jobs=jobs)
         kmean.fit(normalized_feats)
-        torch_clusters = torch.Tensor(kmean.cluster_centers_).unsqueeze(0).transpose(1,2)
+        torch_clusters = torch.FloatTensor(kmean.cluster_centers_).unsqueeze(0).transpose(1, 2)
 
         torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_clusters.pth')
 
-    def compute_mean_std(self, jobs=16):
-        dtload = data.DataLoader(self.data['train'], batch_size=1, num_workers=jobs)
-        mean =  None
-        std =  None
-        for batch in tqdm.tqdm(dtload):
-            if mean is None:
-                mean = torch.mean(batch['query'][self.trainer.mod].squeeze().view(3,-1).transpose(0,1), 0)
-                std = torch.std(batch['query'][self.trainer.mod].squeeze().view(3,-1).transpose(0,1), 0)
-            else:
-                mean = (mean + torch.mean(batch['query'][self.trainer.mod].squeeze().view(3,-1).transpose(0,1), 0))/2
-                std = (std + torch.std(batch['query'][self.trainer.mod].squeeze().view(3,-1).transpose(0,1), 0))/2
-            for ex in batch['positives']:
-                mean = (mean + torch.mean(ex[self.trainer.mod].squeeze().view(3,-1).transpose(0,1), 0)) / 2
-                std = (std + torch.std(ex[self.trainer.mod].squeeze().view(3,-1).transpose(0,1), 0)) / 2
-            for ex in batch['negatives']:
-                mean = (mean + torch.mean(ex[self.trainer.mod].squeeze().view(3,-1).transpose(0,1), 0)) / 2
-                std = (std + torch.std(ex[self.trainer.mod].squeeze().view(3,-1).transpose(0,1), 0)) / 2
+    def compute_mean_std(self, jobs=16, **kwargs):
 
-        dtload = data.DataLoader(self.data['val']['queries'], batch_size=1, num_workers=jobs)
-        for batch in tqdm.tqdm(dtload):
-            mean = (mean + torch.mean(batch[self.trainer.mod].squeeze().view(3,-1).transpose(0,1), 0)) / 2
-            std = (std + torch.std(batch[self.trainer.mod].squeeze().view(3,-1).transpose(0,1), 0)) / 2
+        training = kwargs.pop('training', True)
+        testing = kwargs.pop('testing', True)
+        val = kwargs.pop('val', True)
 
-        dtload = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=jobs)
-        for batch in tqdm.tqdm(dtload):
-            mean = (mean + torch.mean(batch[self.trainer.mod].squeeze().view(3,-1).transpose(0,1), 0)) / 2
-            std = (std + torch.std(batch[self.trainer.mod].squeeze().view(3,-1).transpose(0,1), 0)) / 2
+        if kwargs:
+            raise ValueError('Not expected arg {}'.kwargs)
+
+        mean = None
+        std = None
+        if training:
+            dtload = data.DataLoader(self.data['train'], batch_size=1, num_workers=jobs)
+            for batch in tqdm.tqdm(dtload):
+                if mean is None:
+                    mean = torch.mean(batch['query'][self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)
+                    std = torch.std(batch['query'][self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)
+                else:
+                    mean = (mean + torch.mean(batch['query'][self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0))/2
+                    std = (std + torch.std(batch['query'][self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0))/2
+                for ex in batch['positives']:
+                    mean = (mean + torch.mean(ex[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)) / 2
+                    std = (std + torch.std(ex[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)) / 2
+                for ex in batch['negatives']:
+                    mean = (mean + torch.mean(ex[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)) / 2
+                    std = (std + torch.std(ex[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)) / 2
+        if val:
+            dtload = data.DataLoader(self.data['val']['queries'], batch_size=1, num_workers=jobs)
+            for batch in tqdm.tqdm(dtload):
+                if mean is None:
+                    mean = torch.mean(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)
+                    std = torch.std(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)
+                else:
+                    mean = (mean + torch.mean(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)) / 2
+                    std = (std + torch.std(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)) / 2
+
+        if testing:
+            dtload = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=jobs)
+            for batch in tqdm.tqdm(dtload):
+                if mean is None:
+                    mean = torch.mean(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)
+                    std = torch.std(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)
+                else:
+                    mean = (mean + torch.mean(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)) / 2
+                    std = (std + torch.std(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)) / 2
 
         logger.info('Mean = {}\nSTD = {}'.format(mean, std))
 
