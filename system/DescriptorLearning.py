@@ -226,7 +226,7 @@ class Deconv(Default):
         for b in dtload:
             main_mod = b['query'][self.trainer.mod].contiguous().view(4, 3, 224, 224)
             modality = b['query'][self.trainer.aux_mod].contiguous().view(4, 1, 224, 224)
-            output = self.network(
+            output = tmp_net(
                 auto.Variable(
                     self.trainer.cuda_func(
                         b['query'][self.trainer.mod]
