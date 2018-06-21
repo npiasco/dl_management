@@ -225,22 +225,27 @@ class Deconv(Default):
             agg_weight = self.network_params.get('agg_weight', False)
 
             if encoder_weight:
+                logger.info('Loading pretrained weights: {}'.format(os.environ['CNN_WEIGHTS'] + encoder_weight))
                 self.network.feature.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + encoder_weight)
                 )
             if decoder_weight:
+                logger.info('Loading pretrained weights: {}'.format(os.environ['CNN_WEIGHTS'] + decoder_weight))
                 self.network.deconv.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + decoder_weight)
                 )
             if desc_weight:
+                logger.info('Loading pretrained weights: {}'.format(os.environ['CNN_WEIGHTS'] + desc_weight))
                 self.network.descriptor.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + desc_weight)
                 )
             if aux_desc_weight:
+                logger.info('Loading pretrained weights: {}'.format(os.environ['CNN_WEIGHTS'] + aux_desc_weight))
                 self.network.aux_descriptor.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + aux_desc_weight)
                 )
             if agg_weight:
+                logger.info('Loading pretrained weights: {}'.format(os.environ['CNN_WEIGHTS'] + agg_weight))
                 self.network.feat_agg.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + agg_weight)
                 )
