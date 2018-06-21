@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os, sys
+import torch
 import setlog
 
 conf_file = os.environ['DEV'] + 'dl_management/.log/logging.yaml'
@@ -26,16 +27,27 @@ if __name__ == '__main__':
         machine.train()
     elif action == 'e':
         machine.test()
+        machine.plot(print_loss=False, print_val=False)
     elif action == 'p':
         machine.plot(print_loss=False, print_val=False)
     elif action == 'P':
         machine.plot()
     elif action == 's':
         machine.serialize_net()
+    elif action == 'test':
+        machine.print('test_query')
+    elif action == 'train':
+        machine.print('train')
     elif action == 'c':
         machine.creat_clusters(size_cluster=64)
     elif action == '':
         machine.train()
         machine.test()
+        machine.plot(print_loss=False, print_val=False)
+    elif  action == 'S':
+        torch.save(machine.network.eval().cpu(), 'default_net.pth')
+    elif  action == 'mean':
+        machine.compute_mean_std(jobs=8)
+        machine.compute_mean_std(jobs=8, training=False, val=False, testing=True)
     else:
         raise ValueError('Unknown cmd: {}'.format(action))

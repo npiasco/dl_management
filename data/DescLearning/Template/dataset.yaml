@@ -1,20 +1,22 @@
 train:
     class: datasets.Robotcar.TripletDataset
     param_class:
-        load_triplets: '400triplets.pth'
+        #load_triplets: '400triplets.pth'
         # In case of load_triplets: None
+        ex_shuffle: true
         num_positives: 4
         num_negatives: 20
-        num_triplets: 1000
+        num_triplets: 20
         max_pose_dist: 10  # metre
         min_neg_dist: 500  # metre
         max_angle: 0.174533  # rad, 20 deg
-        used_mod: ['rgb', 'depth']
+        used_mod: ['rgb', ]
         main:
             class: datasets.Robotcar.VBLDataset
             param_class:
-                root: 'training/TrainDataset_05_19_15/'
-                modalities: {rgb: 'dataset.txt', depth: 'depth_dataset.txt', ref: 'ref_dataset.txt'}
+                #root: 'training/TrainDataset_05_19_15/'
+                root: 'training/TrainDataset_Night/'
+                modalities: {rgb: 'dataset.txt'}#, depth: 'depth_dataset.txt', ref: 'ref_dataset.txt'}
                 coord_file: 'coordxImbearing.txt'
                 bearing: True
                 transform:
@@ -22,6 +24,8 @@ train:
                         - {class: 'datasets.multmodtf.RandomResizedCrop', param_class: {size: 224}}
                     rgb:
                         - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                        #- {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.6406, 0.6457, 0.6116], std: [0.3180, 0.3017, 0.3233]}}
+                        - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.5199, 0.4316, 0.2604], std: [0.2766, 0.2653, 0.1983]}}
                     depth:
                         - {class: 'datasets.multmodtf.ToTensor', param_class:}
                     ref:
@@ -44,6 +48,7 @@ train:
                             rgb:
                                 [
                                     {class: 'datasets.multmodtf.ToTensor', param_class: },
+                                    {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.6406, 0.6457, 0.6116], std: [0.3180, 0.3017, 0.3233]}}
                                 ],
                             depth:
                                 [
@@ -73,6 +78,7 @@ train:
                             rgb:
                                 [
                                     {class: 'datasets.multmodtf.ToTensor', param_class:},
+                                    {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.6406, 0.6457, 0.6116], std: [0.3180, 0.3017, 0.3233]}}
                                 ],
                             depth:
                                 [
@@ -89,7 +95,8 @@ test:
     queries:
         class: datasets.Robotcar.VBLDataset
         param_class:
-            root: 'Robotcar_D1/Query/'
+            root: 'Robotcar_D1/NightQuery/'
+            #root: 'Robotcar_D1/Query/'
             modalities: {rgb: 'query.txt'}
             coord_file: 'coordxIm.txt'
             bearing: False
@@ -97,10 +104,13 @@ test:
                 first:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: [224, 224]}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.6406, 0.6457, 0.6116], std: [0.3180, 0.3017, 0.3233]}}
+                   #- {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.5199, 0.4316, 0.2604], std: [0.2766, 0.2653, 0.1983]}}
     data:
         class: datasets.Robotcar.VBLDataset
         param_class:
             root: 'Robotcar_D1/Dataset/'
+            #root: 'training/TrainDataset_Night/'
             modalities: {rgb: 'dataset.txt'}
             coord_file: 'coordxIm.txt'
             bearing: False
@@ -108,6 +118,7 @@ test:
                 first:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: [224, 224]}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.6406, 0.6457, 0.6116], std: [0.3180, 0.3017, 0.3233]}}
 val:
     queries:
         class: datasets.Robotcar.VBLDataset
@@ -120,6 +131,7 @@ val:
                 first:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: [224, 224]}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.6406, 0.6457, 0.6116], std: [0.3180, 0.3017, 0.3233]}}
     data:
         class: datasets.Robotcar.VBLDataset
         param_class:
@@ -131,5 +143,6 @@ val:
                 first:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: [224, 224]}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.6406, 0.6457, 0.6116], std: [0.3180, 0.3017, 0.3233]}}
 testing_mod: ['rgb']
 training_mod: ['rgb']

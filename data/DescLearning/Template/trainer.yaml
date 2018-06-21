@@ -4,17 +4,22 @@ param_class:
     lr: 0.0001
     momentum: 0.9
     weight_decay: 0.001
-    optimizer_type: SGD
+    optimizer_type: ADAM
     val_num_workers: 8
     triplet_loss:
-        func: 'torch.nn.functional.triplet_margin_loss'
+        func: 'loss_func.adaptive_triplet_loss'
         param:
-            margin: 0.25
+            margin: 0.1
             swap: True
-    minning_func: 'trainers.minning_function.random'
+    minning_func:
+        func: 'minning.hard_minning'
+        param:
+            n_ex:
+                positives: 1
+                negatives: 10
     mod: 'rgb'
 
-eval_class: 'score.Functions.RecallAtN'
+eval_class: 'score.Functions.MeanRecallAtN'
 param_eval_class:
     n: 5
     radius: 25

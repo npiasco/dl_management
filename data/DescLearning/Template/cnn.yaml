@@ -2,11 +2,10 @@ class: 'networks.Descriptor.Main'
 param_class:
     end_relu: False
     batch_norm: False
-    agg_method: 'NetVLAD'
+    agg_method: 'RMAC'
     agg_method_param:
-        cluster_size: 64
-        feature_size: 256
-        load: 'kmean_64_clusters.pth'
+        norm: True
+        R: 1
     base_archi: 'Alexnet'
     load_imagenet: True
     layers_to_train: 'all'
