@@ -153,7 +153,7 @@ class Default(BaseClass.Base):
     def compute_mean_std(self, jobs=16, **kwargs):
 
         training = kwargs.pop('training', True)
-        testing = kwargs.pop('testing', True)
+        testing = kwargs.pop('testing', False)
         val = kwargs.pop('val', True)
 
         if kwargs:
@@ -185,9 +185,24 @@ class Default(BaseClass.Base):
                 else:
                     mean = (mean + torch.mean(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)) / 2
                     std = (std + torch.std(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)) / 2
-
-        if testing:
             dtload = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=jobs)
+            for batch in tqdm.tqdm(dtload):
+                if mean is None:
+                    mean = torch.mean(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)
+                    std = torch.std(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)
+                else:
+                    mean = (mean + torch.mean(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)) / 2
+                    std = (std + torch.std(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)) / 2
+        if testing:
+            dtload = data.DataLoader(self.data['test']['queries'], batch_size=1, num_workers=jobs)
+            for batch in tqdm.tqdm(dtload):
+                if mean is None:
+                    mean = torch.mean(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)
+                    std = torch.std(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)
+                else:
+                    mean = (mean + torch.mean(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)) / 2
+                    std = (std + torch.std(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)) / 2
+            dtload = data.DataLoader(self.data['test']['data'], batch_size=1, num_workers=jobs)
             for batch in tqdm.tqdm(dtload):
                 if mean is None:
                     mean = torch.mean(batch[self.trainer.mod].squeeze().view(3, -1).transpose(0, 1), 0)
