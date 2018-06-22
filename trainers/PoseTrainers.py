@@ -96,6 +96,7 @@ class Trainer(Base.BaseTrainer):
             'position': list(),
             'orientation': list()
         }
+
         logger.info('Computing position and orientation errors')
         for example in tqdm.tqdm(dataloader):
             pose = network(auto.Variable(self.cuda_func(example[self.mod]),
@@ -158,6 +159,62 @@ class Trainer(Base.BaseTrainer):
             for k, v in state.items():
                 if torch.is_tensor(v):
                     state[k] = self.cuda_func(v)
+
+
+class Deconv(Trainer):
+    def __init__(self, **kwargs):
+        self.modal_loss = kwargs.pop('modal_loss', {'func': 'loss_func.l1_modal_loss',
+                                                    'param': {'p': 1, 'factor': 1}})
+        aux_loss = kwargs.pop('aux_loss', dict())
+        self.aux_mod = kwargs.pop('aux_mod', 'mono_depth')
+
+        Trainer.__init__(self, **kwargs)
+
+        self.modal_loss['func'] = eval(self.modal_loss['func'])
+        self.loss_log['modal_loss'] = list()
+
+        self.aux_loss = dict()
+        for name, info in aux_loss.items():
+            self.aux_loss[name] = info
+            self.aux_loss[name]['func'] = eval(aux_loss[name]['func'])
+            self.loss_log[name] = list()
+
+    def train(self, batch):
+        self.network.train()
+        # Reset gradients
+        self.optimizer.zero_grad()
+        # Forward pass
+        pose = self.network(auto.Variable(self.cuda_func(batch[self.mod]), requires_grad=True))
+        gt_pos, gt_ori = (auto.Variable(self.cuda_func(batch['pose']['position'].float())),
+                          auto.Variable(self.cuda_func(batch['pose']['orientation'].float())))
+        gt_pose = {'p': gt_pos, 'q': gt_ori}
+
+        gt_mod = auto.Variable(self.cuda_func(batch[self.aux_mod]), requires_grad=False)
+
+        pos_loss = self.pos_loss(pose['full']['p'], gt_pos)
+        ori_loss = self.ori_loss(pose['full']['q'], gt_ori)
+        pose_loss = self.combining_loss.combine(pos_loss, ori_loss)
+
+        modal_loss = self.modal_loss['func']((pose['maps'], ),
+                                             (gt_mod, ),
+                                             **self.modal_loss['param'])
+
+        loss = pose_loss + modal_loss
+
+        for name, aux_los in self.aux_loss.items():
+            val = aux_los['func'](pose, gt_pose, combine_func=self.combining_loss.combine, **aux_los['param'])
+            loss += val
+            self.loss_log[name].append(val.data[0])
+            logger.debug(name + ' loss is {}'.format(val.data[0]))
+
+        loss.backward()  # calculate the gradients (backpropagation)
+        self.optimizer.step()  # update the weights
+        self.loss_log['pos_loss'].append(pos_loss.data[0])
+        self.loss_log['ori_loss'].append(ori_loss.data[0])
+        self.loss_log['combined_loss'].append(pose_loss.data[0])
+        self.loss_log['modal_loss'].append(modal_loss.data[0])
+
+        logger.debug('Total loss is {}'.format(loss.data[0]))
 
 
 if __name__ == '__main__':

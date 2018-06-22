@@ -1,0 +1,21 @@
+class: 'networks.Pose.Deconv'
+param_class:
+    base_archi: 'Alexnet'
+    reg_param:
+        custom_input_size: 3
+        size_layer: 256
+        num_inter_layers: 1
+        late_fusion: True
+    aux_reg_param:
+        custom_input_size: 3
+        size_layer: 256
+        num_inter_layers: 1
+        late_fusion: True
+    auxilary_feat: 'conv1'
+    fuse_layer:
+        class: 'LateFusion'
+        param:
+           input_size: 512
+           layer_name: 'do0'
+    input_im_size: 224
+    layers_to_train: 'all'
