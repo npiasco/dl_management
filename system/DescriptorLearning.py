@@ -283,7 +283,7 @@ class Deconv(Default):
             plt.imshow(grid.numpy().transpose(1, 2, 0))
             plt.show()
 
-    def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1, feat_type='main'):
+    def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1, feat_type='main', norm=True):
         self.network.train()
         dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
         logger.info('Computing feats for clustering')
@@ -297,14 +297,14 @@ class Deconv(Default):
 
             feats.append(feat)
 
-        logger.info('Normalizing feats')
         normalized_feats = list()
         for feature in tqdm.tqdm(feats):
             normalized_feats += [f.tolist() for f in feature]
             if len(normalized_feats) >= n_ex:
                 break
-
-        normalized_feats = skpre.normalize(normalized_feats)
+        if norm:
+            logger.info('Normalizing feats')
+            normalized_feats = skpre.normalize(normalized_feats)
         logger.info('Computing clusters')
         kmean = skclust.KMeans(n_clusters=size_cluster, n_jobs=jobs)
         kmean.fit(normalized_feats)
