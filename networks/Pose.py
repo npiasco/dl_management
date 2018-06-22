@@ -225,7 +225,6 @@ class Deconv(nn.Module):
                              'conv3': 384, 'relu3': 384,
                              'conv2': 192, 'relu2': 192,
                              'conv1': 64, 'relu1': 64}
-            print(size_map)
             aux_size_map = round((size_map / self.deconv.down_ratio[self.auxilary_feat]))
             aux_input_size = aux_size_map ** 2 * size_aux_feat[self.auxilary_feat] \
                 if not aux_reg_param.get('custom_input_size') \
@@ -352,6 +351,6 @@ if __name__ == '__main__':
                 'layer_name': 'do0'
             }
         }
-    ).cuda()
+    ).cuda().eval()
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output)

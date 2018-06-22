@@ -13,6 +13,12 @@ def mean_dist(predicted, gt):
     )
 
 
+def full_pose_loss(predicted, gt, key='full', combine_func=None):
+
+    return combine_func.combine(mean_dist(predicted[key]['p'], gt['p']),
+                                mean_dist(predicted[key]['q'], gt['q']))
+
+
 class AlphaWeights:
     def __init__(self, init_weight=(0, -3), cuda=False):
 
@@ -112,7 +118,6 @@ def mult_triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps
 
 
 def l1_modal_loss(predicted_maps, gt_maps, p=1, factor=3e-4):
-
     if p == 1:
         loss = factor * func.l1_loss(
             torch.cat(predicted_maps, dim=1),
@@ -141,5 +146,5 @@ def diversification_loss(anchor, positives, negatives, **kwargs):
     aux = original_loss['func'](anchor['aux'], positives['aux'], negatives['aux'], **original_loss['param'])
     full = original_loss['func'](anchor['full'], positives['full'], negatives['full'], **original_loss['param'])
 
-    loss = factor*(torch.clamp(full + marge - main, min=0) + torch.clamp(full + marge - aux, min=0))
+    loss = factor*(torch.clamp(full + marge - main, min=0)) # Not shure about that + torch.clamp(full + marge - aux, min=0))
     return loss
