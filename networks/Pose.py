@@ -182,11 +182,13 @@ class Deconv(nn.Module):
             'load_imagenet': True,
             'batch_norm': False,
             'end_relu': True,
-            'res': False
+            'res': False,
+            'unet': False
         })
         deconv_param = kwargs.pop('deconv_param', {
             'batch_norm': False,
-            'res': False
+            'res': False,
+            'unet': False
         })
         reg_param = kwargs.pop('reg_param', {
             'size_layer': 2048,
@@ -239,7 +241,7 @@ class Deconv(nn.Module):
 
     def forward(self, x):
         x_feat_ouput = self.feature(x)
-        if self.feature.res:
+        if self.feature.res or self.feature.unet:
             x_deconv_output = self.deconv(x_feat_ouput['output'],
                                           id=x_feat_ouput['id'],
                                           res=x_feat_ouput['res'])
@@ -331,6 +333,18 @@ if __name__ == '__main__':
     print(net(tensor_input)['q'])
     '''
     net = Deconv(
+        archi_param={
+            'load_imagenet': True,
+            'batch_norm': False,
+            'end_relu': True,
+            'res': False,
+            'unet': True
+        },
+        deconv_param={
+        'batch_norm': False,
+        'res': False,
+        'unet': True
+        },
         reg_param={
             'custom_input_size': 3,
             'size_layer': 256,
@@ -342,7 +356,7 @@ if __name__ == '__main__':
             'size_layer': 256,
             'num_inter_layers': 1,
             'late_fusion': True
-    },
+        },
         auxilary_feat='conv1',
         fuse_layer={
             'class': 'LateFusion',

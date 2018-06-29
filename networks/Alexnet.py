@@ -22,6 +22,7 @@ class Feat(nn.Module):
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
         self.indices = kwargs.pop('indices', False)
         self.res = kwargs.pop('res', False)
+        self.unet = kwargs.pop('unet', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -71,7 +72,9 @@ class Feat(nn.Module):
                     ind.append(i)
                 else:
                     x = lay(x)
-                if name == 'pool0' or name == 'pool1':
+                if self.res and name in ['pool0', 'pool1']:
+                    res.append(x)
+                if self.unet and name in ['relu0', 'relu1']:
                     res.append(x)
                 if name == 'conv4':
                     feat = x
@@ -129,9 +132,12 @@ class Deconv(nn.Module):
         end_relu = kwargs.pop('end_relu', False)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
         self.res = kwargs.pop('res', False)
+        self.unet = kwargs.pop('unet', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        unet_multp = 2 if self.unet else 1
 
         base_archi = [
             ('unpool4', nn.MaxUnpool2d(kernel_size=3, stride=2)),       # 0
@@ -142,10 +148,10 @@ class Deconv(nn.Module):
             ('conv2', nn.Conv2d(384, 192, kernel_size=3, padding=1)),   # 5
             ('relu2', nn.ReLU(inplace=True)),                           # 6
             ('unpool2', nn.MaxUnpool2d(kernel_size=3, stride=2)),       # 7
-            ('conv1', nn.Conv2d(192, 64, kernel_size=5, padding=2)),    # 8
+            ('conv1', nn.Conv2d(unet_multp * 192, 64, kernel_size=5, padding=2)),    # 8
             ('relu1', nn.ReLU(inplace=True)),                           # 9
             ('unpool1', nn.MaxUnpool2d(kernel_size=3, stride=2)),       # 10
-            ('deconv0', nn.ConvTranspose2d(64, 1, kernel_size=11, stride=4, padding=2, output_padding=1))
+            ('deconv0', nn.ConvTranspose2d(unet_multp * 64, 1, kernel_size=11, stride=4, padding=2, output_padding=1))
         ]
 
         if batch_norm:
@@ -197,6 +203,10 @@ class Deconv(nn.Module):
                 x = lay(x + res[1])
             elif self.res and name == 'relu1':
                 x = lay(x + res[0])
+            elif self.unet and name == 'conv1':
+                x = lay(torch.cat([x, res[1]], dim=1))
+            elif self.unet and name == 'deconv0':
+                x = lay(torch.cat([x, res[0]], dim=1))
             else:
                 x = lay(x)
 

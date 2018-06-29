@@ -87,6 +87,7 @@ class Deconv(nn.Module):
         base_archi = kwargs.pop('base_archi', 'Alexnet')
         load_imagenet = kwargs.pop('load_imagenet', True)
         self.res = kwargs.pop('res', False)
+        self.unet= kwargs.pop('unet', False)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
         self.return_all_desc = kwargs.pop('return_all_desc', False)
 
@@ -98,10 +99,12 @@ class Deconv(nn.Module):
                                         end_relu=self.end_relu,
                                         load_imagenet=load_imagenet,
                                         res=self.res,
+                                        unet=self.unet,
                                         indices=True,
                                         end_max_polling=True)
             self.deconv = Alexnet.Deconv(batch_norm=batch_norm,
-                                         res=self.res)
+                                         res=self.res,
+                                         unet=self.unet)
         else:
             raise AttributeError("Unknown base architecture {}".format(base_archi))
 
@@ -120,7 +123,7 @@ class Deconv(nn.Module):
 
     def forward(self, x):
         x_feat_ouput = self.feature(x)
-        if self.res:
+        if self.res or self.unet:
             x_deconv_output = self.deconv(x_feat_ouput['output'],
                                           id=x_feat_ouput['id'],
                                           res=x_feat_ouput['res'])
@@ -240,20 +243,17 @@ if __name__ == '__main__':
     tensor_input = torch.rand([10, 3, 224, 224]).cuda()
     net = Deconv(agg_method='RMAC',
                  end_relu=False,
-                 res=True,
+                 res=False,
+                 unet=True,
                  auxilary_feat='conv1',
                  batch_norm=True,
                  feat_agg_method='Concat',
-                 aux_agg='Embedding',
-                 aux_agg_param={'input_size': 64,
-                                'feat_size':32,
-                                 'agg_params':{
-                                     'R':2
-                                 }},
+                 aux_agg='RMAC',
+                 aux_agg_param={'R':1, 'norm': True},
                  return_all_desc=True
                  ).cuda()
 
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'])
+    print(feat_output['maps'].size())
     print(net.get_training_layers('all'))
-
