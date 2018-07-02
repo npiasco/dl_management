@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch
 import math
 import os
-
+import networks.Alexnet as Alexnet
 
 logger = setlog.get_logger(__name__)
 
@@ -22,6 +22,11 @@ def select_desc(name, params):
         agg = Embedding(**params)
     elif name == 'NetVLAD':
         agg = NetVLAD(**params)
+    elif name == 'Encoder':
+        agg = nn.Sequential(
+            eval(params['base_archi'])(**params['base_archi_param']),
+            select_desc(params['agg'], params['agg_param'])
+        )
     else:
         raise ValueError('Unknown aggregation method {}'.format(name))
 

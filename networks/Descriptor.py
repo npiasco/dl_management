@@ -245,12 +245,19 @@ if __name__ == '__main__':
                  end_relu=False,
                  res=False,
                  unet=True,
-                 auxilary_feat='conv1',
+                 auxilary_feat='maps',
                  batch_norm=True,
                  feat_agg_method='Concat',
-                 aux_agg='RMAC',
-                 aux_agg_param={'R':1, 'norm': True},
-                 return_all_desc=True
+                 aux_agg='Encoder',
+                 aux_agg_param={
+                     'base_archi': 'Alexnet.Feat',
+                     'base_archi_param': {
+                         'mono': True
+                     },
+                     'agg': 'RMAC',
+                     'agg_param': {}
+                 },
+                 return_all_desc=True,
                  ).cuda()
 
     feat_output = net(auto.Variable(tensor_input))
