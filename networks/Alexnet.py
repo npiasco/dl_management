@@ -23,12 +23,15 @@ class Feat(nn.Module):
         self.indices = kwargs.pop('indices', False)
         self.res = kwargs.pop('res', False)
         self.unet = kwargs.pop('unet', False)
+        mono = kwargs.pop('mono', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
+        i_channel = 1 if mono else 3
+
         base_archi = [
-            ('conv0', nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2)),   # 0
+            ('conv0', nn.Conv2d(i_channel, 64, kernel_size=11, stride=4, padding=2)),   # 0
             ('relu0', nn.ReLU(inplace=True)),                                   # 1
             ('pool0', nn.MaxPool2d(kernel_size=3, stride=2, return_indices=self.indices)),                   # 2
             ('conv1', nn.Conv2d(64, 192, kernel_size=5, padding=2)),            # 3
@@ -60,7 +63,7 @@ class Feat(nn.Module):
         self._down_ratio = 0
 
         if load_imagenet:
-            self.load()
+            self.load(mono)
 
     def forward(self, x):
         if self.indices or self.res:
@@ -83,13 +86,14 @@ class Feat(nn.Module):
         else:
             return self.feature(x)
 
-    def load(self):
+    def load(self, mono):
         alexnet = models.alexnet()
         alexnet = alexnet.features
         alexnet.load_state_dict(torch.load(os.environ['CNN_WEIGHTS'] + 'alexnet_ots.pth'))
 
-        self.base_archi['conv0'].weight.data = alexnet[0].weight.data
-        self.base_archi['conv0'].bias.data = alexnet[0].bias.data
+        if not mono:
+            self.base_archi['conv0'].weight.data = alexnet[0].weight.data
+            self.base_archi['conv0'].bias.data = alexnet[0].bias.data
         self.base_archi['conv1'].weight.data = alexnet[3].weight.data
         self.base_archi['conv1'].bias.data = alexnet[3].bias.data
         self.base_archi['conv2'].weight.data = alexnet[6].weight.data
@@ -151,7 +155,8 @@ class Deconv(nn.Module):
             ('conv1', nn.Conv2d(unet_multp * 192, 64, kernel_size=5, padding=2)),    # 8
             ('relu1', nn.ReLU(inplace=True)),                           # 9
             ('unpool1', nn.MaxUnpool2d(kernel_size=3, stride=2)),       # 10
-            ('deconv0', nn.ConvTranspose2d(unet_multp * 64, 1, kernel_size=11, stride=4, padding=2, output_padding=1))
+            ('deconv0', nn.ConvTranspose2d(unet_multp * 64, 1, kernel_size=11, stride=4, padding=2, output_padding=1)),
+            ('tanh', nn.Tanh())
         ]
 
         if batch_norm:
