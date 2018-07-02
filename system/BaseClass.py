@@ -234,19 +234,23 @@ class Base:
 
     def compute_stop_criteria(self, seq, criteria):
         derive = [seq[i] - seq[i-1] for i in reversed(range(len(seq)-1))]
+        trend = float(sum(1 for v in derive if v > 0) - sum(1 for v in derive if v < 0))
+
         seuil = max(int(0.1*len(derive)), min(len(derive), self.min_value_to_stop))
         if seuil < self.min_value_to_stop:
             logger.info('[STOP CRITERIA] Not enought values to compute stop criteria ({} values)'.format(seuil))
             return False  # Continue training
 
         moy = sum(derive[:seuil])/seuil
-        logger.info('[STOP CRITERIA] Mean of latest derivative value is {}'.format(moy))
+        logger.info('[STOP CRITERIA] Mean of latest derivative value is {}. Trend is {}'.format(moy, trend))
         if abs(moy) < self.stop_criteria_epsilon:
+            logger.warning('Derivative values vanishing')
             return True  # Stop training, derivative vanishing
 
-        if criteria(moy, 0):
+        if criteria(moy, 0): # or criteria(trend, 0):
             return False  # Continue training
         else:
+            logger.warning('Continuation criteria violated')
             return True  # Stop training
 
 
