@@ -3,6 +3,10 @@ import PIL.Image
 import PIL.ImageOps
 import torchvision.transforms as tf
 import setlog
+import torch.nn.functional as nn_func
+import torch
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 logger = setlog.get_logger(__name__)
@@ -115,5 +119,58 @@ class Equalize:
     def __call__(self, sample):
         for name, mod in sample.items():
             sample[name] = PIL.ImageOps.equalize(mod, mask=self.mask)
+
+        return sample
+
+
+class JetTransform():
+    def __init__(self):
+        self.cmap = plt.get_cmap('jet', lut=1024)
+
+    def __call__(self, sample):
+        for name, mod in sample.items():
+            sample[name] = torch.Tensor(
+                    self.cmap(mod.numpy()).transpose((0,3,1,2))
+            )[:,0:3,:,:].squeeze()
+
+        return sample
+
+
+class GradNorm:
+    def __init__(self):
+        self.w_x = torch.autograd.Variable(torch.Tensor([[n * 0.1 for n in [0.5, 1.0, 1.5, 0.0, -1.5, -1.0, -0.5]],
+                                                         [n * 0.4 for n in [0.5, 1.0, 1.5, 0.0, -1.5, -1.0, -0.5]],
+                                                         [n * 0.6 for n in [0.5, 1.0, 1.5, 0.0, -1.5, -1.0, -0.5]],
+                                                         [n * 1.0 for n in [0.5, 1.0, 1.5, 0.0, -1.5, -1.0, -0.5]],
+                                                         [n * 0.6 for n in [0.5, 1.0, 1.5, 0.0, -1.5, -1.0, -0.5]],
+                                                         [n * 0.4 for n in [0.5, 1.0, 1.5, 0.0, -1.5, -1.0, -0.5]],
+                                                         [n * 0.1 for n in [0.5, 1.0, 1.5, 0.0, -1.5, -1.0, -0.5]]
+                                                         ]).view(1,1,7,7), requires_grad=False)
+        #self.w_x /= torch.norm(self.w_x)
+        self.w_x = torch.autograd.Variable(torch.rand(1,1,3,3))
+        self.w_y = torch.autograd.Variable(torch.Tensor([[n * 0.1 for n in [0.5, 1.0, 1.5, 2.0, 1.5, 1.0, 0.5]],
+                                                         [n * 0.5 for n in [0.5, 1.0, 1.5, 2.0, 1.5, 1.0, 0.5]],
+                                                         [n * 1.0 for n in [0.5, 1.0, 1.5, 2.0, 1.5, 1.0, 0.5]],
+                                                         [0, 0, 0, 0, 0, 0, 0],
+                                                         [n * -1.0 for n in [0.5, 1.0, 1.5, 2.0, 1.5, 1.0, 0.5]],
+                                                         [n * -0.5 for n in [0.5, 1.0, 1.5, 2.0, 1.5, 1.0, 0.5]],
+                                                         [n * -0.1 for n in [0.5, 1.0, 1.5, 2.0, 1.5, 1.0, 0.5]]
+                                                         ]).view(1,1,7,7), requires_grad=False)
+        self.w_y = torch.autograd.Variable(torch.rand(1, 1, 3, 3))
+        self.w_z = torch.autograd.Variable(torch.rand(1, 1, 3, 3))
+        #self.w_y /= torch.norm(self.w_y)
+
+    def __call__(self, sample):
+        for name, mod in sample.items():
+            mod = torch.autograd.Variable(mod.unsqueeze(dim=0))
+            sample[name] = torch.cat(
+                (
+                    nn_func.conv2d(mod, self.w_x, padding=1, dilation=1),
+                    nn_func.conv2d(mod, self.w_y, padding=1, dilation=1),
+                    nn_func.conv2d(mod, self.w_z, padding=1, dilation=1),
+                    #mod
+                ),
+                dim = 1
+            ).squeeze().data
 
         return sample
