@@ -81,7 +81,7 @@ class Deconv(nn.Module):
         aux_agg = kwargs.pop('aux_agg', 'RMAC')
         aux_agg_param = kwargs.pop('aux_agg_param', {'R': 1, 'norm': True})
         feat_agg_method = kwargs.pop('feat_agg_method', 'Concat')
-        feat_agg_params = kwargs.pop('feat_agg_params', dict())
+        feat_agg_params = kwargs.pop('feat_agg_param', dict())
         self.auxilary_feat = kwargs.pop('auxilary_feat', 'conv1')
         self.end_relu = kwargs.pop('end_relu', False)
         base_archi = kwargs.pop('base_archi', 'Alexnet')
@@ -252,7 +252,8 @@ if __name__ == '__main__':
                  aux_agg_param={
                      'base_archi': 'Alexnet.Feat',
                      'base_archi_param': {
-                         'mono': True
+                         'mono': False,
+                         'jet_tf': True
                      },
                      'agg': 'RMAC',
                      'agg_param': {}
