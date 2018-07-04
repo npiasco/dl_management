@@ -144,7 +144,7 @@ class Base:
         tmp_net = copy.deepcopy(self.network)
         if not final:
             tmp_net.load_state_dict(self.trainer.best_net[-1])
-        serlz = tmp_net.full_save()
+        serlz = tmp_net.cpu().full_save()
         for name, data in serlz.items():
             torch.save(data, name + '.pth')
 
