@@ -16,6 +16,7 @@ import copy
 import tqdm
 import sklearn.cluster as skclust
 import sklearn.preprocessing as skpre
+import datasets.multmodtf as tf
 
 
 logger = setlog.get_logger(__name__)
@@ -229,27 +230,27 @@ class Deconv(Default):
             agg_weight = self.network_params.get('agg_weight', False)
 
             if encoder_weight:
-                logger.info('Loading pretrained weights: {}'.format(os.environ['CNN_WEIGHTS'] + encoder_weight))
+                logger.info('Loading pretrained encoder: {}'.format(os.environ['CNN_WEIGHTS'] + encoder_weight))
                 self.network.feature.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + encoder_weight)
                 )
             if decoder_weight:
-                logger.info('Loading pretrained weights: {}'.format(os.environ['CNN_WEIGHTS'] + decoder_weight))
+                logger.info('Loading pretrained decoder: {}'.format(os.environ['CNN_WEIGHTS'] + decoder_weight))
                 self.network.deconv.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + decoder_weight)
                 )
             if desc_weight:
-                logger.info('Loading pretrained weights: {}'.format(os.environ['CNN_WEIGHTS'] + desc_weight))
+                logger.info('Loading pretrained desc: {}'.format(os.environ['CNN_WEIGHTS'] + desc_weight))
                 self.network.descriptor.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + desc_weight)
                 )
             if aux_desc_weight:
-                logger.info('Loading pretrained weights: {}'.format(os.environ['CNN_WEIGHTS'] + aux_desc_weight))
+                logger.info('Loading pretrained aux desc: {}'.format(os.environ['CNN_WEIGHTS'] + aux_desc_weight))
                 self.network.aux_descriptor.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + aux_desc_weight)
                 )
             if agg_weight:
-                logger.info('Loading pretrained weights: {}'.format(os.environ['CNN_WEIGHTS'] + agg_weight))
+                logger.info('Loading pretrained agg: {}'.format(os.environ['CNN_WEIGHTS'] + agg_weight))
                 self.network.feat_agg.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + agg_weight)
                 )
@@ -264,7 +265,7 @@ class Deconv(Default):
         plt.figure(1)
         plt.figure(2)
         ccmap = plt.get_cmap('jet', lut=1024)
-        print(ccmap)
+
         for b in dtload:
             main_mod = b['query'][self.trainer.mod].contiguous().view(4, 3, 224, 224)
             modality = b['query'][self.trainer.aux_mod].contiguous().view(4, 1, 224, 224)
