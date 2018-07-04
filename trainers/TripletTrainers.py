@@ -100,6 +100,8 @@ class Trainer(Base.BaseTrainer):
         return results
 
     def _compute_sim(self, network, queries, dataset):
+        dataset.used_mod = [self.mod]
+        queries.used_mod = [self.mod]
         dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
         queries_loader = utils.data.DataLoader(queries, batch_size=1, num_workers=self.val_num_workers)
 
