@@ -13,21 +13,22 @@ class Main(nn.Module):
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
 
-        batch_norm = kwargs.pop('batch_norm', False)
         agg_method = kwargs.pop('agg_method', 'RMAC')
         agg_method_param = kwargs.pop('agg_method_param', {'R': 1, 'norm': True})
-        end_relu = kwargs.pop('end_relu', False)
         base_archi = kwargs.pop('base_archi', 'Alexnet')
-        load_imagenet = kwargs.pop('load_imagenet', True)
+        base_archi_param = kwargs.pop('base_archi_param',
+                                      {
+                                          'load_imagenet': True,
+                                          'end_relu': False,
+                                          'batch_norm': False
+                                      })
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
         if base_archi == 'Alexnet':
-            self.feature = Alexnet.Feat(batch_norm=batch_norm,
-                                        end_relu=end_relu,
-                                        load_imagenet=load_imagenet)
+            self.feature = Alexnet.Feat(**base_archi_param)
         else:
             raise AttributeError("Unknown base architecture {}".format(base_archi))
 
