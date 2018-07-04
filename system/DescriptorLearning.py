@@ -16,7 +16,6 @@ import copy
 import tqdm
 import sklearn.cluster as skclust
 import sklearn.preprocessing as skpre
-import datasets.multmodtf as tf
 
 
 logger = setlog.get_logger(__name__)
