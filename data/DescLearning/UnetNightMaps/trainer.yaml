@@ -1,0 +1,49 @@
+class: 'trainers.TripletTrainers.DeconvTrainer'
+param_class:
+    cuda_on: True
+    lr: 0.0001
+    momentum: 0.9
+    weight_decay: 0.001
+    optimizer_type: ADAM
+    val_num_workers: 16
+    triplet_loss:
+        func: 'loss_func.mult_triplet_margin_loss'
+        param:
+            margin: 0.1
+            swap: False
+            factor:
+                full: 1
+    modal_loss:
+        func: 'loss_func.l1_modal_loss'
+        param:
+            p: 1
+            factor: 1
+    minning_func:
+        func: 'minning.hard_minning'
+        param:
+            n_ex:
+                positives: 1
+                negatives: 1
+    mod: 'rgb'
+    aux_mod: 'mono_depth'
+
+eval_class: 'score.Functions.RecallAtN'
+param_eval_class:
+    n: 5
+    radius: 25
+test_func:
+    default:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 1
+            radius: 25
+    mean_recall:
+        class: 'score.Functions.MeanRecallAtN'
+        param_class:
+            n: 50
+            radius: 25
+    recall:
+        class: 'score.Functions.Recall'
+        param_class:
+            n: 50
+            radius: 25
