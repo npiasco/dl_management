@@ -76,7 +76,6 @@ class Deconv(nn.Module):
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
 
-        batch_norm = kwargs.pop('batch_norm', False)
         agg_method = kwargs.pop('agg_method', 'RMAC')
         agg_method_param = kwargs.pop('agg_method_param', {'R': 1, 'norm': True})
         aux_agg = kwargs.pop('aux_agg', 'RMAC')
@@ -84,9 +83,17 @@ class Deconv(nn.Module):
         feat_agg_method = kwargs.pop('feat_agg_method', 'Concat')
         feat_agg_params = kwargs.pop('feat_agg_param', dict())
         self.auxilary_feat = kwargs.pop('auxilary_feat', 'conv1')
-        self.end_relu = kwargs.pop('end_relu', False)
-        base_archi = kwargs.pop('base_archi', 'Alexnet')
-        load_imagenet = kwargs.pop('load_imagenet', True)
+        enc_base_archi = kwargs.pop('enc_base_archi', 'Alexnet')
+        enc_base_param = kwargs.pop('enc_base_param',
+                                    {'batch_norm': False,
+                                     'end_relu': False,
+                                     'load_imagenet': True
+                                     })
+        dec_base_archi = kwargs.pop('dec_base_archi', 'Alexnet')
+        dec_base_param = kwargs.pop('dec_base_param',
+                                    {'batch_norm': False,
+                                     })
+
         self.res = kwargs.pop('res', False)
         self.unet= kwargs.pop('unet', False)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
@@ -95,19 +102,21 @@ class Deconv(nn.Module):
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-        if base_archi == 'Alexnet':
-            self.feature = Alexnet.Feat(batch_norm=batch_norm,
-                                        end_relu=self.end_relu,
-                                        load_imagenet=load_imagenet,
+        if enc_base_archi == 'Alexnet':
+            self.feature = Alexnet.Feat(**enc_base_param,
                                         res=self.res,
                                         unet=self.unet,
                                         indices=True,
                                         end_max_polling=True)
-            self.deconv = Alexnet.Deconv(batch_norm=batch_norm,
+        else:
+            raise AttributeError("Unknown base architecture {}".format(enc_base_archi))
+
+        if dec_base_archi == 'Alexnet':
+            self.deconv = Alexnet.Deconv(**dec_base_param,
                                          res=self.res,
                                          unet=self.unet)
         else:
-            raise AttributeError("Unknown base architecture {}".format(base_archi))
+            raise AttributeError("Unknown base architecture {}".format(dec_base_archi))
 
         self.descriptor = Agg.select_desc(agg_method, agg_method_param)
         self.aux_descriptor = Agg.select_desc(aux_agg, aux_agg_param)
@@ -243,11 +252,9 @@ if __name__ == '__main__':
     """
     tensor_input = torch.rand([10, 3, 224, 224]).cuda()
     net = Deconv(agg_method='RMAC',
-                 end_relu=False,
                  res=False,
                  unet=True,
                  auxilary_feat='maps',
-                 batch_norm=True,
                  feat_agg_method='Concat',
                  aux_agg='Encoder',
                  aux_agg_param={
