@@ -124,8 +124,8 @@ class Equalize:
 
 
 class JetTransform():
-    def __init__(self):
-        self.cmap = plt.get_cmap('jet', lut=1024)
+    def __init__(self, cmap='jet', s_lut=256):
+        self.cmap = plt.get_cmap(cmap, lut=s_lut)
 
     def __call__(self, sample):
         for name, mod in sample.items():
