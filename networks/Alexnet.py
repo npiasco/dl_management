@@ -147,6 +147,7 @@ class Deconv(nn.Module):
         nn.Module.__init__(self)
         batch_norm = kwargs.pop('batch_norm', False)
         end_relu = kwargs.pop('end_relu', False)
+        modality_ch = kwargs.pop('modality_ch', 1)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
         self.res = kwargs.pop('res', False)
         self.unet = kwargs.pop('unet', False)
@@ -168,7 +169,7 @@ class Deconv(nn.Module):
             ('conv1', nn.Conv2d(unet_multp * 192, 64, kernel_size=5, padding=2)),    # 8
             ('relu1', nn.ReLU(inplace=True)),                           # 9
             ('unpool1', nn.MaxUnpool2d(kernel_size=3, stride=2)),       # 10
-            ('deconv0', nn.ConvTranspose2d(unet_multp * 64, 1, kernel_size=11, stride=4, padding=2, output_padding=1)),
+            ('deconv0', nn.ConvTranspose2d(unet_multp * 64, modality_ch, kernel_size=11, stride=4, padding=2, output_padding=1)),
             ('tanh', nn.Tanh())
         ]
 
