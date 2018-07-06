@@ -267,7 +267,7 @@ class Deconv(Default):
 
         for b in dtload:
             main_mod = b['query'][self.trainer.mod].contiguous().view(4, 3, 224, 224)
-            modality = b['query'][self.trainer.aux_mod].contiguous().view(4, 1, 224, 224)
+            modality = b['query'][self.trainer.aux_mod].contiguous().view(4, -1, 224, 224)
             output = tmp_net(
                 auto.Variable(
                     self.trainer.cuda_func(
@@ -280,7 +280,10 @@ class Deconv(Default):
             images_batch = torch.cat((modality.cpu(), output['maps'].data.cpu()))
             grid = torchvis.utils.make_grid(images_batch, nrow=4)
             plt.figure(1)
-            plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
+            if images_batch.size(1) == 1:
+                plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
+            else:
+                plt.imshow(grid.numpy().transpose(1, 2, 0))
             plt.colorbar()
             plt.figure(2)
             grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=4)
