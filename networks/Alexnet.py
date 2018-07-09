@@ -7,6 +7,7 @@ import torch
 import torchvision.models as models
 import os
 import matplotlib.pyplot as plt
+import networks.CustomLayers as custom
 
 
 logger = setlog.get_logger(__name__)
@@ -25,7 +26,7 @@ class Feat(nn.Module):
         self.res = kwargs.pop('res', False)
         self.unet = kwargs.pop('unet', False)
         mono = kwargs.pop('mono', False)
-        self.jet_tf = plt.get_cmap('jet', lut=1024) if kwargs.pop('jet_tf', False) else False
+        jet_tf = kwargs.pop('jet_tf', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -58,6 +59,11 @@ class Feat(nn.Module):
         if end_max_polling:
             base_archi.append(('pool3', nn.MaxPool2d(kernel_size=3, stride=2, return_indices=self.indices)))
 
+        if jet_tf:
+            base_archi = [('jet_tf', custom.IndexEmbedding(num_embedding=256,
+                                                          size_embedding=3,
+                                                          trainable=False))] + base_archi
+
         self.base_archi = coll.OrderedDict(base_archi)
         self.feature = nn.Sequential(self.base_archi)
         logger.info('Final feature extractor architecture:')
@@ -68,16 +74,6 @@ class Feat(nn.Module):
             self.load(mono)
 
     def forward(self, x):
-        if self.jet_tf:
-            # TODO: change into pytorch pipeline
-            f_cuda = lambda var : var.cuda() if x.is_cuda else var
-            #print(torch.Tensor(self.jet_tf(x.squeeze().cpu().data.numpy()).transpose((0,3,1,2))).size())
-            x = x - torch.min(x)
-            new_x = torch.autograd.Variable(
-                torch.Tensor(self.jet_tf(x.squeeze(1).cpu().data.numpy()).transpose((0, 3, 1, 2)))[:,0:3,:,:]
-            )
-            x = f_cuda(new_x)
-
         if self.indices or self.res:
             ind = list()
             res = list()
@@ -152,6 +148,7 @@ class Deconv(nn.Module):
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
         self.res = kwargs.pop('res', False)
         self.unet = kwargs.pop('unet', False)
+        final_jet_tf = kwargs.pop('final_jet_tf', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -193,6 +190,12 @@ class Deconv(nn.Module):
 
         if end_relu:
             base_archi.append(('relu0', nn.ReLU(inplace=True)))
+
+        if final_jet_tf:
+            base_archi.append(('jet_tf', custom.IndexEmbedding(num_embedding=256,
+                                                               size_embedding=3,
+                                                               init_jet=True,
+                                                               trainable=False)))
 
         self.base_archi = coll.OrderedDict(base_archi)
 

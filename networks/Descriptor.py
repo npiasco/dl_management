@@ -266,6 +266,10 @@ if __name__ == '__main__':
                      'agg': 'RMAC',
                      'agg_param': {}
                  },
+                 dec_base_param={
+                     'upsample': True,
+                     'final_jet_tf': False
+                 },
                  return_all_desc=True,
                  ).cuda()
 
