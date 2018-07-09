@@ -148,6 +148,7 @@ class Deconv(nn.Module):
         batch_norm = kwargs.pop('batch_norm', False)
         end_relu = kwargs.pop('end_relu', False)
         modality_ch = kwargs.pop('modality_ch', 1)
+        upsample = kwargs.pop('upsample', False)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
         self.res = kwargs.pop('res', False)
         self.unet = kwargs.pop('unet', False)
@@ -169,9 +170,20 @@ class Deconv(nn.Module):
             ('conv1', nn.Conv2d(unet_multp * 192, 64, kernel_size=5, padding=2)),    # 8
             ('relu1', nn.ReLU(inplace=True)),                           # 9
             ('unpool1', nn.MaxUnpool2d(kernel_size=3, stride=2)),       # 10
-            ('deconv0', nn.ConvTranspose2d(unet_multp * 64, modality_ch, kernel_size=11, stride=4, padding=2, output_padding=1)),
-            ('tanh', nn.Tanh())
         ]
+
+        if upsample:
+            base_archi += [
+                ('upsample1', nn.UpsamplingBilinear2d(size=(224,224))),
+                ('conv0', nn.Conv2d(unet_multp * 64, modality_ch, kernel_size=3, stride=1, padding=1)),
+                ('tanh', nn.Tanh())
+            ]
+        else:
+            base_archi += [
+                ('deconv0', nn.ConvTranspose2d(unet_multp * 64, modality_ch, kernel_size=11, stride=4, padding=2,
+                                               output_padding=1)),
+                ('tanh', nn.Tanh())
+            ]
 
         if batch_norm:
             base_archi.insert(9, ('norm1', nn.BatchNorm2d(64)))
@@ -224,7 +236,7 @@ class Deconv(nn.Module):
                 x = lay(x + res[0])
             elif self.unet and name == 'conv1':
                 x = lay(torch.cat([x, res[1]], dim=1))
-            elif self.unet and name == 'deconv0':
+            elif self.unet and name in ('deconv0', 'upsample1'):
                 x = lay(torch.cat([x, res[0]], dim=1))
             else:
                 x = lay(x)
