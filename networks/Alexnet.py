@@ -27,6 +27,7 @@ class Feat(nn.Module):
         self.unet = kwargs.pop('unet', False)
         mono = kwargs.pop('mono', False)
         jet_tf = kwargs.pop('jet_tf', False)
+        jet_tf_is_trainable = kwargs.pop('jet_tf_is_trainable', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -61,8 +62,8 @@ class Feat(nn.Module):
 
         if jet_tf:
             base_archi = [('jet_tf', custom.IndexEmbedding(num_embedding=256,
-                                                          size_embedding=3,
-                                                          trainable=False))] + base_archi
+                                                           size_embedding=3,
+                                                           trainable=jet_tf_is_trainable))] + base_archi
 
         self.base_archi = coll.OrderedDict(base_archi)
         self.feature = nn.Sequential(self.base_archi)
@@ -115,7 +116,7 @@ class Feat(nn.Module):
     def get_training_layers(self, layers_to_train=None):
         def sub_layers(name):
             return {
-                'all': [{'params': self.feature.parameters()}],
+                'all': [{'params': layers.parameters()} for layers in list(self.feature.children())],
                 'up_to_conv4': [{'params': layers.parameters()} for layers in
                                 list(self.feature.children())[list(self.base_archi.keys()).index('conv4'):]],
                 'up_to_conv3': [{'params': layers.parameters()} for layers in
@@ -149,6 +150,7 @@ class Deconv(nn.Module):
         self.res = kwargs.pop('res', False)
         self.unet = kwargs.pop('unet', False)
         final_jet_tf = kwargs.pop('final_jet_tf', False)
+        jet_tf_is_trainable = kwargs.pop('jet_tf_is_trainable', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -195,7 +197,7 @@ class Deconv(nn.Module):
             base_archi.append(('jet_tf', custom.IndexEmbedding(num_embedding=256,
                                                                size_embedding=3,
                                                                init_jet=True,
-                                                               trainable=False)))
+                                                               trainable=jet_tf_is_trainable)))
 
         self.base_archi = coll.OrderedDict(base_archi)
 
