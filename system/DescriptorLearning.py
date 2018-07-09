@@ -77,6 +77,7 @@ class Default(BaseClass.Base):
 
     def print(self, dataset_name):
         if dataset_name == 'train':
+            self.data[dataset_name].used_mod = self.training_mod
             dtload = data.DataLoader(self.data[dataset_name], batch_size=4)
         elif dataset_name == 'val_query':
             dtload = data.DataLoader(self.data['val']['queries'], batch_size=16)
@@ -115,6 +116,8 @@ class Default(BaseClass.Base):
         for name, mod in batch.items():
             if name not in ('coord',):
                 buffer += (mod,)
+                print(name)
+                print(mod)
 
         images_batch = torch.cat(buffer, 0)
         grid = torchvis.utils.make_grid(images_batch, nrow=4)
@@ -216,6 +219,43 @@ class Default(BaseClass.Base):
                     std = (std + torch.std(batch[self.trainer.mod].squeeze().view(channel, -1).transpose(0, 1), 0)) / 2
 
         logger.info('Mean = {}\nSTD = {}'.format(mean, std))
+
+    def map_print(self):
+        tmp_net = copy.deepcopy(self.network)
+        tmp_net.load_state_dict(self.trainer.best_net[1])
+        self.data['train'].used_mod = self.training_mod
+        dtload = data.DataLoader(self.data['train'], batch_size=4)
+        plt.figure(1)
+        plt.figure(2)
+        ccmap = plt.get_cmap('jet', lut=1024)
+
+        for b in dtload:
+            main_mod = b['query'][self.trainer.mod].contiguous().view(4, -1, 224, 224)
+
+            for name, lay in tmp_net.feature.feature.named_children():
+                if name == 'jet_tf':
+                    output = lay(
+                        auto.Variable(
+                            self.trainer.cuda_func(
+                                b['query'][self.trainer.mod]
+                            ),
+                            requires_grad=False
+                        )
+                    )
+                    print(lay.embedding.weight)
+
+            image_batch = output.data.cpu()
+            grid = torchvis.utils.make_grid(image_batch, nrow=4)
+            plt.figure(1)
+            if image_batch.size(1) == 1:
+                plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
+            else:
+                plt.imshow(grid.numpy().transpose(1, 2, 0))
+            plt.colorbar()
+            plt.figure(2)
+            grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=4)
+            plt.imshow(grid.numpy().transpose(1, 2, 0))
+            plt.show()
 
 
 class Deconv(Default):
