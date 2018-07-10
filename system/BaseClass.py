@@ -114,7 +114,7 @@ class Base:
 
                 if self.lr_scheduler is not None:
                     lr_scheduler.step()
-                    logger.info('Learning rate is {}'.format(lr_scheduler.get_lr()))
+                    logger.info('Learning rate are {}'.format(lr_scheduler.get_lr()))
 
                 for b in tqdm.tqdm(dtload):
                     self.trainer.train(b)
