@@ -131,7 +131,7 @@ def l1_modal_loss(predicted_maps, gt_maps, p=1, factor=3e-4, reg = 0):
         loss += reg * (
             torch.sum(torch.abs(predicted[:, :, :, :-1] - predicted[:, :, :, 1:])) +
             torch.sum(torch.abs(predicted[:, :, :-1, :] - predicted[:, :, 1:, :]))
-        )
+        ) / predicted.size(1)
 
     return loss
 
