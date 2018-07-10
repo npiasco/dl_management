@@ -5,6 +5,9 @@ import torch
 import math
 import os
 import networks.Alexnet as Alexnet
+import collections as coll
+import networks.CustomLayers as Custom
+
 
 logger = setlog.get_logger(__name__)
 
@@ -24,9 +27,24 @@ def select_desc(name, params):
         agg = NetVLAD(**params)
     elif name == 'Encoder':
         agg = nn.Sequential(
-            eval(params['base_archi'])(**params['base_archi_param']),
-            select_desc(params['agg'], params['agg_param'])
+            coll.OrderedDict(
+                [
+                    ('feat', eval(params['base_archi'])(**params['base_archi_param'])),
+                    ('agg', select_desc(params['agg'], params['agg_param']))
+                ]
+            )
         )
+    elif name == 'JetEncoder':
+        agg = nn.Sequential(
+            coll.OrderedDict(
+                [
+                    ('jet', Custom.IndexEmbedding(size_embedding=3, num_embedding=256, trainable=False, init_jet=True)),
+                    ('feat', eval(params['base_archi'])(**params['base_archi_param'])),
+                    ('agg', select_desc(params['agg'], params['agg_param']))
+                ]
+            )
+        )
+
     else:
         raise ValueError('Unknown aggregation method {}'.format(name))
 

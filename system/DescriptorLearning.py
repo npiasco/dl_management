@@ -294,20 +294,16 @@ class Deconv(Default):
                 logger.info('Loading pretrained aux desc encoder: {}'.format(
                     os.environ['CNN_WEIGHTS'] + aux_desc_encoder_weight
                 ))
-                i = 0
-                for part in self.network.aux_descriptor.children():
-                    if i == 0:
+                for name, part in self.network.aux_descriptor.named_children():
+                    if name  == 'feat':
                         part.load_state_dict(torch.load(os.environ['CNN_WEIGHTS'] + aux_desc_encoder_weight))
-                    i += 1
             if aux_desc_encoder_desc_weight:
                 logger.info('Loading pretrained aux desc encoder desc: {}'.format(
                     os.environ['CNN_WEIGHTS'] + aux_desc_encoder_desc_weight
                 ))
-                i = 0
-                for part in self.network.aux_descriptor.children():
-                    if i == 1:
+                for name, part in self.network.aux_descriptor.named_children():
+                    if name  == 'agg':
                         part.load_state_dict(torch.load(os.environ['CNN_WEIGHTS'] + aux_desc_encoder_desc_weight))
-                    i += 1
             if agg_weight:
                 logger.info('Loading pretrained agg: {}'.format(os.environ['CNN_WEIGHTS'] + agg_weight))
                 self.network.feat_agg.load_state_dict(
