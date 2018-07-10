@@ -118,7 +118,7 @@ def mult_triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps
 
 
 def l1_modal_loss(predicted_maps, gt_maps, p=1, factor=3e-4, reg = 0):
-    predicted = torch.cat(predicted_maps, dim=1)
+    predicted = torch.cat(predicted_maps, dim=0)
     gt = torch.cat(gt_maps, dim=0)
     if p == 1:
         loss = factor * func.l1_loss(predicted, gt)
