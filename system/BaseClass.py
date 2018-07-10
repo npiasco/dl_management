@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import torch.utils as utils
 import tqdm
 import sys
+import torch.optim.lr_scheduler as lr_scheduler
 import networks.Descriptor              # Needed for class creation with eval
 import networks.Pose                    # Needed for class creation with eval
 import trainers.TripletTrainers          # Needed for class creation with eval
@@ -57,6 +58,7 @@ class Base:
         self.min_value_to_stop = params.pop('min_value_to_stop', 10)
         self.sucess_bad_epoch = params.pop('sucess_bad_epoch', 2)
         self.score_file = params.pop('score_file', None)
+        self.lr_scheduler = params.pop('lr_scheduler', None)
         params.pop('saved_files', None)
         if params:
             logger.error('Unexpected **params: %r' % params)
@@ -101,8 +103,19 @@ class Base:
             criteria_loss = [False] * self.sucess_bad_epoch
             criteria_val = [False] * self.sucess_bad_epoch
 
+            if self.lr_scheduler is not None:
+                last_epoch = self.curr_epoch - 1 # self.curr_epoch if self.curr_epoch != 0 else -1
+                lr_scheduler = eval(self.lr_scheduler['class'])(self.trainer.optimizer,
+                                                                **self.lr_scheduler['param'],
+                                                                last_epoch=last_epoch)
+
             for ep in range(self.curr_epoch, self.max_epoch):
                 logger.info('Training network for ep {}'.format(ep + 1))
+
+                if self.lr_scheduler is not None:
+                    lr_scheduler.step()
+                    logger.info('Learning rate is {}'.format(lr_scheduler.get_lr()))
+
                 for b in tqdm.tqdm(dtload):
                     self.trainer.train(b)
                 self.curr_epoch += 1
