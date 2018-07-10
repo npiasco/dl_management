@@ -50,3 +50,9 @@ class IndexEmbedding(nn.Module):
             return self.embedding.parameters()
         else:
             return nn.Parameter()
+
+    def named_parameters(self, memo=None, prefix=''):
+        if self.trainable:
+            return self.embedding.named_parameters(memo=memo, prefix=prefix)
+        else:
+            return '', nn.Parameter()
