@@ -14,6 +14,8 @@ class IndexEmbedding(nn.Module):
         size_embedding = kwargs.pop('size_embedding', 3)
         self.init_jet = kwargs.pop('init_jet', True)
         self.trainable = kwargs.pop('trainable', True)
+        self.amplitude = kwargs.pop('amplitude', 2.0)
+        self.min_value = kwargs.pop('min_value', -1.0)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -33,16 +35,12 @@ class IndexEmbedding(nn.Module):
 
         ori_size = feature.size()
 
-        feature = feature - torch.min(feature)
-        feature = (feature*self.embedding.num_embeddings).long().view(1, -1).detach()
+        feature = (feature - self.min_value)/self.amplitude # Index normalization [0,1]
+        feature = (feature*(self.embedding.num_embeddings - 1)).long().view(1, -1).detach()
 
         x = self.embedding(feature)
         x = x.view(ori_size[0], ori_size[2], ori_size[3], -1).transpose(1,3).transpose(2,3).contiguous()
 
-        """
-        if not self.trainable:
-            x = torch.autograd.Variable(x.data)
-        """
         return x
 
     def parameters(self):
