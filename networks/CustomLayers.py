@@ -55,4 +55,4 @@ class IndexEmbedding(nn.Module):
         if self.trainable:
             return self.embedding.named_parameters(memo=memo, prefix=prefix)
         else:
-            return '', nn.Parameter()
+            yield '', nn.Parameter()
