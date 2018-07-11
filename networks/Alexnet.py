@@ -114,23 +114,31 @@ class Feat(nn.Module):
         self.base_archi['conv4'].bias.data = alexnet[10].bias.data
 
     def get_training_layers(self, layers_to_train=None):
-        def sub_layers(name):
-            return {
-                'all': [{'params': layers.parameters()} for layers in list(self.feature.children())],
-                'up_to_conv4': [{'params': layers.parameters()} for layers in
-                                list(self.feature.children())[list(self.base_archi.keys()).index('conv4'):]],
-                'up_to_conv3': [{'params': layers.parameters()} for layers in
-                                list(self.feature.children())[list(self.base_archi.keys()).index('conv3'):]],
-                'up_to_conv2': [{'params': layers.parameters()} for layers in
-                                list(self.feature.children())[list(self.base_archi.keys()).index('conv2'):]],
-                'up_to_conv1': [{'params': layers.parameters()} for layers in
-                                list(self.feature.children())[list(self.base_archi.keys()).index('conv1'):]],
-                'only_jet': [{'params': layers.parameters()} for layers in
-                                list(self.feature.children())[list(self.base_archi.keys()).index('jet_tf')]]
-            }.get(name)
         if not layers_to_train:
             layers_to_train = self.layers_to_train
-        return sub_layers(layers_to_train)
+        if layers_to_train == 'all':
+            training_params = [{'params': layers.parameters()} for layers in list(self.feature.children())]
+        elif layers_to_train == 'up_to_conv4':
+            training_params = [{'params': layers.parameters()} for layers in
+                                list(self.feature.children())[list(self.base_archi.keys()).index('conv4'):]]
+        elif layers_to_train == 'up_to_conv3':
+            training_params = [{'params': layers.parameters()} for layers in
+                               list(self.feature.children())[list(self.base_archi.keys()).index('conv3'):]]
+        elif layers_to_train == 'up_to_conv2':
+            training_params = [{'params': layers.parameters()} for layers in
+                                list(self.feature.children())[list(self.base_archi.keys()).index('conv2'):]]
+        elif layers_to_train == 'up_to_conv1':
+            training_params = [{'params': layers.parameters()} for layers in
+                                list(self.feature.children())[list(self.base_archi.keys()).index('conv1'):]]
+        elif layers_to_train == 'only_jet':
+            training_params = [{'params':
+                                    list(self.feature.children())[
+                                        list(self.base_archi.keys()).index('only_jet')
+                                    ].parameters()}]
+        else:
+            raise KeyError('No behaviour for layers_to_train = {}'.format(layers_to_train))
+
+        return training_params
 
     @property
     def down_ratio(self):
