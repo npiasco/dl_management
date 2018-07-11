@@ -49,23 +49,33 @@ class Main(nn.Module):
         return forward_pass
 
     def get_training_layers(self, layers_to_train=None):
-        def sub_layers(name):
-            return {
-                'all': [{'params': self.descriptor.parameters()}] + self.feature.get_training_layers('all'),
-                'only_feat': self.feature.get_training_layers('all'),
-                'only_descriptor': [{'params': self.descriptor.parameters()}],
-                'up_to_conv4': [{'params': self.descriptor.parameters()}] +
-                               self.feature.get_training_layers('up_to_conv4'),
-                'up_to_conv3': [{'params': self.descriptor.parameters()}] +
-                               self.feature.get_training_layers('up_to_conv3'),
-                'up_to_conv2': [{'params': self.descriptor.parameters()}] +
-                               self.feature.get_training_layers('up_to_conv2'),
-                'up_to_conv1': [{'params': self.descriptor.parameters()}] +
-                               self.feature.get_training_layers('up_to_conv1')
-            }.get(name)
         if not layers_to_train:
             layers_to_train = self.layers_to_train
-        return sub_layers(layers_to_train)
+
+        if layers_to_train == 'all':
+            train_parameters = [{'params': self.descriptor.parameters()}] + self.feature.get_training_layers('all')
+        elif layers_to_train == 'only_feat':
+            train_parameters = self.feature.get_training_layers('all')
+        elif layers_to_train == 'only_descriptor':
+            train_parameters = [{'params': self.descriptor.parameters()}]
+        elif layers_to_train == 'up_to_conv4':
+            train_parameters = [{'params': self.descriptor.parameters()}] + \
+                               self.feature.get_training_layers('up_to_conv4')
+        elif layers_to_train == 'up_to_conv3':
+            train_parameters = [{'params': self.descriptor.parameters()}] +\
+                               self.feature.get_training_layers('up_to_conv3')
+        elif layers_to_train == 'up_to_conv2':
+            train_parameters = [{'params': self.descriptor.parameters()}] +\
+                               self.feature.get_training_layers('up_to_conv2')
+        elif layers_to_train == 'up_to_conv1':
+            train_parameters = [{'params': self.descriptor.parameters()}] +\
+                               self.feature.get_training_layers('up_to_conv1')
+        elif layers_to_train == 'only_jet':
+            train_parameters = self.feature.get_training_layers('only_jet')
+        else:
+            raise KeyError('No behaviour for layers_to_train = {}'.format(layers_to_train))
+
+        return train_parameters
 
     def full_save(self):
         return {'feature': self.feature.state_dict(),
@@ -217,6 +227,7 @@ class Deconv(nn.Module):
 
 
 if __name__ == '__main__':
+    tensor_input = torch.rand([10, 3, 224, 224]).cuda()
     """
     net = Main().cuda()
     feat_output = net(auto.Variable(tensor_input))
@@ -237,8 +248,8 @@ if __name__ == '__main__':
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'])
     """
-    """
-    tensor_input = torch.rand([5, 3, 224, 224]).cuda()
+
+    tensor_input = torch.rand([5, 1, 224, 224]).cuda()
 
     net = Main(agg_method='NetVLAD',
                agg_method_param={
@@ -246,11 +257,15 @@ if __name__ == '__main__':
                    'feature_size': 256,
                    'bias': True
                },
-               end_relu=False,).cuda()
+               base_archi_param={
+                   'jet_tf': True,
+               }
+               ).cuda()
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'].size())
+    print(net.get_training_layers('only_jet'))
+
     """
-    tensor_input = torch.rand([10, 3, 224, 224]).cuda()
     net = Deconv(agg_method='RMAC',
                  res=False,
                  unet=True,
@@ -277,3 +292,4 @@ if __name__ == '__main__':
     print(feat_output['desc'])
     print(feat_output['maps'].size())
     print(net.get_training_layers('all'))
+    """

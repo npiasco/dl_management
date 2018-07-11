@@ -114,7 +114,7 @@ class Feat(nn.Module):
         self.base_archi['conv4'].bias.data = alexnet[10].bias.data
 
     def get_training_layers(self, layers_to_train=None):
-        if not layers_to_train:
+        if layers_to_train is None:
             layers_to_train = self.layers_to_train
         if layers_to_train == 'all':
             training_params = [{'params': layers.parameters()} for layers in list(self.feature.children())]
@@ -133,7 +133,7 @@ class Feat(nn.Module):
         elif layers_to_train == 'only_jet':
             training_params = [{'params':
                                     list(self.feature.children())[
-                                        list(self.base_archi.keys()).index('only_jet')
+                                        list(self.base_archi.keys()).index('jet_tf')
                                     ].parameters()}]
         else:
             raise KeyError('No behaviour for layers_to_train = {}'.format(layers_to_train))
