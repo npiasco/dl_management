@@ -124,7 +124,9 @@ class Feat(nn.Module):
                 'up_to_conv2': [{'params': layers.parameters()} for layers in
                                 list(self.feature.children())[list(self.base_archi.keys()).index('conv2'):]],
                 'up_to_conv1': [{'params': layers.parameters()} for layers in
-                                list(self.feature.children())[list(self.base_archi.keys()).index('conv1'):]]
+                                list(self.feature.children())[list(self.base_archi.keys()).index('conv1'):]],
+                'only_jet': [{'params': layers.parameters()} for layers in
+                                list(self.feature.children())[list(self.base_archi.keys()).index('jet_tf')]]
             }.get(name)
         if not layers_to_train:
             layers_to_train = self.layers_to_train
