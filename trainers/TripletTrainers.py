@@ -19,6 +19,14 @@ import score.Functions as ScoreFunc
 logger = setlog.get_logger(__name__)
 
 
+def recc_acces(var, names):
+    if not names:
+        return var
+    else:
+        sub_name = names.pop(0)
+        return recc_acces(var[sub_name], names)
+
+
 class Trainer(Base.BaseTrainer):
     def __init__(self, **kwargs):
         Base.BaseTrainer.__init__(
@@ -55,10 +63,22 @@ class Trainer(Base.BaseTrainer):
 
         # Forward pass
         anchor = self.network(auto.Variable(self.cuda_func(batch['query'][self.mod]), requires_grad=True))
-        positive = self.minning_func['func'](self, batch, 'positives', **self.minning_func['param'])
-        negative = self.minning_func['func'](self, batch, 'negatives', **self.minning_func['param'])
+        positive = self.minning_func['func'](self.network,
+                                             batch,
+                                             'positives',
+                                             cuda_func=self.cuda_func,
+                                             mod=self.mod,
+                                             **self.minning_func['param'])
+        negative = self.minning_func['func'](self.network,
+                                             batch,
+                                             'negatives',
+                                             cuda_func=self.cuda_func,
+                                             mod=self.mod,
+                                             **self.minning_func['param'])
 
-        loss = self.triplet_loss['func'](anchor['desc'], positive['desc'], negative['desc'],
+        loss = self.triplet_loss['func'](anchor['desc'],
+                                         positive['desc'],
+                                         negative['desc'],
                                          **self.triplet_loss['param'])
 
         loss.backward()  # calculate the gradients (backpropagation)
@@ -144,7 +164,6 @@ class DeconvTrainer(Trainer):
             self.aux_loss[name]['func'] = eval(aux_loss[name]['func'])
             self.loss_log[name] = list()
 
-
     def train(self, batch):
         self.network.train()
         # Reset gradients
@@ -152,13 +171,24 @@ class DeconvTrainer(Trainer):
 
         # Forward pass
         anchor = self.network(auto.Variable(self.cuda_func(batch['query'][self.mod]), requires_grad=True))
-        positive, pos_idx  = self.minning_func['func'](self, batch, 'positives',
-                                                       return_idx=True, **self.minning_func['param'])
-        negative, neg_idx  = self.minning_func['func'](self, batch, 'negatives',
-                                                       return_idx=True, **self.minning_func['param'])
+        positive, pos_idx  = self.minning_func['func'](self.network,
+                                                       batch,
+                                                       'positives',
+                                                       cuda_func=self.cuda_func,
+                                                       mod=self.mod,
+                                                       return_idx=True,
+                                                       **self.minning_func['param'])
+        negative, neg_idx  = self.minning_func['func'](self.network,
+                                                       batch,
+                                                       'negatives',
+                                                       mod=self.mod,
+                                                       return_idx=True,
+                                                       **self.minning_func['param'])
 
 
-        triplet_loss = self.triplet_loss['func'](anchor['desc'], positive['desc'], negative['desc'],
+        triplet_loss = self.triplet_loss['func'](anchor['desc'],
+                                                 positive['desc'],
+                                                 negative['desc'],
                                                  **self.triplet_loss['param'])
 
         anchor_mod = auto.Variable(self.cuda_func(batch['query'][self.aux_mod]), requires_grad=False)
@@ -201,6 +231,75 @@ class DeconvTrainer(Trainer):
         logger.debug('Triplet loss is {}'.format(triplet_loss.data[0]))
         self.loss_log['modal_loss'].append(modal_loss.data[0])
         logger.debug('Modal loss is {}'.format(modal_loss.data[0]))
+
+
+class MultNetTrainer(Base.BaseMultNetTrainer):
+    def __init__(self, **kwargs):
+        forwards= kwargs.pop('forwards', list())
+        losses = kwargs.pop('losses', list())
+        self.minning_func = kwargs.pop('minning_func', {'func': minning.general_hard_minning,
+                                                        'param': dict()})
+
+        Base.BaseMultNetTrainer.__init__(self, **kwargs)
+
+        self.forwards = list()
+        for forward in forwards:
+            self.forwards.append(forward)
+            self.forwards[-1]['func'] = eval(forward['func'])
+
+        self.minning_func['func'] = eval(self.minning_func['func'])
+
+        self.losses = list()
+        for loss in losses:
+            self.losses.append(loss)
+            self.losses[-1]['func'] = eval(loss['func'])
+            self.loss_log[loss['name']] = list()
+
+    def train(self, batch):
+        for network in self.networks:
+            network.train()
+        # Reset gradients
+        for optimizer in self.optimizers:
+            optimizer.zero_grad()
+
+        # Forward pass
+        variables = {'batch': batch}
+        for fd in self.forwards:
+            variables[fd['out_name']] = fd['func'](
+                self.networks[fd['net_name']],
+                variables,
+                cuda_func=self.cuda_func,
+                **fd['param']
+            )
+
+        positive, pos_idx  = self.minning_func['func'](variables['anchor'],
+                                                       variables['positives_ex'],
+                                                       'positives',
+                                                       return_idx=True,
+                                                       **self.minning_func['param'])
+
+        variables['hard_positives_ex'] = positive
+        variables['hard_pos_idx'] = pos_idx
+        negative, neg_idx  = self.minning_func['func'](variables['anchor'],
+                                                       variables['negatives_ex'],
+                                                       'negatives',
+                                                       return_idx=True,
+                                                       **self.minning_func['param'])
+        variables['hard_negatives_ex'] = negative
+        variables['hard_neg_idx'] = neg_idx
+
+        loss = 0
+        for loss in self.losses:
+            args = [recc_acces(variables, name) for name in loss['args']]
+            val = loss['func'](*args, **loss['param'])
+            loss += val
+            self.loss_log[loss['name']].append(val.data[0])
+            logger.debug(loss['name'] + ' loss is {}'.format(val.data[0]))
+
+        loss.backward()  # calculate the gradients (backpropagation)
+
+        for optimizer in self.optimizers:
+            optimizer.step()  # update the weights
 
 
 if __name__ == '__main__':
@@ -254,12 +353,13 @@ if __name__ == '__main__':
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
 
-    net = Desc.Main(end_relu=True, batch_norm=False)
+    net = Desc.Main()
     trainer = Trainer(network=net,
                       cuda_on=True,
-                      minning_func=minning.no_selection,
+                      minning_func={'func': 'minning.no_selection',
+                                    'param': {}},
                       triplet_loss={
-                          'func': loss_func.adaptive_triplet_loss,
+                          'func': 'loss_func.adaptive_triplet_loss',
                           'param': dict()
                       }
                       )
@@ -269,6 +369,7 @@ if __name__ == '__main__':
                  ep=0)
     '''
     for b in tqdm.tqdm(dtload):
+        #print(net(torch.autograd.Variable(b['negatives'][0]['rgb'].cuda())))
         trainer.train(b)
     trainer.eval(dataset={'data': data, 'queries': query_data},
                  score_function=ScoreFunc.RecallAtN(n=1, radius=25),

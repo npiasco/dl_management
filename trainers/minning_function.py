@@ -190,3 +190,62 @@ def no_selection(trainer, batch, mode):
                     exemples[name].append(val)
 
     return exemples
+
+
+def batch_forward(net, batch, **kwargs):
+    mode = kwargs.pop('mode', None)
+    modality = kwargs.pop('modality', None)
+    cuda_func = kwargs.pop('cuda_func', lambda x: x.cuda())
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    batch = batch['batch']
+
+    if mode == 'query':
+        forward = net(auto.Variable(cuda_func(batch['query'][modality])))
+    else:
+        forward = [net(auto.Variable(cuda_func(sub_batch[modality]))) for sub_batch in batch[mode]]
+
+    return forward
+
+
+def custom_forward(net, outputs, **kwargs):
+    input_targets = kwargs.pop('input_targets', list())
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    inputs = [outputs[name] for name in input_targets]
+    return net(*inputs)
+
+
+def general_hard_minning(anchor, examples, mode, **kwargs):
+    return_idx = kwargs.pop('return_idx', False)
+    n_ex = kwargs.pop('n_ex', {'positives': 1, 'negatives': 10})
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    n_ex = n_ex[mode]
+
+    desc_anchors = anchor['desc']
+    idxs = [list() for _ in range(n_ex)]
+    forwarded_ex = [list() for _ in range(n_ex)]
+
+    for i, desc_anchor in enumerate(desc_anchors):
+        ex_descs =  examples[i:i+1]
+        diff = [func.pairwise_distance(desc_anchor.unsqueeze(0), x['desc']).data.cpu().numpy()[0, 0] for x in ex_descs]
+        sort_index = np.argsort(diff)
+        if mode == 'positives':
+            idx = sort_index[-1*n_ex:]
+        elif mode == 'negatives':
+            idx = sort_index[:n_ex]
+        for j in range(n_ex):
+            idxs[j].append(idx[j])
+            forwarded_ex[j].append(ex_descs[idx[j]]['desc'])
+
+    if return_idx:
+        return forwarded_ex, idxs
+    else:
+        return forwarded_ex

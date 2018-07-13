@@ -380,6 +380,17 @@ class Deconv(Default):
 
         torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_{}_'.format(feat_type) + 'clusters.pth')
 
+class MultNet(Default):
+    def __init__(self, **kwargs):
+        Default.__init__(self, **kwargs)
+
+    @staticmethod
+    def creat_network(networks_params):
+        existings_networks = {}
+        for network_name, network_params in networks_params.items():
+            existings_networks[network_name] = eval(network_params['class'])(**network_params['param_class'])
+
+        return {'networks': existings_networks}
 
 if __name__ == '__main__':
 
