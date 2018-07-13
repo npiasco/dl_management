@@ -54,12 +54,17 @@ class Default(BaseClass.Base):
         self.training_mod = dataset_params['training_mod']
         self.testing_mod = dataset_params['testing_mod']
 
-        self.network = eval(self.network_params['class'])(**self.network_params['param_class'])
-
-        self.trainer = eval(self.trainer_params['class'])(network=self.network,
-                                                          **self.trainer_params['param_class'])
+        net = self.creat_network(self.network_params)
+        self.trainer_params['param_class'].update(net)
+        self.trainer = eval(self.trainer_params['class'])(**self.trainer_params['param_class'])
         if self.score_file is not None:
             self.load()
+
+    @staticmethod
+    def creat_network(network_params):
+        return {'network': eval(network_params['class'])(
+            **network_params['param_class']
+        )}
 
     def train(self):
         self.data['train'].used_mod = self.training_mod
@@ -125,12 +130,12 @@ class Default(BaseClass.Base):
 
     def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1):
         # TODO: PCA whitening like this
-        self.network.train()
+        self.trainer.network.train()
         dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
         logger.info('Computing feats for clustering')
         feats = list()
         for example in tqdm.tqdm(dataset_loader):
-            feat = self.network(auto.Variable(self.trainer.cuda_func(example[self.trainer.mod]),
+            feat = self.trainer.network(auto.Variable(self.trainer.cuda_func(example[self.trainer.mod]),
                                               requires_grad=False))['feat']
             max_sample = feat.size(2)*feat.size(3)
             feat = feat.view(feat.size(0), size_feat, max_sample).transpose(1, 2).contiguous()
@@ -221,7 +226,7 @@ class Default(BaseClass.Base):
         logger.info('Mean = {}\nSTD = {}'.format(mean, std))
 
     def map_print(self):
-        tmp_net = copy.deepcopy(self.network)
+        tmp_net = copy.deepcopy(self.trainer.network)
         tmp_net.load_state_dict(self.trainer.best_net[1])
         self.data['train'].used_mod = self.training_mod
         dtload = data.DataLoader(self.data['train'], batch_size=4)
@@ -272,46 +277,46 @@ class Deconv(Default):
 
             if encoder_weight:
                 logger.info('Loading pretrained encoder: {}'.format(os.environ['CNN_WEIGHTS'] + encoder_weight))
-                self.network.feature.load_state_dict(
+                self.trainer.network.feature.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + encoder_weight)
                 )
             if decoder_weight:
                 logger.info('Loading pretrained decoder: {}'.format(os.environ['CNN_WEIGHTS'] + decoder_weight))
-                self.network.deconv.load_state_dict(
+                self.trainer.network.deconv.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + decoder_weight)
                 )
             if desc_weight:
                 logger.info('Loading pretrained desc: {}'.format(os.environ['CNN_WEIGHTS'] + desc_weight))
-                self.network.descriptor.load_state_dict(
+                self.trainer.network.descriptor.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + desc_weight)
                 )
             if aux_desc_weight:
                 logger.info('Loading pretrained aux desc: {}'.format(os.environ['CNN_WEIGHTS'] + aux_desc_weight))
-                self.network.aux_descriptor.load_state_dict(
+                self.trainer.network.aux_descriptor.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + aux_desc_weight)
                 )
             if aux_desc_encoder_weight:
                 logger.info('Loading pretrained aux desc encoder: {}'.format(
                     os.environ['CNN_WEIGHTS'] + aux_desc_encoder_weight
                 ))
-                for name, part in self.network.aux_descriptor.named_children():
+                for name, part in self.trainer.network.aux_descriptor.named_children():
                     if name  == 'feat':
                         part.load_state_dict(torch.load(os.environ['CNN_WEIGHTS'] + aux_desc_encoder_weight))
             if aux_desc_encoder_desc_weight:
                 logger.info('Loading pretrained aux desc encoder desc: {}'.format(
                     os.environ['CNN_WEIGHTS'] + aux_desc_encoder_desc_weight
                 ))
-                for name, part in self.network.aux_descriptor.named_children():
+                for name, part in self.trainer.network.aux_descriptor.named_children():
                     if name  == 'agg':
                         part.load_state_dict(torch.load(os.environ['CNN_WEIGHTS'] + aux_desc_encoder_desc_weight))
             if agg_weight:
                 logger.info('Loading pretrained agg: {}'.format(os.environ['CNN_WEIGHTS'] + agg_weight))
-                self.network.feat_agg.load_state_dict(
+                self.trainer.network.feat_agg.load_state_dict(
                     torch.load(os.environ['CNN_WEIGHTS'] + agg_weight)
                 )
 
     def map_print(self, final=False):
-        tmp_net = copy.deepcopy(self.network)
+        tmp_net = copy.deepcopy(self.trainer.network)
         tmp_net.train()  # To have the infered map
         if not final:
             tmp_net.load_state_dict(self.trainer.best_net[1])
@@ -347,12 +352,12 @@ class Deconv(Default):
             plt.show()
 
     def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1, feat_type='main', norm=True):
-        self.network.train()
+        self.trainer.network.train()
         dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
         logger.info('Computing feats for clustering')
         feats = list()
         for example in tqdm.tqdm(dataset_loader):
-            feat = self.network(auto.Variable(self.trainer.cuda_func(example[self.trainer.mod]),
+            feat = self.trainer.network(auto.Variable(self.trainer.cuda_func(example[self.trainer.mod]),
                                               requires_grad=False))['feat'][feat_type]
             max_sample = feat.size(2)*feat.size(3)
             feat = feat.view(feat.size(0), size_feat, max_sample).transpose(1, 2).contiguous()

@@ -66,7 +66,6 @@ class Base:
 
         self.results = None
         self.data = None
-        self.network = None
         self.trainer = None
 
     @staticmethod
@@ -154,7 +153,7 @@ class Base:
         logger.info('Checkpoint saved at epoch {}'.format(self.curr_epoch))
 
     def serialize_net(self, final=False):
-        tmp_net = copy.deepcopy(self.network)
+        tmp_net = copy.deepcopy(self.trainer.network)
         if not final:
             tmp_net.load_state_dict(self.trainer.best_net[-1])
         serlz = tmp_net.cpu().full_save()
