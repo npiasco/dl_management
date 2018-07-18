@@ -117,11 +117,10 @@ class BaseMultNetTrainer:
 
         self.optimizers = self.init_optimizers(self.optimizers_params)
 
-        self._save_current_net(None)
-
         self.val_score = list()
         self.loss_log = dict()
         self.best_net = list()
+        self._save_current_net(None)
 
         if self.cuda_on is False:
             logger.warning('CUDA DISABLE, Training may take a while')

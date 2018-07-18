@@ -162,13 +162,22 @@ def batch_forward(net, batch, **kwargs):
 
 def custom_forward(net, outputs, **kwargs):
     input_targets = kwargs.pop('input_targets', list())
+    multiples_instance = kwargs.pop('multiples_instance', False)
     cuda_func = kwargs.pop('cuda_func', lambda x: x.cuda())
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     inputs = [recc_acces(outputs, name) for name in input_targets]
-    return net(*inputs)
+    if multiples_instance:
+        forward = list()
+        for i in range(len(inputs[0])):
+            tmp_input = [inp[i] for inp in inputs]
+            forward.append(net(*tmp_input))
+    else:
+        forward = net(*inputs)
+
+    return forward
 
 
 def general_hard_minning(outputs, mode, **kwargs):
