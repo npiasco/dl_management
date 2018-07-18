@@ -3,6 +3,7 @@ import trainers.Base as Base
 import torch.nn.functional as func
 import torch.autograd as auto
 import trainers.minning_function as minning
+from trainers.minning_function import recc_acces
 import trainers.loss_functions as loss_func
 import datasets.Robotcar as Robotcar
 import torch.utils as utils
@@ -17,14 +18,6 @@ import score.Functions as ScoreFunc
 
 
 logger = setlog.get_logger(__name__)
-
-
-def recc_acces(var, names):
-    if not names:
-        return var
-    else:
-        sub_name = names.pop(0)
-        return recc_acces(var[sub_name], names)
 
 
 class Trainer(Base.BaseTrainer):
@@ -171,20 +164,19 @@ class DeconvTrainer(Trainer):
 
         # Forward pass
         anchor = self.network(auto.Variable(self.cuda_func(batch['query'][self.mod]), requires_grad=True))
-        positive, pos_idx  = self.minning_func['func'](self.network,
-                                                       batch,
-                                                       'positives',
-                                                       cuda_func=self.cuda_func,
-                                                       mod=self.mod,
-                                                       return_idx=True,
-                                                       **self.minning_func['param'])
-        negative, neg_idx  = self.minning_func['func'](self.network,
-                                                       batch,
-                                                       'negatives',
-                                                       mod=self.mod,
-                                                       return_idx=True,
-                                                       **self.minning_func['param'])
-
+        positive, pos_idx = self.minning_func['func'](self.network,
+                                                      batch,
+                                                      'positives',
+                                                      cuda_func=self.cuda_func,
+                                                      mod=self.mod,
+                                                      return_idx=True,
+                                                      **self.minning_func['param'])
+        negative, neg_idx = self.minning_func['func'](self.network,
+                                                      batch,
+                                                      'negatives',
+                                                      mod=self.mod,
+                                                      return_idx=True,
+                                                      **self.minning_func['param'])
 
         triplet_loss = self.triplet_loss['func'](anchor['desc'],
                                                  positive['desc'],
@@ -193,10 +185,10 @@ class DeconvTrainer(Trainer):
 
         anchor_mod = auto.Variable(self.cuda_func(batch['query'][self.aux_mod]), requires_grad=False)
         pos_mod = [
-                auto.Variable(
+            auto.Variable(
                 self.cuda_func(
                     torch.stack(
-                        [batch['positives'][b][self.aux_mod][i] for i, b in enumerate(idxs)],
+                        [batch['positives'][sub_b][self.aux_mod][i] for i, sub_b in enumerate(idxs)],
                         dim=0
                     )
                 ),
@@ -207,7 +199,7 @@ class DeconvTrainer(Trainer):
             auto.Variable(
                 self.cuda_func(
                     torch.stack(
-                        [batch['negatives'][b][self.aux_mod][i] for i, b in enumerate(idxs)],
+                        [batch['negatives'][sub_b][self.aux_mod][i] for i, sub_b in enumerate(idxs)],
                         dim=0
                     )
                 ),
@@ -235,10 +227,12 @@ class DeconvTrainer(Trainer):
 
 class MultNetTrainer(Base.BaseMultNetTrainer):
     def __init__(self, **kwargs):
-        forwards= kwargs.pop('forwards', list())
+        forwards = kwargs.pop('forwards', list())
+        eval_forwards = kwargs.pop('eval_forwards', list())
         losses = kwargs.pop('losses', list())
         self.minning_func = kwargs.pop('minning_func', {'func': minning.general_hard_minning,
                                                         'param': dict()})
+        self.eval_final_desc = kwargs.pop('eval_final_desc', ['desc'])
 
         Base.BaseMultNetTrainer.__init__(self, **kwargs)
 
@@ -247,19 +241,24 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             self.forwards.append(forward)
             self.forwards[-1]['func'] = eval(forward['func'])
 
-        self.minning_func['func'] = eval(self.minning_func['func'])
-
         self.losses = list()
         for loss in losses:
             self.losses.append(loss)
             self.losses[-1]['func'] = eval(loss['func'])
             self.loss_log[loss['name']] = list()
 
+        self.eval_forwards = list()
+        for forward in eval_forwards:
+            self.eval_forwards.append(forward)
+            self.eval_forwards[-1]['func'] = eval(forward['func'])
+
+        self.minning_func['func'] = eval(self.minning_func['func'])
+
     def train(self, batch):
-        for network in self.networks:
+        for network in self.networks.values():
             network.train()
         # Reset gradients
-        for optimizer in self.optimizers:
+        for optimizer in self.optimizers.values():
             optimizer.zero_grad()
 
         # Forward pass
@@ -272,35 +271,109 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 **fd['param']
             )
 
-        positive, pos_idx  = self.minning_func['func'](variables['anchor'],
-                                                       variables['positives_ex'],
-                                                       'positives',
-                                                       return_idx=True,
-                                                       **self.minning_func['param'])
+        positive, pos_idx = self.minning_func['func'](variables,
+                                                      'positives',
+                                                      return_idx=True,
+                                                      **self.minning_func['param'])
 
         variables['hard_positives_ex'] = positive
         variables['hard_pos_idx'] = pos_idx
-        negative, neg_idx  = self.minning_func['func'](variables['anchor'],
-                                                       variables['negatives_ex'],
-                                                       'negatives',
-                                                       return_idx=True,
-                                                       **self.minning_func['param'])
+        negative, neg_idx = self.minning_func['func'](variables,
+                                                      'negatives',
+                                                      return_idx=True,
+                                                      **self.minning_func['param'])
         variables['hard_negatives_ex'] = negative
         variables['hard_neg_idx'] = neg_idx
 
-        loss = 0
+        sumed_loss = 0
         for loss in self.losses:
-            args = [recc_acces(variables, name) for name in loss['args']]
-            val = loss['func'](*args, **loss['param'])
-            loss += val
+            input_args = [recc_acces(variables, name) for name in loss['args']]
+            val = loss['func'](*input_args, **loss['param'])
+            sumed_loss += val
             self.loss_log[loss['name']].append(val.data[0])
             logger.debug(loss['name'] + ' loss is {}'.format(val.data[0]))
 
-        loss.backward()  # calculate the gradients (backpropagation)
+        sumed_loss.backward()  # calculate the gradients (backpropagation)
 
-        for optimizer in self.optimizers:
+        for optimizer in self.optimizers.values():
             optimizer.step()  # update the weights
 
+    def eval(self, **kwargs):
+        dataset = kwargs.pop('dataset', None)
+
+        score_function = kwargs.pop('score_function', None)
+        ep = kwargs.pop('ep', None)
+        if kwargs:
+            logger.error('Unexpected **kwargs: %r' % kwargs)
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        if len(self.val_score) <= ep:
+            ranked = self._compute_sim(self.networks, dataset['queries'], dataset['data'])
+            score = score_function(ranked)
+            self.val_score.append(score)
+            if score_function.rank_score(score, self.best_net[0]):
+                self._save_current_net(score)
+
+        logger.info('Score is: {}'.format(self.val_score[ep]))
+
+    def test(self, **kwargs):
+        dataset = kwargs.pop('dataset', None)
+        score_functions = kwargs.pop('score_functions', None)
+        if kwargs:
+            logger.error('Unexpected **kwargs: %r' % kwargs)
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+        nets_to_test = dict()
+        for name, network in self.networks.items():
+            nets_to_test[name] = copy.deepcopy(network)
+            nets_to_test[name].load_state_dict(self.best_net[1][name])
+
+        ranked = self._compute_sim(nets_to_test, dataset['queries'], dataset['data'])
+        results = dict()
+        for function_name, score_func in score_functions.items():
+            results[function_name] = score_func(ranked)
+        return results
+
+    def _compute_sim(self, networks, queries, dataset):
+        dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
+        queries_loader = utils.data.DataLoader(queries, batch_size=1, num_workers=self.val_num_workers)
+
+        for network in networks.values():
+            network.eval()
+
+        dataset_feats = list()
+        # Forward pass
+        logger.info('Computing dataset feats')
+        for batch in tqdm.tqdm(dataset_loader):
+            variables = {'batch': batch}
+            for fd in self.eval_forwards:
+                variables[fd['out_name']] = fd['func'](
+                    networks[fd['net_name']],
+                    variables,
+                    cuda_func=self.cuda_func,
+                    **fd['param']
+                )
+            final_desc = recc_acces(variables, self.eval_final_desc)
+            dataset_feats.append((final_desc[0].cpu().data.numpy(), batch['coord'].cpu().numpy()))
+
+        logger.info('Computing similarity')
+        ranked = list()
+        for query in tqdm.tqdm(queries_loader):
+            variables = {'batch': query}
+            for fd in self.eval_forwards:
+                variables[fd['out_name']] = fd['func'](
+                    networks[fd['net_name']],
+                    variables,
+                    cuda_func=self.cuda_func,
+                    **fd['param']
+                )
+            feat = recc_acces(variables, self.eval_final_desc)[0].cpu().data.numpy()
+
+            gt_pos = query['coord'].cpu().numpy()
+            diff = [(np.dot(feat, d_feat[0]), np.linalg.norm(gt_pos - d_feat[1])) for d_feat in dataset_feats]
+            sorted_index = list(np.argsort([d[0] for d in diff]))
+            ranked.append([diff[idx][1] for idx in reversed(sorted_index)])
+
+        return ranked
 
 if __name__ == '__main__':
     logger.setLevel('INFO')
@@ -352,7 +425,6 @@ if __name__ == '__main__':
 
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
-
     net = Desc.Main()
     trainer = Trainer(network=net,
                       cuda_on=True,
@@ -369,7 +441,6 @@ if __name__ == '__main__':
                  ep=0)
     '''
     for b in tqdm.tqdm(dtload):
-        #print(net(torch.autograd.Variable(b['negatives'][0]['rgb'].cuda())))
         trainer.train(b)
     trainer.eval(dataset={'data': data, 'queries': query_data},
                  score_function=ScoreFunc.RecallAtN(n=1, radius=25),

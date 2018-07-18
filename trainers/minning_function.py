@@ -4,24 +4,21 @@ import random as rd
 import torch.nn.functional as func
 import numpy as np
 import torch
-import system
-import os
-import copy
 
 
 logger = setlog.get_logger(__name__)
 
 
-def static_vars(**kwargs):
-    def decorate(func):
-        for k, v in kwargs.items():
-            setattr(func, k, v)
-        return func
-    return decorate
+def recc_acces(var, names):
+    if not names:
+        return var
+    else:
+        sub_name = names[1:]
+        return recc_acces(var[names[0]], sub_name)
 
 
 def default(network, batch, mode, **kwargs):
-    cuda_func = kwargs.pop('cuda_func', None)
+    cuda_func = kwargs.pop('cuda_func', lambda x: x.cuda())
     mod = kwargs.pop('mod', None)
     return_idx = kwargs.pop('return_idx', False)
 
@@ -32,7 +29,7 @@ def default(network, batch, mode, **kwargs):
 
 
 def random(network, batch, mode, **kwargs):
-    cuda_func = kwargs.pop('cuda_func', None)
+    cuda_func = kwargs.pop('cuda_func', lambda x: x.cuda())
     mod = kwargs.pop('mod', None)
     return_idx = kwargs.pop('return_idx', False)
 
@@ -51,7 +48,7 @@ def random(network, batch, mode, **kwargs):
 def hard_minning(network, batch, mode, **kwargs):
     return_idx = kwargs.pop('return_idx', False)
     n_ex = kwargs.pop('n_ex', {'positives': 2, 'negatives': 5})
-    cuda_func = kwargs.pop('cuda_func', None)
+    cuda_func = kwargs.pop('cuda_func', lambda x: x.cuda())
     mod = kwargs.pop('mod', None)
 
     if kwargs:
@@ -111,60 +108,6 @@ def hard_minning(network, batch, mode, **kwargs):
     else:
         return forwarded_ex
 
-@static_vars(dload=None)
-def hard_mining_augmented(trainer, batch, mode, **kwargs):
-    ckwargs = copy.deepcopy(kwargs)
-    neg_pool = ckwargs.pop('neg_pool', None)
-
-    if mode == 'positives':
-        return hard_minning(trainer, batch, mode, **ckwargs)
-    else:
-        if ckwargs.get('return_idx', False):
-            forwarded_ex, idxs = hard_minning(trainer, batch, mode, **ckwargs)
-        else:
-            forwarded_ex = hard_minning(trainer, batch, mode, **ckwargs)
-
-    ckwargs = copy.deepcopy(kwargs)
-    neg_pool = ckwargs.pop('neg_pool', None)
-
-    if hard_mining_augmented.dload is None:
-        env_var = os.environ[neg_pool['env_var']]
-        dataset = system.BaseClass.Base.creat_dataset(neg_pool['dataset'], env_var)
-        hard_mining_augmented.dload = torch.utils.data.DataLoader(dataset, **neg_pool['loader_param'])
-        hard_mining_augmented.dload = hard_mining_augmented.dload.__iter__()
-
-    try:
-        random_batch = {
-            'query': batch['query'],
-            'negatives': [hard_mining_augmented.dload.__next__() for i in range(neg_pool['num_ex'])]
-        }
-    except StopIteration:
-        logger.info("Restarting hard neg pool")
-        hard_mining_augmented.dload = torch.utils.data.DataLoader(hard_mining_augmented.dload.dataset,
-                                                                  **neg_pool['loader_param'])
-        hard_mining_augmented.dload = hard_mining_augmented.dload.__iter__()
-        random_batch = {
-            'query': batch['query'],
-            'negatives': [hard_mining_augmented.dload.__next__() for i in range(neg_pool['num_ex'])]
-        }
-
-    if ckwargs.get('return_idx', False):
-        augmented_forwarded_ex, _ = hard_minning(trainer, random_batch, mode, **ckwargs)
-    else:
-        augmented_forwarded_ex = hard_minning(trainer, random_batch, mode, **ckwargs)
-
-    for name, val in augmented_forwarded_ex.items():
-        if isinstance(val, dict):
-            for name_2, val_2 in val.items():
-                forwarded_ex[name][name_2] += val_2
-        else:
-            forwarded_ex[name] += val
-
-    if ckwargs.get('return_idx', False):
-        return forwarded_ex, idxs
-    else:
-        return forwarded_ex
-
 
 def no_selection(trainer, batch, mode):
     exemples = None
@@ -194,7 +137,7 @@ def no_selection(trainer, batch, mode):
 
 def batch_forward(net, batch, **kwargs):
     mode = kwargs.pop('mode', None)
-    modality = kwargs.pop('modality', None)
+    target = kwargs.pop('target', None)
     cuda_func = kwargs.pop('cuda_func', lambda x: x.cuda())
 
     if kwargs:
@@ -203,39 +146,49 @@ def batch_forward(net, batch, **kwargs):
     batch = batch['batch']
 
     if mode == 'query':
-        forward = net(auto.Variable(cuda_func(batch['query'][modality])))
+        forward = net(auto.Variable(cuda_func(recc_acces(batch, target))))
     else:
-        forward = [net(auto.Variable(cuda_func(sub_batch[modality]))) for sub_batch in batch[mode]]
+        forward = dict()
+        for sub_batch in batch[mode]:
+            outputs = net(auto.Variable(cuda_func(recc_acces(sub_batch, target))))
+            for name, output in outputs.items():
+                if name in forward.keys():
+                    forward[name].append(output)
+                else:
+                    forward[name] = [output]
 
     return forward
 
 
 def custom_forward(net, outputs, **kwargs):
     input_targets = kwargs.pop('input_targets', list())
+    cuda_func = kwargs.pop('cuda_func', lambda x: x.cuda())
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    inputs = [outputs[name] for name in input_targets]
+    inputs = [recc_acces(outputs, name) for name in input_targets]
     return net(*inputs)
 
 
-def general_hard_minning(anchor, examples, mode, **kwargs):
+def general_hard_minning(outputs, mode, **kwargs):
     return_idx = kwargs.pop('return_idx', False)
     n_ex = kwargs.pop('n_ex', {'positives': 1, 'negatives': 10})
+    anchor_getter = kwargs.pop('anchor_getter', list())
+    example_getter = kwargs.pop('example_getter', dict())
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     n_ex = n_ex[mode]
 
-    desc_anchors = anchor['desc']
+    desc_anchors = recc_acces(outputs, anchor_getter)
+    examples = recc_acces(outputs, example_getter[mode])
     idxs = [list() for _ in range(n_ex)]
-    forwarded_ex = [list() for _ in range(n_ex)]
+    forwarded_ex = [None for _ in range(n_ex)]
 
     for i, desc_anchor in enumerate(desc_anchors):
-        ex_descs =  examples[i:i+1]
-        diff = [func.pairwise_distance(desc_anchor.unsqueeze(0), x['desc']).data.cpu().numpy()[0, 0] for x in ex_descs]
+        diff = [func.pairwise_distance(desc_anchor.unsqueeze(0), x[i:i+1]).data.cpu().numpy()[0, 0] for x in examples]
         sort_index = np.argsort(diff)
         if mode == 'positives':
             idx = sort_index[-1*n_ex:]
@@ -243,7 +196,10 @@ def general_hard_minning(anchor, examples, mode, **kwargs):
             idx = sort_index[:n_ex]
         for j in range(n_ex):
             idxs[j].append(idx[j])
-            forwarded_ex[j].append(ex_descs[idx[j]]['desc'])
+            if forwarded_ex[j] is None:
+                forwarded_ex[j] = examples[idx[j]][i:i + 1]
+            else:
+                forwarded_ex[j] = torch.cat((forwarded_ex[j], examples[idx[j]][i:i + 1]))
 
     if return_idx:
         return forwarded_ex, idxs

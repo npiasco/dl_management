@@ -83,12 +83,12 @@ def adaptive_triplet_loss(anchor, positives, negatives, **kwargs):
     for positive in positives:
         for negative in negatives:
             c_loss = func.triplet_margin_loss(anchor,
-                                                   positive,
-                                                   negative,
-                                                   margin=margin,
-                                                   eps=eps,
-                                                   p=p,
-                                                   swap=swap)
+                                              positive,
+                                              negative,
+                                              margin=margin,
+                                              eps=eps,
+                                              p=p,
+                                              swap=swap)
             if tt_loss is None:
                 tt_loss = c_loss
             else:

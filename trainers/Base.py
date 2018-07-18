@@ -27,7 +27,7 @@ class BaseTrainer:
         self.cuda_func(self.network)
         self.optimizer = None
 
-        if self.cuda_on == False:
+        if self.cuda_on is False:
             logger.warning('CUDA DISABLE, Training may take a while')
 
     def init_optimizer(self, param):
@@ -117,18 +117,23 @@ class BaseMultNetTrainer:
 
         self.optimizers = self.init_optimizers(self.optimizers_params)
 
+        self._save_current_net(None)
+
+        self.val_score = list()
+        self.loss_log = dict()
+        self.best_net = list()
+
+        if self.cuda_on is False:
+            logger.warning('CUDA DISABLE, Training may take a while')
+
+    def _save_current_net(self, score):
         init_weights = dict()
         for name, network in self.networks.items():
             network.cpu()
             init_weights[name] = copy.deepcopy(network.state_dict())
             self.cuda_func(network)
 
-        self.best_net = (None, init_weights)
-        self.val_score = list()
-        self.loss_log = dict()
-
-        if self.cuda_on == False:
-            logger.warning('CUDA DISABLE, Training may take a while')
+        self.best_net = (score, init_weights)
 
     def init_optimizers(self, param):
         optimizers = dict()
@@ -184,10 +189,10 @@ class BaseMultNetTrainer:
         }
 
         for name, network in self.networks.items():
-            ser['network_' + name] = copy.deepcopy(network.state_dict()),
+            ser['network_' + name] = copy.deepcopy(network.state_dict())
             self.cuda_func(network)
         for name, optimizer in self.optimizers.items():
-            ser['optimizer_' + name] = copy.deepcopy(optimizer.state_dict()),
+            ser['optimizer_' + name] = copy.deepcopy(optimizer.state_dict())
             for state in optimizer.state.values():
                 for k, v in state.items():
                     if torch.is_tensor(v):
@@ -208,7 +213,6 @@ class BaseMultNetTrainer:
         self.val_score = datas['val_score']
 
         self.optimizers = self.init_optimizers(self.optimizers_params)
-
 
         for name, network in self.networks.items():
             network.load_state_dict(datas['network_' + name])
