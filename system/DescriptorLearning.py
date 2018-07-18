@@ -382,7 +382,17 @@ class Deconv(Default):
 
 class MultNet(Default):
     def __init__(self, **kwargs):
+
+        init_weights = kwargs.pop('init_weights', dict())
+
         Default.__init__(self, **kwargs)
+
+        if init_weights:
+            for name_network, net_part in init_weights.items():
+                for net_part_name, weight_path in net_part.items():
+                    getattr(self.trainer.networks[name_network], net_part_name).load_state_dict(
+                        torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
+                    )
 
     @staticmethod
     def creat_network(networks_params):
