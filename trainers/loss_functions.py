@@ -117,21 +117,54 @@ def mult_triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps
     return sum(loss.values())
 
 
-def l1_modal_loss(predicted_maps, gt_maps, p=1, factor=3e-4, reg = 0):
-    predicted = torch.cat(predicted_maps, dim=0)
-    gt = torch.cat(gt_maps, dim=0)
-    if p == 1:
-        loss = factor * func.l1_loss(predicted, gt)
-    elif p == 2:
-        loss = factor * func.mse_loss(predicted, gt)
-    else:
-        raise AttributeError('No behaviour for p = {}'.format(p))
+def l1_modal_loss(predicted_maps, gt_maps, **kwargs):
+    p = kwargs.pop('p', 1)
+    factor = kwargs.pop('factor', 1)
+    listed_maps = kwargs.pop('listed_maps', False)
+    reg = kwargs.pop('reg', 0)
 
-    if reg:
-        loss += reg * (
-            torch.sum(torch.abs(predicted[:, :, :, :-1] - predicted[:, :, :, 1:])) +
-            torch.sum(torch.abs(predicted[:, :, :-1, :] - predicted[:, :, 1:, :]))
-        ) / predicted.size(0)
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    if listed_maps:
+        loss = None
+        for i, maps in predicted_maps:
+            predicted = torch.cat(maps, dim=0)
+            gt = torch.cat(gt_maps[i], dim=0)
+            if p == 1:
+                t_loss = factor * func.l1_loss(predicted, gt)
+            elif p == 2:
+                t_loss = factor * func.mse_loss(predicted, gt)
+            else:
+                raise AttributeError('No behaviour for p = {}'.format(p))
+
+            if reg:
+                t_loss += reg * (
+                    torch.sum(torch.abs(predicted[:, :, :, :-1] - predicted[:, :, :, 1:])) +
+                    torch.sum(torch.abs(predicted[:, :, :-1, :] - predicted[:, :, 1:, :]))
+                ) / predicted.size(0)
+
+            if loss is None:
+                loss = t_loss
+            else:
+                loss = torch.cat((loss, t_loss))
+
+        loss = torch.mean(loss)
+    else:
+        predicted = torch.cat(predicted_maps, dim=0)
+        gt = torch.cat(gt_maps, dim=0)
+        if p == 1:
+            loss = factor * func.l1_loss(predicted, gt)
+        elif p == 2:
+            loss = factor * func.mse_loss(predicted, gt)
+        else:
+            raise AttributeError('No behaviour for p = {}'.format(p))
+
+        if reg:
+            loss += reg * (
+                torch.sum(torch.abs(predicted[:, :, :, :-1] - predicted[:, :, :, 1:])) +
+                torch.sum(torch.abs(predicted[:, :, :-1, :] - predicted[:, :, 1:, :]))
+            ) / predicted.size(0)
 
     return loss
 
