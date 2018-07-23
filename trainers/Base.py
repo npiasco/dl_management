@@ -137,9 +137,9 @@ class BaseMultNetTrainer:
     def init_optimizers(self, param):
         optimizers = dict()
         for optimizer_name, optimizer_param in param.items():
-            nets_to_optim = [
-                self.networks[name].get_training_layers() for name in optimizer_param['associated_net']
-            ]
+            nets_to_optim = list()
+            for name in optimizer_param['associated_net']:
+                nets_to_optim += self.networks[name].get_training_layers()
             if optimizer_param['optimizer_type'] == "SGD":
                 optimizer = optim.SGD(
                     *nets_to_optim,
@@ -147,7 +147,7 @@ class BaseMultNetTrainer:
                 )
             elif optimizer_param['optimizer_type'] == "ADAM":
                 optimizer = optim.Adam(
-                    *nets_to_optim,
+                    nets_to_optim,
                     **optimizer_param['param']
                 )
             else:
