@@ -1,0 +1,207 @@
+class: 'trainers.TripletTrainers.MultNetTrainer'
+param_class:
+    cuda_on: True
+    val_num_workers: 8
+    optimizers_params:
+        main_trainer:
+            associated_net: ['Main', 'Hall']
+            optimizer_type: ADAM
+            param:
+                lr: 0.0001
+                weight_decay: 0.001
+        aux_trainer:
+            associated_net: ['Aux',]
+            optimizer_type: ADAM
+            param:
+                lr: 0.0001
+                weight_decay: 0.001
+    forwards:
+        [
+            {func: minning.batch_forward,
+             param: {mode: 'query', target: ['query', 'rgb']},
+             net_name: 'Main',
+             out_name: 'forwarded_main_query'
+            },
+            {func: minning.batch_forward,
+             param: {mode: 'query', target: ['query', 'rgb']},
+             net_name: 'Hall',
+             out_name: 'forwarded_hall_query'
+            },
+            {func: minning.custom_forward,
+             param: {input_targets: [['forwarded_main_query', 'desc'], ['forwarded_hall_query', 'desc']]},
+             net_name: 'Agg',
+             out_name: 'anchor'
+            },
+
+            {func: minning.batch_forward,
+             param: {mode: 'positives', target: ['rgb']},
+             net_name: 'Main',
+             out_name: 'forwarded_main_pos'
+            },
+            {func: minning.batch_forward,
+             param: {mode: 'positives', target: ['rgb']},
+             net_name: 'Hall',
+             out_name: 'forwarded_hall_pos'
+            },
+            {func: minning.custom_forward,
+             param: {input_targets: [['forwarded_main_pos', 'desc'], ['forwarded_hall_pos', 'desc']], multiples_instance: True},
+             net_name: 'Agg',
+             out_name: 'positives_ex'
+            },
+            {func: minning.batch_forward,
+            param: {mode: 'negatives', target: ['rgb']},
+            net_name: 'Main',
+            out_name: 'forwarded_main_neg'
+            },
+            {func: minning.batch_forward,
+            param: {mode: 'negatives', target: ['rgb']},
+            net_name: 'Hall',
+            out_name: 'forwarded_hall_neg'
+            },
+            {func: minning.custom_forward,
+             param: {input_targets: [['forwarded_main_neg', 'desc'], ['forwarded_hall_neg', 'desc']], multiples_instance: True},
+             net_name: 'Agg',
+             out_name: 'negatives_ex'
+            },
+
+            {func: minning.batch_forward,
+             param: {mode: 'query', target: ['query', 'mono_depth']},
+             net_name: 'Aux',
+             out_name: 'aux_anchor'
+            },
+            {func: minning.batch_forward,
+             param: {mode: 'positives', target: ['mono_depth']},
+             net_name: 'Aux',
+             out_name: 'forwarded_aux_positives'
+            },
+            {func: minning.batch_forward,
+             param: {mode: 'negatives', target: ['mono_depth']},
+             net_name: 'Aux',
+             out_name: 'forwarded_aux_negatives'
+            },
+        ]
+    minning_func:
+        [
+            {func: 'minning.general_hard_minning',
+             param:
+                {mode: 'positives',
+                 n_ex: 1,
+                 return_idx: True,
+                 anchor_getter: ['anchor'],
+                 example_getter: ['positives_ex']
+                },
+             out_name: hard_positives_ex
+            },
+            {func: 'minning.general_hard_minning',
+             param:
+                {mode: 'negatives',
+                 n_ex: 10,
+#                n_ex: 10,
+                 return_idx: True,
+                 anchor_getter: ['anchor'],
+                 example_getter: ['negatives_ex']
+                },
+             out_name: hard_negatives_ex
+            },
+            {func: 'minning.examples_selection',
+             param:
+                {idxs: ['hard_positives_ex', 'idx'],
+                 getter: ['forwarded_aux_positives', 'desc'],
+                },
+             out_name: hard_positives_aux_ex
+            },
+            {func: 'minning.examples_selection',
+             param:
+                {idxs: ['hard_negatives_ex', 'idx'],
+                 getter: ['forwarded_aux_negatives', 'desc'],
+                },
+             out_name: hard_negatives_aux_ex
+            },
+        ]
+    losses:
+        [
+            {name: 'main_hall_triplet',
+             func: 'loss_func.adaptive_triplet_loss',
+             args: [['anchor'], ['hard_positives_ex', 'ex'], ['hard_negatives_ex', 'ex']],
+             param:{margin: 0.1, swap: true}
+            },
+            {name: 'aux_triplet',
+             func: 'loss_func.adaptive_triplet_loss',
+             args: [['aux_anchor', 'desc'], ['hard_positives_aux_ex'], ['hard_negatives_aux_ex']],
+             param:{margin: 0.1, swap: true}
+            },
+            {name: 'hall_loss_query',
+             func: 'loss_func.l1_modal_loss',
+             args: [['forwarded_hall_query', 'feat'], ['aux_anchor', 'feat']],
+             param:{p: 1, listed_maps: False}
+            },
+            {name: 'hall_loss_pos',
+             func: 'loss_func.l1_modal_loss',
+             args: [['forwarded_hall_pos', 'feat'], ['forwarded_aux_positives', 'feat']],
+             param:{p: 1, listed_maps: True}
+            },
+            {name: 'hall_loss_neg',
+             func: 'loss_func.l1_modal_loss',
+             args: [['forwarded_hall_neg', 'feat'], ['forwarded_aux_negatives', 'feat']],
+             param:{p: 1, listed_maps: True}
+            },
+         ]
+    eval_forwards:
+        dataset:
+            [
+                {func: 'minning.batch_forward',
+                 param: {mode: 'query', target: ['rgb',]},
+                 net_name: 'Main',
+                 out_name: 'desc1'
+                },
+                {func: 'minning.batch_forward',
+                 param: {mode: 'query', target: ['rgb',]},
+                 net_name: 'Hall',
+                 out_name: 'desc2'
+                },
+                {func: 'minning.custom_forward' ,
+                 param: {input_targets: [['desc1'], ['desc2']]},
+                 net_name: 'Agg',
+                 out_name: 'desc'
+                },
+            ]
+        queries:
+            [
+                {func: 'minning.batch_forward',
+                 param: {mode: 'query', target: ['rgb',]},
+                 net_name: 'Main',
+                 out_name: 'desc1'
+                },
+                {func: 'minning.batch_forward',
+                 param: {mode: 'query', target: ['rgb',]},
+                 net_name: 'Hall',
+                 out_name: 'desc2'
+                },
+                {func: 'minning.custom_forward' ,
+                 param: {input_targets: [['desc1'], ['desc2']]},
+                 net_name: 'Agg',
+                 out_name: 'desc'
+                },
+            ]
+    eval_final_desc: ['desc']
+
+eval_class: 'score.Functions.MeanRecallAtN'
+param_eval_class:
+    n: 5
+    radius: 25
+test_func:
+    default:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 1
+            radius: 25
+    mean_recall:
+        class: 'score.Functions.MeanRecallAtN'
+        param_class:
+            n: 50
+            radius: 25
+    recall:
+        class: 'score.Functions.Recall'
+        param_class:
+            n: 50
+            radius: 25
