@@ -230,8 +230,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         forwards = kwargs.pop('forwards', list())
         eval_forwards = kwargs.pop('eval_forwards', list())
         losses = kwargs.pop('losses', list())
-        self.minning_func = kwargs.pop('minning_func', {'func': minning.general_hard_minning,
-                                                        'param': dict()})
+        minning_func = kwargs.pop('minning_func', list())
         self.eval_final_desc = kwargs.pop('eval_final_desc', ['desc'])
 
         Base.BaseMultNetTrainer.__init__(self, **kwargs)
@@ -241,18 +240,24 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             self.forwards.append(forward)
             self.forwards[-1]['func'] = eval(forward['func'])
 
+        self.minning_func = list()
+        for minning_f in minning_func:
+            self.minning_func.append(minning_f)
+            self.minning_func[-1]['func'] = eval(minning_f['func'])
+
         self.losses = list()
         for loss in losses:
             self.losses.append(loss)
             self.losses[-1]['func'] = eval(loss['func'])
             self.loss_log[loss['name']] = list()
 
-        self.eval_forwards = list()
-        for forward in eval_forwards:
-            self.eval_forwards.append(forward)
-            self.eval_forwards[-1]['func'] = eval(forward['func'])
-
-        self.minning_func['func'] = eval(self.minning_func['func'])
+        self.eval_forwards = {'dataset': list(), 'queries': list()}
+        for forward in eval_forwards['dataset']:
+            self.eval_forwards['dataset'].append(forward)
+            self.eval_forwards['dataset'][-1]['func'] = eval(forward['func'])
+        for forward in eval_forwards['queries']:
+            self.eval_forwards['queries'].append(forward)
+            self.eval_forwards['queries'][-1]['func'] = eval(forward['func'])
 
     def train(self, batch):
         for network in self.networks.values():
@@ -271,19 +276,11 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 **fd['param']
             )
 
-        positive, pos_idx = self.minning_func['func'](variables,
-                                                      'positives',
-                                                      return_idx=True,
-                                                      **self.minning_func['param'])
-
-        variables['hard_positives_ex'] = positive
-        variables['hard_pos_idx'] = pos_idx
-        negative, neg_idx = self.minning_func['func'](variables,
-                                                      'negatives',
-                                                      return_idx=True,
-                                                      **self.minning_func['param'])
-        variables['hard_negatives_ex'] = negative
-        variables['hard_neg_idx'] = neg_idx
+        for minning in self.minning_func:
+            variables[minning['out_name']] = minning['func'](
+                variables,
+                **minning['param']
+            )
 
         sumed_loss = 0
         for loss in self.losses:
@@ -345,7 +342,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         logger.info('Computing dataset feats')
         for batch in tqdm.tqdm(dataset_loader):
             variables = {'batch': batch}
-            for fd in self.eval_forwards:
+            for fd in self.eval_forwards['dataset']:
                 variables[fd['out_name']] = fd['func'](
                     networks[fd['net_name']],
                     variables,
@@ -359,7 +356,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         ranked = list()
         for query in tqdm.tqdm(queries_loader):
             variables = {'batch': query}
-            for fd in self.eval_forwards:
+            for fd in self.eval_forwards['queries']:
                 variables[fd['out_name']] = fd['func'](
                     networks[fd['net_name']],
                     variables,

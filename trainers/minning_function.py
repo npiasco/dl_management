@@ -180,19 +180,18 @@ def custom_forward(net, outputs, **kwargs):
     return forward
 
 
-def general_hard_minning(outputs, mode, **kwargs):
+def general_hard_minning(outputs, **kwargs):
     return_idx = kwargs.pop('return_idx', False)
-    n_ex = kwargs.pop('n_ex', {'positives': 1, 'negatives': 10})
+    n_ex = kwargs.pop('n_ex', 1)
     anchor_getter = kwargs.pop('anchor_getter', list())
-    example_getter = kwargs.pop('example_getter', dict())
+    example_getter = kwargs.pop('example_getter', list())
+    mode = kwargs.pop('mode', None)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    n_ex = n_ex[mode]
-
     desc_anchors = recc_acces(outputs, anchor_getter)
-    examples = recc_acces(outputs, example_getter[mode])
+    examples = recc_acces(outputs, example_getter)
     idxs = [list() for _ in range(n_ex)]
     forwarded_ex = [None for _ in range(n_ex)]
 
@@ -211,6 +210,26 @@ def general_hard_minning(outputs, mode, **kwargs):
                 forwarded_ex[j] = torch.cat((forwarded_ex[j], examples[idx[j]][i:i + 1]))
 
     if return_idx:
-        return forwarded_ex, idxs
+        return {'ex': forwarded_ex, 'idx': idxs}
     else:
         return forwarded_ex
+
+
+def examples_selection(outputs, **kwargs):
+    idxs = kwargs.pop('idxs', list())
+    getter = kwargs.pop('getter', list())
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    examples = recc_acces(outputs, getter)
+
+    idxs = recc_acces(outputs, idxs)
+    selected_exemples = [None for _ in range(len(idxs))]
+    for batch_num, l_i in enumerate(idxs):
+        for i, j in enumerate(l_i):
+            if selected_exemples[batch_num] is None:
+                selected_exemples[batch_num] = examples[j][i].unsqueeze(0)
+            else:
+                selected_exemples[batch_num] = torch.cat((selected_exemples[batch_num], examples[j][i].unsqueeze(0)), dim=0)
+    return selected_exemples
