@@ -26,13 +26,12 @@ class Feat(nn.Module):
         self.res = kwargs.pop('res', False)
         self.unet = kwargs.pop('unet', False)
         mono = kwargs.pop('mono', False)
+        i_channel = kwargs.pop('input_channels', 3)
         jet_tf = kwargs.pop('jet_tf', False)
         jet_tf_is_trainable = kwargs.pop('jet_tf_is_trainable', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
-
-        i_channel = 1 if mono else 3
 
         base_archi = [
             ('conv0', nn.Conv2d(i_channel, 64, kernel_size=11, stride=4, padding=2)),   # 0
@@ -147,6 +146,9 @@ class Feat(nn.Module):
         else:
             self._down_ratio = 224 / 13
         return self._down_ratio
+
+    def final_feat_num(self):
+        return 256
 
 
 class Deconv(nn.Module):
