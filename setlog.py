@@ -33,7 +33,7 @@ logger.debug('Log set to default behaviour:')
 logger.debug(str(def_config))
 
 
-def config_log(conf_file, log_folder):
+def config_log(conf_file, log_folder, timestamp=False):
     logger.debug('Loading logging file {}'.format(conf_file))
     with open(conf_file, 'rt') as f:
         config = yaml.safe_load(f.read())
@@ -42,7 +42,10 @@ def config_log(conf_file, log_folder):
     except FileExistsError:
         print('Directory {} already exist'.format(log_folder))
 
-    config['handlers']['file']['filename'] = log_folder + 'run_{}.log'.format(time.time())
+    if timestamp:
+        config['handlers']['file']['filename'] = log_folder + 'run_{}.log'.format(time.time())
+    else:
+        config['handlers']['file']['filename'] = log_folder + 'run.log'
     return config
 
 
