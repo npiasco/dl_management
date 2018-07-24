@@ -93,8 +93,7 @@ class Main(nn.Module):
             layers_to_train = self.layers_to_train
 
         if layers_to_train == 'all':
-            train_parameters = [{'params': self.feature.get_training_layers('all')},
-                                {'params': self.classifier.parameters()}]
+            train_parameters = [{'params': self.classifier.parameters()}] + self.feature.get_training_layers('all')
         else:
             raise KeyError('No behaviour for layers_to_train = {}'.format(layers_to_train))
 

@@ -284,7 +284,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         for loss in self.losses:
             if loss['name'] == 'backprop':
                 self.optimizers[loss['trainer']].zero_grad()
-                sumed_loss.backward()
+                sumed_loss.backward(retain_graph=True)
                 self.optimizers[loss['trainer']].step()
                 sumed_loss = 0
             else:

@@ -12,6 +12,7 @@ import trainers.TripletTrainers
 import trainers.loss_functions
 import datasets.Robotcar                # Needed for class creation with eval
 import networks.Descriptor              # Needed for class creation with eval
+import networks.Discriminator           # Needed for class creation with eval
 import copy
 import tqdm
 import sklearn.cluster as skclust

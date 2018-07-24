@@ -160,6 +160,32 @@ def batch_forward(net, batch, **kwargs):
     return forward
 
 
+def batch_to_var(net, batch, **kwargs):
+    # TODO: Automatically inside the training loop
+    mode = kwargs.pop('mode', None)
+    target = kwargs.pop('target', None)
+    cuda_func = kwargs.pop('cuda_func', lambda x: x.cuda())
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    batch = batch['batch']
+
+    if mode == 'query':
+        forward = auto.Variable(cuda_func(recc_acces(batch, target)))
+    else:
+        forward = dict()
+        for sub_batch in batch[mode]:
+            outputs = auto.Variable(cuda_func(recc_acces(sub_batch, target)))
+            for name, output in outputs.items():
+                if name in forward.keys():
+                    forward[name].append(output)
+                else:
+                    forward[name] = [output]
+
+    return forward
+
+
 def custom_forward(net, outputs, **kwargs):
     input_targets = kwargs.pop('input_targets', list())
     multiples_instance = kwargs.pop('multiples_instance', False)
