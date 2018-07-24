@@ -120,14 +120,17 @@ param_class:
         ]
     losses:
         [
-            {name: 'main_hall_triplet',
-             func: 'loss_func.adaptive_triplet_loss',
-             args: [['anchor'], ['hard_positives_ex', 'ex'], ['hard_negatives_ex', 'ex']],
-             param:{margin: 0.1, swap: true}
-            },
             {name: 'aux_triplet',
              func: 'loss_func.adaptive_triplet_loss',
              args: [['aux_anchor', 'desc'], ['hard_positives_aux_ex'], ['hard_negatives_aux_ex']],
+             param:{margin: 0.1, swap: true}
+            },
+            {name: 'backprop',
+             trainer: 'aux_trainer'
+            },
+            {name: 'main_hall_triplet',
+             func: 'loss_func.adaptive_triplet_loss',
+             args: [['anchor'], ['hard_positives_ex', 'ex'], ['hard_negatives_ex', 'ex']],
              param:{margin: 0.1, swap: true}
             },
             {name: 'hall_loss_query',
@@ -144,6 +147,9 @@ param_class:
              func: 'loss_func.l1_modal_loss',
              args: [['forwarded_hall_neg', 'feat'], ['forwarded_aux_negatives', 'feat']],
              param:{p: 1, listed_maps: True}
+            },
+            {name: 'backprop',
+             trainer: 'main_trainer'
             },
          ]
     eval_forwards:
