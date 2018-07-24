@@ -383,14 +383,13 @@ class Deconv(Default):
 
 class MultNet(Default):
     def __init__(self, **kwargs):
-
-        init_weights = kwargs.pop('init_weights', dict())
-
         Default.__init__(self, **kwargs)
+        init_weights = self.network_params.get('init_weights', dict())
 
-        if init_weights:
+        if self.curr_epoch == 0:
             for name_network, net_part in init_weights.items():
                 for net_part_name, weight_path in net_part.items():
+                    logger.info('Loading pretrained weights {} for network {} (part {})'.format(weight_path, name_network, net_part_name))
                     getattr(self.trainer.networks[name_network], net_part_name).load_state_dict(
                         torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
                     )
@@ -399,9 +398,22 @@ class MultNet(Default):
     def creat_network(networks_params):
         existings_networks = {}
         for network_name, network_params in networks_params.items():
-            existings_networks[network_name] = eval(network_params['class'])(**network_params['param_class'])
+            if network_name != 'init_weights':
+                existings_networks[network_name] = eval(network_params['class'])(**network_params['param_class'])
 
         return {'networks': existings_networks}
+
+    def serialize_net(self, final=False):
+        nets_to_test = dict()
+        for net_name, network in self.trainer.networks.items():
+            nets_to_test[net_name] = copy.deepcopy(network)
+            if not final:
+                nets_to_test[net_name].load_state_dict(self.trainer.best_net[1][net_name])
+
+            serlz = nets_to_test[net_name].cpu().full_save()
+            for part_name, data in serlz.items():
+                torch.save(data, net_name + '_' + part_name + '.pth')
+
 
 if __name__ == '__main__':
 
