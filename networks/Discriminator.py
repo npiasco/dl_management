@@ -1,10 +1,8 @@
 import setlog
-import networks.Aggregation as Agg
 import torch.autograd as auto
 import torch.nn as nn
 import torch
 import networks.Alexnet as Alexnet
-import networks.FeatAggregation as FeatAggregation
 import collections as coll
 import math
 
@@ -83,7 +81,7 @@ class Main(nn.Module):
 
         else:
             x_feat = self.feature(x)
-            x_feat = x_feat.view(x_feat.size(0),-1)
+            x_feat = x_feat.view(x_feat.size(0), -1)
             x_class = self.classifier(x_feat)
 
         return x_class
@@ -105,9 +103,9 @@ class Main(nn.Module):
 
 
 if __name__ == '__main__':
-    input_size = 224
-    tensor_input = torch.rand([10, 1, input_size, input_size]).cuda()
-    tensor_gt = torch.rand([10, 3, input_size, input_size]).cuda()
-    net = Main(input_size=input_size, batch_gan=False).cuda()
-    feat_output = net(auto.Variable(tensor_input),auto.Variable(tensor_gt))
+    im_input_size = 224
+    tensor_input = torch.rand([10, 1, im_input_size, im_input_size]).cuda()
+    tensor_gt = torch.rand([10, 3, im_input_size, im_input_size]).cuda()
+    net = Main(input_size=im_input_size, batch_gan=False).cuda()
+    feat_output = net(auto.Variable(tensor_input), auto.Variable(tensor_gt))
     print(feat_output)

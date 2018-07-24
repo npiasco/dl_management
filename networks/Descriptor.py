@@ -105,7 +105,7 @@ class Deconv(nn.Module):
                                      })
 
         self.res = kwargs.pop('res', False)
-        self.unet= kwargs.pop('unet', False)
+        self.unet = kwargs.pop('unet', False)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
         self.return_all_desc = kwargs.pop('return_all_desc', False)
 
@@ -161,8 +161,8 @@ class Deconv(nn.Module):
                 forward_pass = {
                     'desc':
                         {
-                            'main':self.descriptor(x_feat_ouput['feat']),
-                            'aux':self.aux_descriptor(x_deconv_output[self.auxilary_feat]),
+                            'main': self.descriptor(x_feat_ouput['feat']),
+                            'aux': self.aux_descriptor(x_deconv_output[self.auxilary_feat]),
                             'full': x_desc,
                         },
                     'maps': x_deconv_output['maps']
@@ -259,6 +259,7 @@ if __name__ == '__main__':
                },
                base_archi_param={
                    'jet_tf': True,
+                   'jet_tf_is_trainable': True
                }
                ).cuda()
     feat_output = net(auto.Variable(tensor_input))
