@@ -228,7 +228,7 @@ class DeconvTrainer(Trainer):
 class MultNetTrainer(Base.BaseMultNetTrainer):
     def __init__(self, **kwargs):
         forwards = kwargs.pop('forwards', list())
-        eval_forwards = kwargs.pop('eval_forwards', list())
+        eval_forwards = kwargs.pop('eval_forwards', dict())
         losses = kwargs.pop('losses', list())
         minning_func = kwargs.pop('minning_func', list())
         self.eval_final_desc = kwargs.pop('eval_final_desc', ['desc'])
@@ -248,8 +248,9 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         self.losses = list()
         for loss in losses:
             self.losses.append(loss)
-            self.losses[-1]['func'] = eval(loss['func'])
-            self.loss_log[loss['name']] = list()
+            if 'func' in self.losses[-1].keys():
+                self.losses[-1]['func'] = eval(loss['func'])
+                self.loss_log[loss['name']] = list()
 
         self.eval_forwards = {'dataset': list(), 'queries': list()}
         for forward in eval_forwards['dataset']:
@@ -262,9 +263,6 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
     def train(self, batch):
         for network in self.networks.values():
             network.train()
-        # Reset gradients
-        for optimizer in self.optimizers.values():
-            optimizer.zero_grad()
 
         # Forward pass
         variables = {'batch': batch}
@@ -284,16 +282,17 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
 
         sumed_loss = 0
         for loss in self.losses:
-            input_args = [recc_acces(variables, name) for name in loss['args']]
-            val = loss['func'](*input_args, **loss['param'])
-            sumed_loss += val
-            self.loss_log[loss['name']].append(val.data[0])
-            logger.debug(loss['name'] + ' loss is {}'.format(val.data[0]))
-
-        sumed_loss.backward()  # calculate the gradients (backpropagation)
-
-        for optimizer in self.optimizers.values():
-            optimizer.step()  # update the weights
+            if loss['name'] == 'backprop':
+                self.optimizers[loss['trainer']].zero_grad()
+                sumed_loss.backward()
+                self.optimizers[loss['trainer']].step()
+                sumed_loss = 0
+            else:
+                input_args = [recc_acces(variables, name) for name in loss['args']]
+                val = loss['func'](*input_args, **loss['param'])
+                sumed_loss += val
+                self.loss_log[loss['name']].append(val.data[0])
+                logger.debug(loss['name'] + ' loss is {}'.format(val.data[0]))
 
     def eval(self, **kwargs):
         dataset = kwargs.pop('dataset', None)
