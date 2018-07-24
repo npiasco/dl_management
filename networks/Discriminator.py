@@ -22,7 +22,7 @@ class Main(nn.Module):
                                           'load_imagenet': False,
                                           'end_relu': False,
                                           'batch_norm': False,
-                                          'input_channels': 2,
+                                          'input_channels': 4,
                                           'end_max_polling': True
                                       })
 
@@ -108,8 +108,7 @@ class Main(nn.Module):
 if __name__ == '__main__':
     input_size = 224
     tensor_input = torch.rand([10, 1, input_size, input_size]).cuda()
-    tensor_gt = torch.rand([10, 1, input_size, input_size]).cuda()
+    tensor_gt = torch.rand([10, 3, input_size, input_size]).cuda()
     net = Main(input_size=input_size, batch_gan=False).cuda()
-    feat_output = net(auto.Variable(tensor_input))
+    feat_output = net(auto.Variable(tensor_input),auto.Variable(tensor_gt))
     print(feat_output)
-
