@@ -19,10 +19,10 @@ class Main(nn.Module):
         base_archi = kwargs.pop('base_archi', 'Alexnet')
         base_archi_param = kwargs.pop('base_archi_param',
                                       {
-                                          'load_imagenet': True,
+                                          'load_imagenet': False,
                                           'end_relu': False,
                                           'batch_norm': False,
-                                          'input_channels': 1,
+                                          'input_channels': 2,
                                           'end_max_polling': True
                                       })
 
@@ -57,7 +57,8 @@ class Main(nn.Module):
         logger.info('Classifier architecture:')
         logger.info(self.classifier)
 
-    def forward(self, x):
+    def forward(self, *x):
+        x = torch.cat(x, dim=1) # Conditional GAN
         if self.batch_gan:
             b, c, w, h = x.size()
             x_class = None
@@ -106,7 +107,8 @@ class Main(nn.Module):
 
 if __name__ == '__main__':
     input_size = 224
-    tensor_input = torch.rand([10, 3, input_size, input_size]).cuda()
+    tensor_input = torch.rand([10, 1, input_size, input_size]).cuda()
+    tensor_gt = torch.rand([10, 1, input_size, input_size]).cuda()
     net = Main(input_size=input_size, batch_gan=False).cuda()
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output)
