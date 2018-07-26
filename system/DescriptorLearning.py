@@ -414,6 +414,48 @@ class MultNet(Default):
             for part_name, data in serlz.items():
                 torch.save(data, net_name + '_' + part_name + '.pth')
 
+    def map_print(self, net_name, final=False, mod='rgb', aux_mod='mono_depth'):
+        tmp_net = copy.deepcopy(self.trainer.networks[net_name])
+        tmp_net.train()  # To have the infered map
+        if not final:
+            tmp_net.load_state_dict(self.trainer.best_net[1][net_name])
+        self.data['train'].used_mod = self.training_mod
+        dtload = data.DataLoader(self.data['train'], batch_size=4)
+        plt.figure(1)
+        plt.figure(2)
+        ccmap = plt.get_cmap('jet', lut=1024)
+
+        for b in dtload:
+            main_mod = b['query'][mod].contiguous().view(4, 3, 224, 224)
+            modality = b['query'][aux_mod].contiguous().view(4, -1, 224, 224)
+            output = tmp_net(
+                auto.Variable(
+                    self.trainer.cuda_func(
+                        b['query'][mod]
+                    ),
+                    requires_grad=False
+                )
+            )
+            print(output['desc'])
+            images_batch = torch.cat((modality.cpu(), output['maps'].data.cpu()))
+            diff_map = torch.abs(modality.cpu()-output['maps'].data.cpu())
+            grid = torchvis.utils.make_grid(images_batch, nrow=4)
+            plt.figure(1)
+            if images_batch.size(1) == 1:
+                plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
+            else:
+                plt.imshow(grid.numpy().transpose(1, 2, 0))
+            plt.colorbar()
+            plt.figure(2)
+            grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=4)
+            plt.imshow(grid.numpy().transpose(1, 2, 0))
+            plt.figure(3)
+            grid = torchvis.utils.make_grid(diff_map, nrow=4)
+            plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
+            plt.colorbar()
+
+            plt.show()
+
 
 if __name__ == '__main__':
 
