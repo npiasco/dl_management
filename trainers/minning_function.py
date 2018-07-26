@@ -164,6 +164,7 @@ def batch_to_var(net, batch, **kwargs):
     # TODO: Automatically inside the training loop
     mode = kwargs.pop('mode', None)
     target = kwargs.pop('target', None)
+    mult_mod = kwargs.pop('mult_mod', False)
     cuda_func = kwargs.pop('cuda_func', lambda x: x.cuda())
 
     if kwargs:
@@ -172,16 +173,25 @@ def batch_to_var(net, batch, **kwargs):
     batch = batch['batch']
 
     if mode == 'query':
-        forward = auto.Variable(cuda_func(recc_acces(batch, target)), requires_grad=True)
+        if mult_mod:
+            forward = dict()
+            for name_mod, mod in recc_acces(batch, target).items():
+                forward[name_mod] = auto.Variable(cuda_func(mod), requires_grad=True)
+        else:
+            forward = auto.Variable(cuda_func(recc_acces(batch, target)), requires_grad=True)
     else:
-        forward = dict()
-        for sub_batch in batch[mode]:
-            outputs = auto.Variable(cuda_func(recc_acces(sub_batch, target)), requires_grad=True)
-            for name, output in outputs.items():
-                if name in forward.keys():
-                    forward[name].append(output)
-                else:
-                    forward[name] = [output]
+        if mult_mod:
+            forward = dict()
+            for sub_batch in batch[mode]:
+                for name_mod, mod in recc_acces(sub_batch, target).items():
+                    if name_mod in forward.keys():
+                        forward[name_mod].append(auto.Variable(cuda_func(mod), requires_grad=True))
+                    else:
+                        forward[name_mod] = [auto.Variable(cuda_func(mod), requires_grad=True)]
+        else:
+            forward = list()
+            for sub_batch in batch[mode]:
+                forward.append(auto.Variable(cuda_func(recc_acces(sub_batch, target)), requires_grad=True))
 
     return forward
 
@@ -196,11 +206,17 @@ def custom_forward(net, outputs, **kwargs):
 
     inputs = [recc_acces(outputs, name) for name in input_targets]
     if multiples_instance:
-        forward = list()
+        forward = dict()
         for i in range(len(inputs[0])):
             if detach_inputs:
                 tmp_input = [inp[i].detach() for inp in inputs]
-            forward.append(net(*tmp_input))
+            else:
+                tmp_input = [inp[i] for inp in inputs]
+            for name_out, out in net(*tmp_input).items():
+                if name_out in forward.keys():
+                    forward[name_out].append(out)
+                else:
+                    forward[name_out] = [out]
     else:
         if detach_inputs:
             inputs = [inp.detach() for inp in inputs]
