@@ -146,11 +146,11 @@ def batch_forward(net, batch, **kwargs):
     batch = batch['batch']
 
     if mode == 'query':
-        forward = net(auto.Variable(cuda_func(recc_acces(batch, target))))
+        forward = net(auto.Variable(cuda_func(recc_acces(batch, target)), requires_grad=True))
     else:
         forward = dict()
         for sub_batch in batch[mode]:
-            outputs = net(auto.Variable(cuda_func(recc_acces(sub_batch, target))))
+            outputs = net(auto.Variable(cuda_func(recc_acces(sub_batch, target)), requires_grad=True))
             for name, output in outputs.items():
                 if name in forward.keys():
                     forward[name].append(output)
@@ -172,11 +172,11 @@ def batch_to_var(net, batch, **kwargs):
     batch = batch['batch']
 
     if mode == 'query':
-        forward = auto.Variable(cuda_func(recc_acces(batch, target)))
+        forward = auto.Variable(cuda_func(recc_acces(batch, target)), requires_grad=True)
     else:
         forward = dict()
         for sub_batch in batch[mode]:
-            outputs = auto.Variable(cuda_func(recc_acces(sub_batch, target)))
+            outputs = auto.Variable(cuda_func(recc_acces(sub_batch, target)), requires_grad=True)
             for name, output in outputs.items():
                 if name in forward.keys():
                     forward[name].append(output)
@@ -189,7 +189,7 @@ def batch_to_var(net, batch, **kwargs):
 def custom_forward(net, outputs, **kwargs):
     input_targets = kwargs.pop('input_targets', list())
     multiples_instance = kwargs.pop('multiples_instance', False)
-    cuda_func = kwargs.pop('cuda_func', lambda x: x.cuda())
+    detach_inputs = kwargs.pop('detach_inputs', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -198,9 +198,12 @@ def custom_forward(net, outputs, **kwargs):
     if multiples_instance:
         forward = list()
         for i in range(len(inputs[0])):
-            tmp_input = [inp[i] for inp in inputs]
+            if detach_inputs:
+                tmp_input = [inp[i].detach() for inp in inputs]
             forward.append(net(*tmp_input))
     else:
+        if detach_inputs:
+            inputs = [inp.detach() for inp in inputs]
         forward = net(*inputs)
 
     return forward
