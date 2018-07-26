@@ -18,10 +18,10 @@ class Main(nn.Module):
         base_archi_param = kwargs.pop('base_archi_param',
                                       {
                                           'load_imagenet': False,
-                                          'end_relu': False,
                                           'batch_norm': False,
                                           'input_channels': 4,
-                                          'end_max_polling': True
+                                          'end_max_polling': True,
+                                          'end_relu': True
                                       })
 
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
@@ -56,7 +56,7 @@ class Main(nn.Module):
         logger.info(self.classifier)
 
     def forward(self, *x):
-        x = torch.cat(x, dim=1) # Conditional GAN
+        x = torch.cat(x, dim=1)  # Conditional GAN
         if self.batch_gan:
             b, c, w, h = x.size()
             x_class = None
