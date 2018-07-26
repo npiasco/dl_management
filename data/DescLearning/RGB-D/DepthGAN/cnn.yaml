@@ -1,0 +1,23 @@
+Main:
+    class: 'networks.Descriptor.Deconv'
+    param_class:
+        unet: True
+        layers_to_train: 'only_deconv'
+        dec_base_param:
+            batch_norm: True
+            leaky_relu: True
+
+Adver:
+    class: 'networks.Discriminator.Main'
+    param_class:
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: False
+            batch_norm: True
+            input_channels: 4
+            end_relu: True
+            leaky_relu: True
+            mean_pooling: True
+        input_size: 224
+        batch_gan: false
+        layers_to_train: 'all'

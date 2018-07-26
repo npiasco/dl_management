@@ -1,0 +1,148 @@
+class: 'trainers.TripletTrainers.MultNetTrainer'
+param_class:
+    cuda_on: True
+    val_num_workers: 8
+    optimizers_params:
+        main_trainer:
+            associated_net: ['Main',]
+            optimizer_type: ADAM
+            param:
+                lr: 0.0002
+                weight_decay: 0.001
+        adver_trainer:
+            associated_net: ['Adver',]
+            optimizer_type: SGD
+            param:
+                lr: 0.0002
+                weight_decay: 0.001
+    training_pipeline:
+        [
+            {
+                mode: 'batch_forward',
+                func: minning.batch_to_var,
+                param: {mode: 'query', target: ['query', 'rgb']},
+                net_name: 'Adver',
+                out_name: 'var_rgb_query'
+            },
+            {
+                mode: 'batch_forward',
+                func: minning.batch_to_var,
+                param: {mode: 'query', target: ['query', 'mono_depth']},
+                net_name: 'Adver',
+                out_name: 'var_depth_query'
+            },
+
+            {
+                mode: 'forward',
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['var_rgb_query', ], ]},
+                net_name: 'Main',
+                out_name: 'forwarded_main_query'
+            },
+            {
+                mode: 'forward',
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['forwarded_main_query', 'maps'], ['var_rgb_query']], detach_inputs: True},
+                net_name: 'Adver',
+                out_name: 'adver_false_query'
+            },
+            {
+                mode: 'loss',
+                name: 'discri_loss_false_query',
+                func: 'loss_func.GANLoss',
+                args: [['adver_false_query',], ],
+                param:{target_is_real: False, factor: 1, mse: True}
+            },
+            {
+                mode: 'forward',
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['var_depth_query'], ['var_rgb_query']]},
+                net_name: 'Adver',
+                out_name: 'adver_true_query'
+            },
+            {
+                mode: 'loss',
+                name: 'discri_loss_true_query',
+                func: 'loss_func.GANLoss',
+                args: [['adver_true_query',], ],
+                param:{target_is_real: True, factor: 1, mse: True}
+            },
+            {
+                mode: 'backprop',
+                name: 'adver_backprop',
+                trainer: 'adver_trainer',
+            },
+            {
+                mode: 'forward',
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['forwarded_main_query', 'maps'], ['var_rgb_query']]},
+                net_name: 'Adver',
+                out_name: 'adver_false_query'
+            },
+            {
+                mode: 'loss',
+                name: 'adver_loss_query',
+                func: 'loss_func.GANLoss',
+                args: [['adver_false_query',], ],
+                param: {target_is_real: True, mse: True}
+            },
+#            {
+#                mode: 'loss',
+#                name: 'l1_loss',
+#                func: 'loss_func.l1_modal_loss',
+#                args: [['forwarded_main_query', 'maps'], ['var_depth_query']],
+#                param: {listed_maps: False, p: 1}
+#            },
+            {
+                mode: 'backprop',
+                name: 'main_backprop',
+                trainer: 'main_trainer'
+            },
+        ]
+    eval_forwards:
+        dataset:
+            [
+                {
+                    mode: 'batch_forward',
+                    func: minning.batch_to_var,
+                    param: {mode: 'query', target: ['mono_depth']},
+                    net_name: 'Main',
+                    out_name: 'depth_gt'
+                },
+                {
+                    func: 'minning.batch_forward',
+                    param: {mode: 'query', target: ['rgb',]},
+                    net_name: 'Main',
+                    out_name: 'output'
+                },
+            ]
+        queries:
+            [
+                {
+                    mode: 'batch_forward',
+                    func: minning.batch_to_var,
+                    param: {mode: 'query', target: ['mono_depth']},
+                    net_name: 'Main',
+                    out_name: 'depth_gt'
+                },
+                {
+                    func: 'minning.batch_forward',
+                    param: {mode: 'query', target: ['rgb',]},
+                    net_name: 'Main',
+                    out_name: 'output'
+                },
+            ]
+    eval_final_desc: [['output', 'maps'], ['depth_gt']]
+
+eval_class: 'score.Functions.Reconstruction_Error'
+param_eval_class:
+    pooling_type: mean
+test_func:
+    mean:
+        class: 'score.Functions.Reconstruction_Error'
+        param_class:
+            pooling_type: mean
+    med:
+        class: 'score.Functions.Reconstruction_Error'
+        param_class:
+            pooling_type: median
