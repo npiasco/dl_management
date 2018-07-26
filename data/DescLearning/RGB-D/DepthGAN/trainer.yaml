@@ -40,9 +40,15 @@ param_class:
                 out_name: 'forwarded_main_query'
             },
             {
+                mode: 'minning',
+                func: minning.random_prunning,
+                param: {multiples_instance: false, target: ['forwarded_main_query', 'maps'], prob: 0.95},
+                out_name: 'forwarded_main_query_pruned'
+            },
+            {
                 mode: 'forward',
                 func: minning.custom_forward,
-                param: {multiples_instance: false, input_targets: [['forwarded_main_query', 'maps'], ['var_rgb_query']], detach_inputs: True},
+                param: {multiples_instance: false, input_targets: [['forwarded_main_query_pruned'], ['var_rgb_query']], detach_inputs: True},
                 net_name: 'Adver',
                 out_name: 'adver_false_query'
             },
@@ -51,7 +57,7 @@ param_class:
                 name: 'discri_loss_false_query',
                 func: 'loss_func.GANLoss',
                 args: [['adver_false_query',], ],
-                param:{target_is_real: False, factor: 1, mse: True}
+                param:{target_is_real: False, factor: 1, mse: False}
             },
             {
                 mode: 'forward',
@@ -65,7 +71,7 @@ param_class:
                 name: 'discri_loss_true_query',
                 func: 'loss_func.GANLoss',
                 args: [['adver_true_query',], ],
-                param:{target_is_real: True, factor: 1, mse: True}
+                param:{target_is_real: True, factor: 1, mse: False}
             },
             {
                 mode: 'backprop',
@@ -75,7 +81,7 @@ param_class:
             {
                 mode: 'forward',
                 func: minning.custom_forward,
-                param: {multiples_instance: false, input_targets: [['forwarded_main_query', 'maps'], ['var_rgb_query']]},
+                param: {multiples_instance: false, input_targets: [['forwarded_main_query_pruned'], ['var_rgb_query']]},
                 net_name: 'Adver',
                 out_name: 'adver_false_query'
             },
@@ -84,7 +90,7 @@ param_class:
                 name: 'adver_loss_query',
                 func: 'loss_func.GANLoss',
                 args: [['adver_false_query',], ],
-                param: {target_is_real: True, mse: True}
+                param: {target_is_real: True, mse: False}
             },
 #            {
 #                mode: 'loss',

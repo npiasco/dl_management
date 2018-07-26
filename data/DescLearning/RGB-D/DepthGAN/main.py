@@ -11,7 +11,7 @@ import system.DescriptorLearning as System
 
 
 if __name__ == '__main__':
-    machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])])
+    machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])], dataset_file='sparse_dataset.yaml')
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':
         machine.train()
