@@ -138,6 +138,34 @@ class GlobalPoseError:
             return new_score <= old_score
 
 
+class Reconstruction_Error:
+    def __init__(self, **kwargs):
+        self.pooling_type = kwargs.pop('pooling_type', 'mean')
+
+        if kwargs:
+            logger.error('Unexpected **kwargs: %r' % kwargs)
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    def __call__(self, errors):
+        if self.pooling_type == 'median':
+            return np.median(errors)
+        elif self.pooling_type == 'mean':
+            return np.mean(errors)
+        else:
+            logger.error('Unknown pooling named {}'.format(self.pooling_type))
+            raise ValueError('Unknown pooling named {}'.format(self.pooling_type))
+
+    def __str__(self):
+        return '{} reconstruction error'.format(self.pooling_type.capitalize())
+
+    @staticmethod
+    def rank_score(new_score, old_score):
+        if old_score is None:
+            return True
+        else:
+            return new_score <= old_score
+
+
 if __name__ == '__main__':
     n_queries = 200
     n_data = 1300
