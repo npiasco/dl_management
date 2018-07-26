@@ -142,7 +142,7 @@ class BaseMultNetTrainer:
                 nets_to_optim += self.networks[name].get_training_layers()
             if optimizer_param['optimizer_type'] == "SGD":
                 optimizer = optim.SGD(
-                    *nets_to_optim,
+                    nets_to_optim,
                     **optimizer_param['param']
                 )
             elif optimizer_param['optimizer_type'] == "ADAM":
