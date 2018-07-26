@@ -227,30 +227,19 @@ class DeconvTrainer(Trainer):
 
 class MultNetTrainer(Base.BaseMultNetTrainer):
     def __init__(self, **kwargs):
-        forwards = kwargs.pop('forwards', list())
+        training_pipeline = kwargs.pop('training_pipeline', list())
         eval_forwards = kwargs.pop('eval_forwards', dict())
-        losses = kwargs.pop('losses', list())
-        minning_func = kwargs.pop('minning_func', list())
         self.eval_final_desc = kwargs.pop('eval_final_desc', ['desc'])
 
         Base.BaseMultNetTrainer.__init__(self, **kwargs)
 
-        self.forwards = list()
-        for forward in forwards:
-            self.forwards.append(forward)
-            self.forwards[-1]['func'] = eval(forward['func'])
-
-        self.minning_func = list()
-        for minning_f in minning_func:
-            self.minning_func.append(minning_f)
-            self.minning_func[-1]['func'] = eval(minning_f['func'])
-
-        self.losses = list()
-        for loss in losses:
-            self.losses.append(loss)
-            if 'func' in self.losses[-1].keys():
-                self.losses[-1]['func'] = eval(loss['func'])
-                self.loss_log[loss['name']] = list()
+        self.training_pipeline = list()
+        for action in training_pipeline:
+            self.training_pipeline.append(action)
+            if 'func' in self.training_pipeline[-1].keys():
+                self.training_pipeline[-1]['func'] = eval(action['func'])
+            if self.training_pipeline[-1]['mode'] == 'loss':
+                self.loss_log[action['name']] = list()
 
         self.eval_forwards = {'dataset': list(), 'queries': list()}
         for forward in eval_forwards['dataset']:
@@ -263,36 +252,55 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
     def train(self, batch):
         for network in self.networks.values():
             network.train()
+            for params in network.get_training_layers():
+                for param in params['params']:
+                    param.requires_grad = True
 
         # Forward pass
         variables = {'batch': batch}
-        for fd in self.forwards:
-            variables[fd['out_name']] = fd['func'](
-                self.networks[fd['net_name']],
-                variables,
-                cuda_func=self.cuda_func,
-                **fd['param']
-            )
-
-        for minning in self.minning_func:
-            variables[minning['out_name']] = minning['func'](
-                variables,
-                **minning['param']
-            )
-
         sumed_loss = 0
-        for loss in self.losses:
-            if loss['name'] == 'backprop':
-                self.optimizers[loss['trainer']].zero_grad()
-                sumed_loss.backward(retain_graph=True)
-                self.optimizers[loss['trainer']].step()
-                sumed_loss = 0
-            else:
-                input_args = [recc_acces(variables, name) for name in loss['args']]
-                val = loss['func'](*input_args, **loss['param'])
+        for action in self.training_pipeline:
+            if action['mode'] == 'batch_forward':
+                variables[action['out_name']] = action['func'](
+                    self.networks[action['net_name']],
+                    variables,
+                    cuda_func=self.cuda_func,
+                    **action['param']
+                )
+            elif action['mode'] == 'forward':
+                variables[action['out_name']] = action['func'](
+                    self.networks[action['net_name']],
+                    variables,
+                    **action['param']
+                )
+            elif action['mode'] == 'minning':
+                variables[action['out_name']] = action['func'](
+                    variables,
+                    **action['param']
+                )
+            elif action['mode'] == 'loss':
+                input_args = [recc_acces(variables, name) for name in action['args']]
+                val = action['func'](*input_args, **action['param'])
                 sumed_loss += val
-                self.loss_log[loss['name']].append(val.data[0])
-                logger.debug(loss['name'] + ' loss is {}'.format(val.data[0]))
+                self.loss_log[action['name']].append(val.data[0])
+                logger.debug(action['name'] + ' loss is {}'.format(val.data[0]))
+            elif action['mode'] == 'backprop':
+                self.optimizers[action['trainer']].zero_grad()
+                sumed_loss.backward()
+                # sumed_loss.backward(retain_graph=True)
+                self.optimizers[action['trainer']].step()
+                sumed_loss = 0
+                for name in self.optimizers_params[action['trainer']]['associated_net']:
+                    for params in self.networks[name].get_training_layers():
+                        for param in params['params']:
+                            param.requires_grad = False
+            """
+            if 'adver_true_query' in variables.keys() and not variables['adver_true_query']._backward_hooks:
+                variables['adver_true_query'].register_hook(lambda x: print('adver_true_query', x))
+            if 'adver_false_query' in variables.keys() and not variables['adver_false_query']._backward_hooks:
+                variables['adver_false_query'].register_hook(lambda x: print('adver_false_query', x))
+            """
+
 
     def eval(self, **kwargs):
         dataset = kwargs.pop('dataset', None)
@@ -304,7 +312,11 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
         if len(self.val_score) <= ep:
-            ranked = self._compute_sim(self.networks, dataset['queries'], dataset['data'])
+            if isinstance(score_function, ScoreFunc.Reconstruction_Error):
+                ranked = self._compute_rerror(self.networks, dataset['queries'], dataset['data'])
+            else:
+                ranked = self._compute_sim(self.networks, dataset['queries'], dataset['data'])
+
             score = score_function(ranked)
             self.val_score.append(score)
             if score_function.rank_score(score, self.best_net[0]):
@@ -323,11 +335,61 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             nets_to_test[name] = copy.deepcopy(network)
             nets_to_test[name].load_state_dict(self.best_net[1][name])
 
-        ranked = self._compute_sim(nets_to_test, dataset['queries'], dataset['data'])
+        if True in [isinstance(score_function, ScoreFunc.Reconstruction_Error)
+                    for score_function in score_functions.values()]:
+            ranked = self._compute_rerror(nets_to_test, dataset['queries'], dataset['data'])
+        else:
+            ranked = self._compute_sim(nets_to_test, dataset['queries'], dataset['data'])
         results = dict()
         for function_name, score_func in score_functions.items():
             results[function_name] = score_func(ranked)
         return results
+
+    def _compute_rerror(self, networks, queries, dataset):
+        dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
+        queries_loader = utils.data.DataLoader(queries, batch_size=1, num_workers=self.val_num_workers)
+
+        for network in networks.values():
+            network.train()
+
+        errors = list()
+        # Forward pass
+        logger.info('Computing dataset reconstruction error')
+        for batch in tqdm.tqdm(dataset_loader):
+            variables = {'batch': batch}
+            for fd in self.eval_forwards['dataset']:
+                variables[fd['out_name']] = fd['func'](
+                    networks[fd['net_name']],
+                    variables,
+                    cuda_func=self.cuda_func,
+                    **fd['param']
+                )
+            errors.append(
+                loss_func.l1_modal_loss(
+                    recc_acces(variables, self.eval_final_desc[0]),
+                    recc_acces(variables, self.eval_final_desc[1]),
+                    listed_maps=False
+                ).cpu().data[0]
+            )
+        logger.info('Computing queries reconstruction error')
+        for batch in tqdm.tqdm(queries_loader):
+            variables = {'batch': batch}
+            for fd in self.eval_forwards['queries']:
+                variables[fd['out_name']] = fd['func'](
+                    networks[fd['net_name']],
+                    variables,
+                    cuda_func=self.cuda_func,
+                    **fd['param']
+                )
+            errors.append(
+                loss_func.l1_modal_loss(
+                    recc_acces(variables, self.eval_final_desc[0]),
+                    recc_acces(variables, self.eval_final_desc[1]),
+                    listed_maps=False
+                ).cpu().data[0]
+            )
+
+        return errors
 
     def _compute_sim(self, networks, queries, dataset):
         dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
