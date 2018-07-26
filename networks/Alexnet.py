@@ -2,12 +2,11 @@ import setlog
 import torch.nn as nn
 import collections as coll
 import torch.autograd as auto
-import torch.nn.functional as func
 import torch
 import torchvision.models as models
 import os
-import matplotlib.pyplot as plt
 import networks.CustomLayers as custom
+import copy
 
 
 logger = setlog.get_logger(__name__)
@@ -29,21 +28,31 @@ class Feat(nn.Module):
         i_channel = kwargs.pop('input_channels', 3)
         jet_tf = kwargs.pop('jet_tf', False)
         jet_tf_is_trainable = kwargs.pop('jet_tf_is_trainable', False)
+        mean_pooling = kwargs.pop('mean_pooling', False)
+        leaky_relu = kwargs.pop('leaky_relu', False)
+
+        polling_layer_param = {
+            'kernel_size': 3,
+            'stride': 2,
+        }
+        polling_layer = nn.AvgPool2d(**polling_layer_param) if mean_pooling else \
+            nn.MaxPool2d(**polling_layer_param, return_indices=self.indices)
+        relu_type = nn.LeakyReLU(inplace=True, negative_slope=0.02) if leaky_relu else nn.ReLU(inplace=True)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
         base_archi = [
             ('conv0', nn.Conv2d(i_channel, 64, kernel_size=11, stride=4, padding=2)),   # 0
-            ('relu0', nn.ReLU(inplace=True)),                                   # 1
-            ('pool0', nn.MaxPool2d(kernel_size=3, stride=2, return_indices=self.indices)),                   # 2
+            ('relu0', copy.deepcopy(relu_type)),                                   # 1
+            ('pool0', copy.deepcopy(polling_layer)),                   # 2
             ('conv1', nn.Conv2d(64, 192, kernel_size=5, padding=2)),            # 3
-            ('relu1', nn.ReLU(inplace=True)),                                   # 4
-            ('pool1', nn.MaxPool2d(kernel_size=3, stride=2, return_indices=self.indices)),                   # 5
+            ('relu1', copy.deepcopy(relu_type)),                                   # 4
+            ('pool1', copy.deepcopy(polling_layer)),                   # 5
             ('conv2', nn.Conv2d(192, 384, kernel_size=3, padding=1)),           # 6
-            ('relu2', nn.ReLU(inplace=True)),                                   # 7
+            ('relu2', copy.deepcopy(relu_type)),                                   # 7
             ('conv3', nn.Conv2d(384, 256, kernel_size=3, padding=1)),           # 8
-            ('relu3', nn.ReLU(inplace=True)),                                   # 9
+            ('relu3', copy.deepcopy(relu_type)),                                   # 9
             ('conv4', nn.Conv2d(256, 256, kernel_size=3, padding=1)),           # 10
             ]
 
@@ -54,14 +63,14 @@ class Feat(nn.Module):
             base_archi.insert(1, ('norm0', nn.BatchNorm2d(64)))
 
         if end_relu:
-            base_archi.append(('relu4', nn.ReLU(inplace=True)))
+            base_archi.append(('relu4', copy.deepcopy(relu_type)))
 
         if end_max_polling:
-            base_archi.append(('pool3', nn.MaxPool2d(kernel_size=3, stride=2, return_indices=self.indices)))
+            base_archi.append(('pool3', copy.deepcopy(polling_layer)))
 
         if jet_tf:
             base_archi = [('jet_tf', custom.IndexEmbedding(num_embedding=256,
-                                                           size_embedding=3,
+                                                           size_embedding=i_channel,
                                                            trainable=jet_tf_is_trainable))] + base_archi
 
         self.base_archi = coll.OrderedDict(base_archi)
@@ -163,6 +172,9 @@ class Deconv(nn.Module):
         self.unet = kwargs.pop('unet', False)
         final_jet_tf = kwargs.pop('final_jet_tf', False)
         jet_tf_is_trainable = kwargs.pop('jet_tf_is_trainable', False)
+        leaky_relu = kwargs.pop('leaky_relu', False)
+
+        relu_type = nn.LeakyReLU(inplace=True, negative_slope=0.02) if leaky_relu else nn.ReLU(inplace=True)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -172,14 +184,14 @@ class Deconv(nn.Module):
         base_archi = [
             ('unpool4', nn.MaxUnpool2d(kernel_size=3, stride=2)),       # 0
             ('conv4', nn.Conv2d(256, 256, kernel_size=3, padding=1)),   # 1
-            ('relu4', nn.ReLU(inplace=True)),                           # 2
+            ('relu4', copy.deepcopy(relu_type)),                           # 2
             ('conv3', nn.Conv2d(256, 384, kernel_size=3, padding=1)),   # 3
-            ('relu3', nn.ReLU(inplace=True)),                           # 4
+            ('relu3', copy.deepcopy(relu_type)),                           # 4
             ('conv2', nn.Conv2d(384, 192, kernel_size=3, padding=1)),   # 5
-            ('relu2', nn.ReLU(inplace=True)),                           # 6
+            ('relu2', copy.deepcopy(relu_type)),                           # 6
             ('unpool2', nn.MaxUnpool2d(kernel_size=3, stride=2)),       # 7
             ('conv1', nn.Conv2d(unet_multp * 192, 64, kernel_size=5, padding=2)),    # 8
-            ('relu1', nn.ReLU(inplace=True)),                           # 9
+            ('relu1', copy.deepcopy(relu_type)),                           # 9
             ('unpool1', nn.MaxUnpool2d(kernel_size=3, stride=2)),       # 10
         ]
 
@@ -203,7 +215,7 @@ class Deconv(nn.Module):
             base_archi.insert(2, ('norm4', nn.BatchNorm2d(256)))
 
         if end_relu:
-            base_archi.append(('relu0', nn.ReLU(inplace=True)))
+            base_archi.append(('relu0', copy.deepcopy(relu_type)))
 
         if final_jet_tf:
             base_archi.append(('jet_tf', custom.IndexEmbedding(num_embedding=256,
@@ -295,11 +307,11 @@ if __name__ == '__main__':
     net.layers_to_train = 'up_to_conv2'
     print(net.get_training_layers())
     print(net.down_ratio)
-    net = Feat(batch_norm=False, end_relu=True, end_max_polling=True).cuda()
+    net = Feat(batch_norm=False, end_relu=True, end_max_polling=True, mean_pooling=True, leaky_relu=True).cuda()
     feat_output = net(auto.Variable(tensor_input).cuda())
     print(feat_output.size())
     print(net.down_ratio)
-
+    '''
     conv = Feat(indices=True, res=True).cuda()
     deconv = Deconv(res=True).cuda()
 
@@ -314,3 +326,4 @@ if __name__ == '__main__':
 
     print(returned_maps['deconv0'].size())
     print(returned_maps.keys())
+    '''
