@@ -2,6 +2,7 @@ import setlog
 import torch
 import torch.nn.functional as func
 import torch.autograd as auto
+import random as rand
 
 
 logger = setlog.get_logger(__name__)
@@ -171,16 +172,22 @@ def diversification_loss(anchor, positives, negatives, **kwargs):
 def GANLoss(input, **kwargs):
     target_is_real = kwargs.pop('target_is_real', None)
     factor =  kwargs.pop('factor', 1.0)
+    mse = kwargs.pop('mse', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     if target_is_real:
-        target_tensor = torch.Tensor([1.0])
+        target_tensor = torch.Tensor([rand.uniform(0.0,0.2)])
     else:
-        target_tensor = torch.Tensor([0.0])
-    target_tensor = auto.Variable(target_tensor.expand_as(input))
+        target_tensor = torch.Tensor([rand.uniform(0.8,1.0)])
+
     if input.is_cuda:
         target_tensor = target_tensor.cuda()
 
-    return func.binary_cross_entropy(input, target_tensor) * factor
+    target_tensor = auto.Variable(target_tensor.expand_as(input))
+    if mse:
+        loss = func.mse_loss(input, target_tensor) * factor
+    else:
+        loss = func.binary_cross_entropy(input, target_tensor) * factor
+    return loss
