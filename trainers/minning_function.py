@@ -225,6 +225,35 @@ def custom_forward(net, outputs, **kwargs):
     return forward
 
 
+def random_prunning(outputs, **kwargs):
+    prob = kwargs.pop('prob', 0.5)
+    target = kwargs.pop('target', list())
+    replacement_value = kwargs.pop('replacement_value', 1)
+    multiples_instance = kwargs.pop('multiples_instance', False)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    input_var = recc_acces(outputs, target)
+
+    if multiples_instance:
+        pruned_input = list()
+        for inst in input_var:
+            indexor = torch.rand(inst.size()) > prob
+            if inst.is_cuda:
+                indexor = indexor.cuda()
+            tmp_pruned = inst
+            tmp_pruned[indexor] = replacement_value
+            pruned_input.append(tmp_pruned)
+    else:
+        indexor = auto.Variable((torch.rand(input_var.size()) > prob).float(), requires_grad=False)
+        if input_var.is_cuda:
+            indexor = indexor.cuda()
+        pruned_input = input_var * indexor + (replacement_value-indexor*replacement_value)
+
+    return pruned_input
+
+
 def general_hard_minning(outputs, **kwargs):
     return_idx = kwargs.pop('return_idx', False)
     n_ex = kwargs.pop('n_ex', 1)
