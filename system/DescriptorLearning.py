@@ -86,12 +86,16 @@ class Default(BaseClass.Base):
             self.data[dataset_name].used_mod = self.training_mod
             dtload = data.DataLoader(self.data[dataset_name], batch_size=4)
         elif dataset_name == 'val_query':
+            self.data['val']['queries'].used_mod = self.testing_mod
             dtload = data.DataLoader(self.data['val']['queries'], batch_size=16)
         elif dataset_name == 'val_data':
+            self.data['val']['data'].used_mod = self.testing_mod
             dtload = data.DataLoader(self.data['val']['data'], batch_size=16)
         elif dataset_name == 'test_query':
+            self.data['test']['queries'].used_mod = self.testing_mod
             dtload = data.DataLoader(self.data['test']['queries'], batch_size=16)
         elif dataset_name == 'test_data':
+            self.data['test']['data'].used_mod = self.testing_mod
             dtload = data.DataLoader(self.data['test']['data'], batch_size=16)
         else:
             raise AttributeError('No dataset {}'.format(dataset_name))
@@ -437,6 +441,13 @@ class MultNet(Default):
                 )
             )
             print(output['desc'])
+            '''
+            pruned_maps = trainers.minning_function.random_prunning(copy.deepcopy(output['maps']),
+                                                                    multiples_instance=False, target=[], prob=0.95)
+            pruned_mod = trainers.minning_function.random_prunning(copy.deepcopy(modality),
+                                                                    multiples_instance=False, target=[], prob=0.5)
+            images_batch = torch.cat((modality.cpu(), pruned_mod.cpu(), pruned_maps.cpu(),output['maps'].data.cpu()))
+            '''
             images_batch = torch.cat((modality.cpu(), output['maps'].data.cpu()))
             diff_map = torch.abs(modality.cpu()-output['maps'].data.cpu())
             grid = torchvis.utils.make_grid(images_batch, nrow=4)
@@ -449,10 +460,12 @@ class MultNet(Default):
             plt.figure(2)
             grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=4)
             plt.imshow(grid.numpy().transpose(1, 2, 0))
+            """
             plt.figure(3)
             grid = torchvis.utils.make_grid(diff_map, nrow=4)
             plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
             plt.colorbar()
+            """
 
             plt.show()
 
