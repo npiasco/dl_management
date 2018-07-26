@@ -22,7 +22,7 @@ class IndexEmbedding(nn.Module):
 
         self.embedding = nn.Embedding(num_embedding, size_embedding)
 
-        if self.init_jet:
+        if self.init_jet and size_embedding == 3:
             logger.info('Initialaising embedding weights with JET cmap data...')
             ccmap = plt.get_cmap('jet', lut=num_embedding)
             palet = [ccmap(i)[0:3] for i in range(num_embedding)]
