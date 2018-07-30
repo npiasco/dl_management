@@ -6,7 +6,6 @@ import setlog
 import torch.nn.functional as nn_func
 import torch
 import matplotlib.pyplot as plt
-import numpy as np
 
 
 logger = setlog.get_logger(__name__)
@@ -99,6 +98,70 @@ class DepthTransform:
             sample[name] *= self.depth_factor
 
         return sample
+
+
+class UniformPruning:
+    def __init__(self, **kwargs):
+        self.replacement_value = kwargs.pop('replacement_value', 0.0)
+        self.kernel_size = kwargs.pop('kernel_size', 20)
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    def __call__(self, sample):
+        moy_density = None
+        for name, mod in sample.items():
+            c, w, h = mod.size()
+            for i in range(0, w, self.kernel_size):
+                for j in range(0, h, self.kernel_size):
+                    cropped = self.crop_sample(mod, w, h, i, j)
+                    density = torch.numel(torch.nonzero(cropped))/(self.kernel_size**2)
+                    if density > 0:
+                        if moy_density is None:
+                            moy_density = density
+                        else:
+                            moy_density = (moy_density + density)/2
+
+            if moy_density is None:
+                logger.warning('No point found')
+                return  sample
+
+            for i in range(0, w, self.kernel_size):
+                for j in range(0, h, self.kernel_size):
+                    cropped = self.crop_sample(mod, w, h, i, j)
+                    density = torch.numel(torch.nonzero(cropped)) / (self.kernel_size ** 2)
+                    f_density = density/moy_density
+                    if f_density > 1.5:
+                        self.prune(mod, w, h, i, j, 1/f_density)
+
+            sample[name] = mod
+
+        return sample
+
+    def crop_sample(self, sample, w, h, i, j):
+        if i + self.kernel_size > w:
+            cropped_x = sample[:, -self.kernel_size:, :]
+        else:
+            cropped_x = sample[:, i:i + self.kernel_size, :]
+        if j + self.kernel_size > h:
+            cropped = cropped_x[:, :, -self.kernel_size:]
+        else:
+            cropped = cropped_x[:, :, j:j + self.kernel_size]
+
+        return cropped
+
+    def prune(self, sample,  w, h, i, j, probalility):
+        indexor = torch.rand(self.kernel_size**2) > probalility
+        if i + self.kernel_size > w:
+            if j + self.kernel_size > h:
+                sample[:, -self.kernel_size:, -self.kernel_size:][indexor] = self.replacement_value
+            else:
+                sample[:, -self.kernel_size:, j:j + self.kernel_size][indexor] = self.replacement_value
+        else:
+            if j + self.kernel_size > h:
+                sample[:, i:i + self.kernel_size, -self.kernel_size:][indexor] = self.replacement_value
+            else:
+                sample[:, i:i + self.kernel_size, j:j + self.kernel_size][indexor] = self.replacement_value
 
 
 class Normalize(tf.Normalize):
