@@ -230,6 +230,7 @@ def random_prunning(outputs, **kwargs):
     target = kwargs.pop('target', list())
     replacement_value = kwargs.pop('replacement_value', 1)
     multiples_instance = kwargs.pop('multiples_instance', False)
+    mask = kwargs.pop('mask', None)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -238,18 +239,25 @@ def random_prunning(outputs, **kwargs):
 
     if multiples_instance:
         pruned_input = list()
-        for inst in input_var:
-            indexor = torch.rand(inst.size()) > prob
+        for i, inst in enumerate(input_var):
+            if not isinstance(mask, type(None)):
+                indexor = recc_acces(outputs, mask)[i].data != 1
+            else:
+                indexor = torch.rand(inst.size()) > prob
+            indexor = auto.Variable(indexor.float(), requires_grad=False)
             if inst.is_cuda:
                 indexor = indexor.cuda()
-            tmp_pruned = inst
-            tmp_pruned[indexor] = replacement_value
+            tmp_pruned = inst*indexor + (replacement_value - indexor*replacement_value)
             pruned_input.append(tmp_pruned)
     else:
-        indexor = auto.Variable((torch.rand(input_var.size()) > prob).float(), requires_grad=False)
+        if not isinstance(mask, type(None)):
+            indexor = recc_acces(outputs, mask).data != 1
+        else:
+            indexor = torch.rand(input_var.size()) > prob
+        indexor = auto.Variable(indexor.float(), requires_grad=False)
         if input_var.is_cuda:
             indexor = indexor.cuda()
-        pruned_input = input_var * indexor + (replacement_value-indexor*replacement_value)
+        pruned_input = input_var*indexor + (replacement_value - indexor*replacement_value)
 
     return pruned_input
 
