@@ -262,7 +262,6 @@ def random_prunning(outputs, **kwargs):
                     if wi + kernel_size > w:
                         if hi + kernel_size > h:
                             cropped = target_d_map_var[i][:, :, -kernel_size:, -kernel_size:]
-                            print(cropped.size())
                         else:
                             cropped = target_d_map_var[i][:, :, -kernel_size:, hi:hi + kernel_size]
                     else:
