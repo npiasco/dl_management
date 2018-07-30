@@ -354,40 +354,31 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
 
         errors = list()
         # Forward pass
-        logger.info('Computing dataset reconstruction error')
-        for batch in tqdm.tqdm(dataset_loader):
-            variables = {'batch': batch}
-            for fd in self.eval_forwards['dataset']:
-                variables[fd['out_name']] = fd['func'](
-                    networks[fd['net_name']],
-                    variables,
-                    cuda_func=self.cuda_func,
-                    **fd['param']
+        logger.info('Computing dataset/queries reconstruction error')
+        for dataloader in (dataset_loader, queries_loader):
+            for batch in tqdm.tqdm(dataloader):
+                variables = {'batch': batch}
+                for fd in self.eval_forwards['dataset']:
+                    if fd['mode'] == 'batch_forward':
+                        variables[fd['out_name']] = fd['func'](
+                            networks[fd['net_name']],
+                            variables,
+                            cuda_func=self.cuda_func,
+                            **fd['param']
+                        )
+                    elif fd['mode'] == 'minning':
+                        variables[fd['out_name']] = fd['func'](
+                            variables,
+                            **fd['param']
+                        )
+
+                errors.append(
+                    loss_func.l1_modal_loss(
+                        recc_acces(variables, self.eval_final_desc[0]),
+                        recc_acces(variables, self.eval_final_desc[1]),
+                        listed_maps=False
+                    ).cpu().data[0]
                 )
-            errors.append(
-                loss_func.l1_modal_loss(
-                    recc_acces(variables, self.eval_final_desc[0]),
-                    recc_acces(variables, self.eval_final_desc[1]),
-                    listed_maps=False
-                ).cpu().data[0]
-            )
-        logger.info('Computing queries reconstruction error')
-        for batch in tqdm.tqdm(queries_loader):
-            variables = {'batch': batch}
-            for fd in self.eval_forwards['queries']:
-                variables[fd['out_name']] = fd['func'](
-                    networks[fd['net_name']],
-                    variables,
-                    cuda_func=self.cuda_func,
-                    **fd['param']
-                )
-            errors.append(
-                loss_func.l1_modal_loss(
-                    recc_acces(variables, self.eval_final_desc[0]),
-                    recc_acces(variables, self.eval_final_desc[1]),
-                    listed_maps=False
-                ).cpu().data[0]
-            )
 
         return errors
 
