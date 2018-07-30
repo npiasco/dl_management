@@ -176,22 +176,22 @@ def batch_to_var(net, batch, **kwargs):
         if mult_mod:
             forward = dict()
             for name_mod, mod in recc_acces(batch, target).items():
-                forward[name_mod] = auto.Variable(cuda_func(mod), requires_grad=True)
+                forward[name_mod] = auto.Variable(cuda_func(mod), requires_grad=False)
         else:
-            forward = auto.Variable(cuda_func(recc_acces(batch, target)), requires_grad=True)
+            forward = auto.Variable(cuda_func(recc_acces(batch, target)), requires_grad=False)
     else:
         if mult_mod:
             forward = dict()
             for sub_batch in batch[mode]:
                 for name_mod, mod in recc_acces(sub_batch, target).items():
                     if name_mod in forward.keys():
-                        forward[name_mod].append(auto.Variable(cuda_func(mod), requires_grad=True))
+                        forward[name_mod].append(auto.Variable(cuda_func(mod), requires_grad=False))
                     else:
-                        forward[name_mod] = [auto.Variable(cuda_func(mod), requires_grad=True)]
+                        forward[name_mod] = [auto.Variable(cuda_func(mod), requires_grad=False)]
         else:
             forward = list()
             for sub_batch in batch[mode]:
-                forward.append(auto.Variable(cuda_func(recc_acces(sub_batch, target)), requires_grad=True))
+                forward.append(auto.Variable(cuda_func(recc_acces(sub_batch, target)), requires_grad=False))
 
     return forward
 
@@ -231,33 +231,80 @@ def random_prunning(outputs, **kwargs):
     replacement_value = kwargs.pop('replacement_value', 1)
     multiples_instance = kwargs.pop('multiples_instance', False)
     mask = kwargs.pop('mask', None)
+    target_density = kwargs.pop('target_density', None)
+    target_density_map = kwargs.pop('target_density_map', None)
+    kernel_size = kwargs.pop('kernel_size', 25)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    input_var = recc_acces(outputs, target)
+    input_var = [recc_acces(outputs, target)] if not multiples_instance else recc_acces(outputs, target)
 
-    if multiples_instance:
-        pruned_input = list()
-        for i, inst in enumerate(input_var):
-            if not isinstance(mask, type(None)):
-                indexor = recc_acces(outputs, mask)[i].data != 1
-            else:
-                indexor = torch.rand(inst.size()) > prob
-            indexor = auto.Variable(indexor.float(), requires_grad=False)
-            if inst.is_cuda:
-                indexor = indexor.cuda()
-            tmp_pruned = inst*indexor + (replacement_value - indexor*replacement_value)
-            pruned_input.append(tmp_pruned)
-    else:
-        if not isinstance(mask, type(None)):
-            indexor = recc_acces(outputs, mask).data != 1
+    if mask is not None:
+        mask_var = [recc_acces(outputs, mask)] if not multiples_instance else recc_acces(outputs, mask)
+    if target_density is not None:
+        target_density_var = [recc_acces(outputs, target_density)] if not multiples_instance else\
+            recc_acces(outputs, target_density)
+    if target_density_map is not None:
+        target_d_map_var = [recc_acces(outputs, target_density_map)] if not multiples_instance else\
+            recc_acces(outputs, target_density_map)
+
+    pruned_input = list()
+    for i, inst in enumerate(input_var):
+        if mask is not None:
+            indexor = mask_var[i].data != replacement_value
+        elif target_density_map is not None:
+            b, c, w, h = inst.size()
+            indexor = torch.zeros(inst.size())
+
+            for wi in range(0, w, kernel_size):
+                for hi in range(0, h, kernel_size):
+                    if wi + kernel_size > w:
+                        if hi + kernel_size > h:
+                            cropped = target_d_map_var[i][:, :, -kernel_size:, -kernel_size:]
+                            print(cropped.size())
+                        else:
+                            cropped = target_d_map_var[i][:, :, -kernel_size:, hi:hi + kernel_size]
+                    else:
+                        if hi + kernel_size > h:
+                            cropped = target_d_map_var[i][:, :, wi:wi + kernel_size, -kernel_size:]
+                        else:
+                            cropped = target_d_map_var[i][:, :, wi:wi + kernel_size, hi:hi + kernel_size]
+
+                    density = torch.numel(
+                        torch.nonzero((cropped == replacement_value).view(-1))
+                    )/(kernel_size**2)
+
+                    prob_density = (torch.rand(b, c, kernel_size, kernel_size) > density).float()
+
+                    if wi + kernel_size > w:
+                        if hi + kernel_size > h:
+                            indexor[:, :, -kernel_size:, -kernel_size:] = prob_density
+                        else:
+                            indexor[:, :, -kernel_size:, hi:hi + kernel_size] = prob_density
+                    else:
+                        if hi + kernel_size > h:
+                            indexor[:, :, wi:wi + kernel_size, -kernel_size:] = prob_density
+                        else:
+                            indexor[:, :, wi:wi + kernel_size, hi:hi + kernel_size] = prob_density
         else:
-            indexor = torch.rand(input_var.size()) > prob
+            if target_density is not None:
+                prob = (
+                    torch.numel(
+                        torch.nonzero(
+                            (target_density_var[i].data == replacement_value).view(-1)
+                        )
+                    ) / torch.numel(target_density_var[i].data)
+                )
+            indexor = torch.rand(inst.size()) > prob
         indexor = auto.Variable(indexor.float(), requires_grad=False)
-        if input_var.is_cuda:
+        if inst.is_cuda:
             indexor = indexor.cuda()
-        pruned_input = input_var*indexor + (replacement_value - indexor*replacement_value)
+        tmp_pruned = inst*indexor + (replacement_value - indexor*replacement_value)
+        pruned_input.append(tmp_pruned)
+
+    if not multiples_instance:
+        pruned_input = pruned_input[0]
 
     return pruned_input
 
