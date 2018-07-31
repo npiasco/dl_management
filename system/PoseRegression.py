@@ -27,9 +27,6 @@ class Default(BaseClass.Base):
         self.data['test'] = self.creat_dataset(dataset_params['test'], env_var)
         self.data['val'] = self.creat_dataset(dataset_params['val'], env_var)
 
-        self.training_mod = dataset_params['training_mod']
-        self.testing_mod = dataset_params['testing_mod']
-
         net = self.creat_network(self.network_params)
 
         pos_loss = self.trainer_params['param_class'].pop('pos_loss',

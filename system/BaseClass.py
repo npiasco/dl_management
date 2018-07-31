@@ -59,6 +59,9 @@ class Base:
         self.sucess_bad_epoch = params.pop('sucess_bad_epoch', 2)
         self.score_file = params.pop('score_file', None)
         self.lr_scheduler = params.pop('lr_scheduler', None)
+        self.training_mod = params.pop('training_mod', list())
+        self.testing_mod = params.pop('testing_mod', list())
+
         params.pop('saved_files', None)
         if params:
             logger.error('Unexpected **params: %r' % params)

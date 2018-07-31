@@ -52,8 +52,6 @@ class Default(BaseClass.Base):
         self.data['val']['queries'] = self.creat_dataset(dataset_params['val']['queries'], env_var)
         self.data['val']['data'] = self.creat_dataset(dataset_params['val']['data'], env_var)
 
-        self.training_mod = dataset_params['training_mod']
-        self.testing_mod = dataset_params['testing_mod']
 
         net = self.creat_network(self.network_params)
         self.trainer_params['param_class'].update(net)
@@ -418,20 +416,20 @@ class MultNet(Default):
             for part_name, data in serlz.items():
                 torch.save(data, net_name + '_' + part_name + '.pth')
 
-    def map_print(self, net_name, final=False, mod='rgb', aux_mod='mono_depth'):
+    def map_print(self, net_name, final=False, mod='rgb', aux_mod='mono_depth', batch_size=4):
         tmp_net = copy.deepcopy(self.trainer.networks[net_name])
         tmp_net.train()  # To have the infered map
         if not final:
             tmp_net.load_state_dict(self.trainer.best_net[1][net_name])
         self.data['train'].used_mod = self.training_mod
-        dtload = data.DataLoader(self.data['train'], batch_size=4)
+        dtload = data.DataLoader(self.data['train'], batch_size=batch_size)
         plt.figure(1)
         plt.figure(2)
         ccmap = plt.get_cmap('jet', lut=1024)
 
         for b in dtload:
-            main_mod = b['query'][mod].contiguous().view(4, 3, 224, 224)
-            modality = b['query'][aux_mod].contiguous().view(4, -1, 224, 224)
+            main_mod = b['query'][mod].contiguous().view(batch_size, 3, 224, 224)
+            modality = b['query'][aux_mod].contiguous().view(batch_size, -1, 224, 224)
             output = tmp_net(
                 auto.Variable(
                     self.trainer.cuda_func(
@@ -441,16 +439,17 @@ class MultNet(Default):
                 )
             )
             print(output['desc'])
-            '''
-            pruned_maps = trainers.minning_function.random_prunning(copy.deepcopy(output['maps']),
-                                                                    multiples_instance=False, target=[], prob=0.95)
-            pruned_mod = trainers.minning_function.random_prunning(copy.deepcopy(modality),
-                                                                    multiples_instance=False, target=[], prob=0.5)
-            images_batch = torch.cat((modality.cpu(), pruned_mod.cpu(), pruned_maps.cpu(),output['maps'].data.cpu()))
+
+            pruned_maps = trainers.minning_function.random_prunning({'maps': output['maps'], 'gt': auto.Variable(modality)},
+                                                                    multiples_instance=False, target=['maps'], mask=['gt'])
+            #pruned_mod = trainers.minning_function.random_prunning(copy.deepcopy(modality),
+            #                                                        multiples_instance=False, target=[], prob=0.5)
+            images_batch = torch.cat((modality.cpu(), pruned_maps.data.cpu(), output['maps'].data.cpu()))
             '''
             images_batch = torch.cat((modality.cpu(), output['maps'].data.cpu()))
+            '''
             diff_map = torch.abs(modality.cpu()-output['maps'].data.cpu())
-            grid = torchvis.utils.make_grid(images_batch, nrow=4)
+            grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
             plt.figure(1)
             if images_batch.size(1) == 1:
                 plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
@@ -458,7 +457,7 @@ class MultNet(Default):
                 plt.imshow(grid.numpy().transpose(1, 2, 0))
             plt.colorbar()
             plt.figure(2)
-            grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=4)
+            grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=batch_size)
             plt.imshow(grid.numpy().transpose(1, 2, 0))
             """
             plt.figure(3)
