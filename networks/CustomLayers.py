@@ -32,7 +32,6 @@ class IndexEmbedding(nn.Module):
             self.embedding.weight.requires_grad = False
 
     def forward(self, feature):
-
         ori_size = feature.size()
 
         feature = (feature - self.min_value)/self.amplitude # Index normalization [0,1]
@@ -47,7 +46,7 @@ class IndexEmbedding(nn.Module):
         if self.trainable:
             return self.embedding.parameters()
         else:
-            return nn.Parameter()
+            yield nn.Parameter()
 
     def named_parameters(self, memo=None, prefix=''):
         if self.trainable:
