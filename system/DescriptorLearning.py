@@ -56,8 +56,22 @@ class Default(BaseClass.Base):
         net = self.creat_network(self.network_params)
         self.trainer_params['param_class'].update(net)
         self.trainer = eval(self.trainer_params['class'])(**self.trainer_params['param_class'])
+        init_weights = self.network_params.get('init_weights', dict())
+
+
         if self.score_file is not None:
             self.load()
+        elif self.curr_epoch == 0:
+            self.load_initial_net(init_weights)
+
+    def load_initial_net(self, init_weights):
+        for net_part_name, weight_path in init_weights.items():
+            logger.info(
+                'Loading pretrained weights {} for network {} (part {})'.format(weight_path, name_network,
+                                                                                net_part_name))
+            getattr(self.trainer.network, net_part_name).load_state_dict(
+                torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
+            )
 
     @staticmethod
     def creat_network(network_params):
@@ -269,54 +283,6 @@ class Default(BaseClass.Base):
 class Deconv(Default):
     def __init__(self, **kwargs):
         Default.__init__(self, **kwargs)
-        if self.curr_epoch == 0:
-            encoder_weight = self.network_params.get('encoder_weight', False)
-            decoder_weight = self.network_params.get('decoder_weight', False)
-            desc_weight = self.network_params.get('desc_weight', False)
-            aux_desc_weight = self.network_params.get('aux_desc_weight', False)
-            aux_desc_encoder_weight = self.network_params.get('aux_desc_encoder_weight', False)
-            aux_desc_encoder_desc_weight = self.network_params.get('aux_desc_encoder_desc_weight', False)
-            agg_weight = self.network_params.get('agg_weight', False)
-
-            if encoder_weight:
-                logger.info('Loading pretrained encoder: {}'.format(os.environ['CNN_WEIGHTS'] + encoder_weight))
-                self.trainer.network.feature.load_state_dict(
-                    torch.load(os.environ['CNN_WEIGHTS'] + encoder_weight)
-                )
-            if decoder_weight:
-                logger.info('Loading pretrained decoder: {}'.format(os.environ['CNN_WEIGHTS'] + decoder_weight))
-                self.trainer.network.deconv.load_state_dict(
-                    torch.load(os.environ['CNN_WEIGHTS'] + decoder_weight)
-                )
-            if desc_weight:
-                logger.info('Loading pretrained desc: {}'.format(os.environ['CNN_WEIGHTS'] + desc_weight))
-                self.trainer.network.descriptor.load_state_dict(
-                    torch.load(os.environ['CNN_WEIGHTS'] + desc_weight)
-                )
-            if aux_desc_weight:
-                logger.info('Loading pretrained aux desc: {}'.format(os.environ['CNN_WEIGHTS'] + aux_desc_weight))
-                self.trainer.network.aux_descriptor.load_state_dict(
-                    torch.load(os.environ['CNN_WEIGHTS'] + aux_desc_weight)
-                )
-            if aux_desc_encoder_weight:
-                logger.info('Loading pretrained aux desc encoder: {}'.format(
-                    os.environ['CNN_WEIGHTS'] + aux_desc_encoder_weight
-                ))
-                for name, part in self.trainer.network.aux_descriptor.named_children():
-                    if name  == 'feat':
-                        part.load_state_dict(torch.load(os.environ['CNN_WEIGHTS'] + aux_desc_encoder_weight))
-            if aux_desc_encoder_desc_weight:
-                logger.info('Loading pretrained aux desc encoder desc: {}'.format(
-                    os.environ['CNN_WEIGHTS'] + aux_desc_encoder_desc_weight
-                ))
-                for name, part in self.trainer.network.aux_descriptor.named_children():
-                    if name  == 'agg':
-                        part.load_state_dict(torch.load(os.environ['CNN_WEIGHTS'] + aux_desc_encoder_desc_weight))
-            if agg_weight:
-                logger.info('Loading pretrained agg: {}'.format(os.environ['CNN_WEIGHTS'] + agg_weight))
-                self.trainer.network.feat_agg.load_state_dict(
-                    torch.load(os.environ['CNN_WEIGHTS'] + agg_weight)
-                )
 
     def map_print(self, final=False):
         tmp_net = copy.deepcopy(self.trainer.network)
@@ -395,6 +361,15 @@ class MultNet(Default):
                     getattr(self.trainer.networks[name_network], net_part_name).load_state_dict(
                         torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
                     )
+
+    def load_initial_net(self, init_weights):
+        for name_network, net_part in init_weights.items():
+            for net_part_name, weight_path in net_part.items():
+                logger.info('Loading pretrained weights {} for network {} (part {})'.format(weight_path, name_network,
+                                                                                            net_part_name))
+                getattr(self.trainer.networks[name_network], net_part_name).load_state_dict(
+                    torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
+                )
 
     @staticmethod
     def creat_network(networks_params):
