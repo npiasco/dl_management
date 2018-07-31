@@ -1,0 +1,18 @@
+Main:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        agg_method: 'NetVLAD'
+        agg_method_param:
+            bias: True
+            cluster_size: 64
+            feature_size: 256
+            load: 'kmeans_64_clusters_norelu_normdata.pth'
+            alpha: 60
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: True
+            end_relu: False
+            batch_norm: False
+            jet_tf: False
+            jet_tf_is_trainable: False
+        layers_to_train: 'up_to_conv4'
