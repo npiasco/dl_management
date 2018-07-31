@@ -260,25 +260,10 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         variables = {'batch': batch}
         sumed_loss = 0
         for action in self.training_pipeline:
-            if action['mode'] == 'batch_forward':
-                variables[action['out_name']] = action['func'](
-                    self.networks[action['net_name']],
-                    variables,
-                    cuda_func=self.cuda_func,
-                    **action['param']
-                )
-            elif action['mode'] == 'forward':
-                variables[action['out_name']] = action['func'](
-                    self.networks[action['net_name']],
-                    variables,
-                    **action['param']
-                )
-            elif action['mode'] == 'minning':
-                variables[action['out_name']] = action['func'](
-                    variables,
-                    **action['param']
-                )
-            elif action['mode'] == 'loss':
+
+            variables = self._sequential_forward(action, variables)
+
+            if action['mode'] == 'loss':
                 input_args = [recc_acces(variables, name) for name in action['args']]
                 val = action['func'](*input_args, **action['param'])
                 sumed_loss += val
@@ -294,13 +279,28 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                     for params in self.networks[name].get_training_layers():
                         for param in params['params']:
                             param.requires_grad = False
-            """
-            if 'adver_true_query' in variables.keys() and not variables['adver_true_query']._backward_hooks:
-                variables['adver_true_query'].register_hook(lambda x: print('adver_true_query', x))
-            if 'adver_false_query' in variables.keys() and not variables['adver_false_query']._backward_hooks:
-                variables['adver_false_query'].register_hook(lambda x: print('adver_false_query', x))
-            """
 
+    def _sequential_forward(self, action, variables):
+        if action['mode'] == 'batch_forward':
+            variables[action['out_name']] = action['func'](
+                self.networks[action['net_name']],
+                variables,
+                cuda_func=self.cuda_func,
+                **action['param']
+            )
+        elif action['mode'] == 'forward':
+            variables[action['out_name']] = action['func'](
+                self.networks[action['net_name']],
+                variables,
+                **action['param']
+            )
+        elif action['mode'] == 'minning':
+            variables[action['out_name']] = action['func'](
+                variables,
+                **action['param']
+            )
+
+        return variables
 
     def eval(self, **kwargs):
         dataset = kwargs.pop('dataset', None)
@@ -358,19 +358,8 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         for dataloader in (dataset_loader, queries_loader):
             for batch in tqdm.tqdm(dataloader):
                 variables = {'batch': batch}
-                for fd in self.eval_forwards['dataset']:
-                    if fd['mode'] == 'batch_forward':
-                        variables[fd['out_name']] = fd['func'](
-                            networks[fd['net_name']],
-                            variables,
-                            cuda_func=self.cuda_func,
-                            **fd['param']
-                        )
-                    elif fd['mode'] == 'minning':
-                        variables[fd['out_name']] = fd['func'](
-                            variables,
-                            **fd['param']
-                        )
+                for action in self.eval_forwards['dataset']:
+                    variables = self._sequential_forward(action, variables)
 
                 errors.append(
                     loss_func.l1_modal_loss(
@@ -394,13 +383,9 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         logger.info('Computing dataset feats')
         for batch in tqdm.tqdm(dataset_loader):
             variables = {'batch': batch}
-            for fd in self.eval_forwards['dataset']:
-                variables[fd['out_name']] = fd['func'](
-                    networks[fd['net_name']],
-                    variables,
-                    cuda_func=self.cuda_func,
-                    **fd['param']
-                )
+            for action in self.eval_forwards['dataset']:
+                variables = self._sequential_forward(action, variables)
+
             final_desc = recc_acces(variables, self.eval_final_desc)
             dataset_feats.append((final_desc[0].cpu().data.numpy(), batch['coord'].cpu().numpy()))
 
@@ -408,13 +393,9 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         ranked = list()
         for query in tqdm.tqdm(queries_loader):
             variables = {'batch': query}
-            for fd in self.eval_forwards['queries']:
-                variables[fd['out_name']] = fd['func'](
-                    networks[fd['net_name']],
-                    variables,
-                    cuda_func=self.cuda_func,
-                    **fd['param']
-                )
+            for action in self.eval_forwards['queries']:
+                variables = self._sequential_forward(action, variables)
+
             feat = recc_acces(variables, self.eval_final_desc)[0].cpu().data.numpy()
 
             gt_pos = query['coord'].cpu().numpy()
