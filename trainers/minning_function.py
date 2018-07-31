@@ -146,11 +146,11 @@ def batch_forward(net, batch, **kwargs):
     batch = batch['batch']
 
     if mode == 'query':
-        forward = net(auto.Variable(cuda_func(recc_acces(batch, target)), requires_grad=True))
+        forward = net(auto.Variable(cuda_func(recc_acces(batch, target)), requires_grad=False))
     else:
         forward = dict()
         for sub_batch in batch[mode]:
-            outputs = net(auto.Variable(cuda_func(recc_acces(sub_batch, target)), requires_grad=True))
+            outputs = net(auto.Variable(cuda_func(recc_acces(sub_batch, target)), requires_grad=False))
             for name, output in outputs.items():
                 if name in forward.keys():
                     forward[name].append(output)
