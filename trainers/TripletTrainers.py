@@ -261,7 +261,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         sumed_loss = 0
         for action in self.training_pipeline:
 
-            variables = self._sequential_forward(action, variables)
+            variables = self._sequential_forward(action, variables, self.networks)
 
             if action['mode'] == 'loss':
                 input_args = [recc_acces(variables, name) for name in action['args']]
@@ -280,17 +280,17 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                         for param in params['params']:
                             param.requires_grad = False
 
-    def _sequential_forward(self, action, variables):
+    def _sequential_forward(self, action, variables, networks):
         if action['mode'] == 'batch_forward':
             variables[action['out_name']] = action['func'](
-                self.networks[action['net_name']],
+                networks[action['net_name']],
                 variables,
                 cuda_func=self.cuda_func,
                 **action['param']
             )
         elif action['mode'] == 'forward':
             variables[action['out_name']] = action['func'](
-                self.networks[action['net_name']],
+                networks[action['net_name']],
                 variables,
                 **action['param']
             )
@@ -384,7 +384,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         for batch in tqdm.tqdm(dataset_loader):
             variables = {'batch': batch}
             for action in self.eval_forwards['dataset']:
-                variables = self._sequential_forward(action, variables)
+                variables = self._sequential_forward(action, variables, networks)
 
             final_desc = recc_acces(variables, self.eval_final_desc)
             dataset_feats.append((final_desc[0].cpu().data.numpy(), batch['coord'].cpu().numpy()))
@@ -394,7 +394,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         for query in tqdm.tqdm(queries_loader):
             variables = {'batch': query}
             for action in self.eval_forwards['queries']:
-                variables = self._sequential_forward(action, variables)
+                variables = self._sequential_forward(action, variables, networks)
 
             feat = recc_acces(variables, self.eval_final_desc)[0].cpu().data.numpy()
 
