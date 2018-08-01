@@ -403,17 +403,19 @@ class MultNet(Default):
                     requires_grad=False
                 )
             )
+            '''
             print(output['desc'])
 
             pruned_maps = trainers.minning_function.random_prunning({'maps': output['maps'], 'gt': auto.Variable(modality)},
                                                                     multiples_instance=False, target=['maps'], mask=['gt'])
-            #pruned_mod = trainers.minning_function.random_prunning(copy.deepcopy(modality),
-            #                                                        multiples_instance=False, target=[], prob=0.5)
+            pruned_mod = trainers.minning_function.random_prunning(copy.deepcopy(modality),
+                                                                    multiples_instance=False, target=[], prob=0.5)
             images_batch = torch.cat((modality.cpu(), pruned_maps.data.cpu(), output['maps'].data.cpu()))
             '''
-            images_batch = torch.cat((modality.cpu(), output['maps'].data.cpu()))
-            '''
+
             diff_map = torch.abs(modality.cpu()-output['maps'].data.cpu())
+            images_batch = torch.cat((modality.cpu(), output['maps'].data.cpu(), diff_map))
+
             grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
             plt.figure(1)
             if images_batch.size(1) == 1:
