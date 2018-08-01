@@ -1,0 +1,131 @@
+class: 'trainers.TripletTrainers.MultNetTrainer'
+param_class:
+    cuda_on: True
+    val_num_workers: 8
+    optimizers_params:
+        main_trainer:
+            associated_net: ['Main',]
+            optimizer_type: ADAM
+            param:
+                lr: 0.0002
+                weight_decay: 0.001
+    training_pipeline:
+        [
+            {
+                mode: batch_forward,
+                func: minning.batch_to_var,
+                param: {mode: 'query', target: ['query'], mult_mod: True},
+                net_name: 'Main',
+                out_name: 'var_query'
+            },
+            {
+                mode: batch_forward,
+                func: minning.batch_to_var,
+                param: {mode: 'positives', target: [], mult_mod: True},
+                net_name: 'Main',
+                out_name: 'var_positives'
+            },
+            {
+                mode: batch_forward,
+                func: minning.batch_to_var,
+                param: {mode: 'negatives', target: [], mult_mod: True},
+                net_name: 'Main',
+                out_name: 'var_negatives'
+            },
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['var_query', 'rgb' ], ]},
+                net_name: 'Main',
+                out_name: 'forwarded_main_query'
+            },
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: true, input_targets: [['var_positives', 'rgb' ], ]},
+                net_name: 'Main',
+                out_name: 'forwarded_main_pos'
+            },
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: true, input_targets: [['var_negatives', 'rgb' ], ]},
+                net_name: 'Main',
+                out_name: 'forwarded_main_neg'
+            },
+            {
+                mode: loss,
+                name: 'l1_loss_pos',
+                func: 'loss_func.l1_modal_loss',
+                args: [['forwarded_main_pos', 'maps'], ['var_positives', 'mono_depth']],
+                param:{p: 1, listed_maps: True, factor: 1}
+            },
+            {
+                mode: loss,
+                name: 'l1_loss_neg',
+                func: 'loss_func.l1_modal_loss',
+                args: [['forwarded_main_neg', 'maps'], ['var_negatives', 'mono_depth']],
+                param:{p: 1, listed_maps: True, factor: 1}
+            },
+            {
+                mode: loss,
+                name: 'l1_loss_query',
+                func: 'loss_func.l1_modal_loss',
+                args: [['forwarded_main_query', 'maps'], ['var_query', 'mono_depth']],
+                param:{p: 1, listed_maps: False, factor: 1}
+            },
+            {
+                mode: backprop,
+                name: 'main_backprop',
+                trainer: 'main_trainer'
+            },
+        ]
+    eval_forwards:
+        dataset:
+            [
+                {
+                    mode: 'batch_forward',
+                    func: minning.batch_to_var,
+                    param: {mode: 'query', target: [], mult_mod: True},
+                    net_name: 'Main',
+                    out_name: 'var'
+                },
+                {
+                    mode: 'forward',
+                    func: 'minning.custom_forward',
+                    param: {input_targets: [['var', 'rgb'],]},
+                    net_name: 'Main',
+                    out_name: 'output'
+                },
+            ]
+        queries:
+            [
+                {
+                    mode: 'batch_forward',
+                    func: minning.batch_to_var,
+                    param: {mode: 'query', target: [], mult_mod: True},
+                    net_name: 'Main',
+                    out_name: 'var'
+                },
+                {
+                    mode: 'forward',
+                    func: 'minning.custom_forward',
+                    param: {input_targets: [['var', 'rgb'],]},
+                    net_name: 'Main',
+                    out_name: 'output'
+                },
+            ]
+    eval_final_desc: [['output', 'maps'], ['var', 'mono_depth']]
+
+eval_class: 'score.Functions.Reconstruction_Error'
+param_eval_class:
+    pooling_type: mean
+test_func:
+    mean:
+        class: 'score.Functions.Reconstruction_Error'
+        param_class:
+            pooling_type: mean
+    med:
+        class: 'score.Functions.Reconstruction_Error'
+        param_class:
+            pooling_type: median
