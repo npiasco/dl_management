@@ -1,0 +1,223 @@
+class: 'trainers.TripletTrainers.MultNetTrainer'
+param_class:
+    cuda_on: True
+    val_num_workers: 8
+    optimizers_params:
+        main_trainer:
+            associated_net: ['Main', 'Aux', 'Fuse']
+            optimizer_type: ADAM
+            param:
+                lr: 0.0001
+                weight_decay: 0.001
+    training_pipeline:
+        [
+            {
+             mode: 'forward',
+             func: minning.batch_to_var,
+             param: {mode: 'query', target: ['query'], mult_mod: True},
+             net_name: 'Main',
+             out_name: 'var_query'
+            },
+            {
+             mode: 'forward',
+             func: minning.batch_to_var,
+             param: {mode: 'positives', target: [], mult_mod: True},
+             net_name: 'Main',
+             out_name: 'var_pos'
+            },
+            {
+             mode: 'forward',
+             func: minning.batch_to_var,
+             param: {mode: 'negatives', target: [], mult_mod: True},
+             net_name: 'Main',
+             out_name: 'var_neg'
+            },
+
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['var_query', 'rgb'], ]},
+             net_name: 'Main',
+             out_name: 'main_forwd_query'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['var_query', 'mono_depth'], ]},
+             net_name: 'Aux',
+             out_name: 'aux_forwd_query'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['main_forwd_query', 'desc'], ['aux_forwd_query', 'desc'], ], multiples_instance: False},
+             net_name: 'Fuse',
+             out_name: 'forwd_query'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['var_pos', 'rgb'], ], multiples_instance: True},
+             net_name: 'Main',
+             out_name: 'main_forwd_pos'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['var_pos', 'mono_depth'], ], multiples_instance: True},
+             net_name: 'Aux',
+             out_name: 'aux_forwd_pos'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['main_forwd_pos', 'desc'], ['aux_forwd_pos', 'desc'], ], multiples_instance: True},
+             net_name: 'Fuse',
+             out_name: 'forwd_pos'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['var_neg', 'rgb'], ], multiples_instance: True},
+             net_name: 'Main',
+             out_name: 'main_forwd_neg'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['var_neg', 'mono_depth'], ], multiples_instance: True},
+             net_name: 'Aux',
+             out_name: 'aux_forwd_neg'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['main_forwd_neg', 'desc'],['aux_forwd_neg', 'desc'], ], multiples_instance: True},
+             net_name: 'Fuse',
+             out_name: 'forwd_neg'
+            },
+            {
+             mode: 'minning',
+             func: 'minning.general_hard_minning',
+             param: {n_ex: 1, mode: positives, anchor_getter: ['forwd_query'], example_getter: ['forwd_pos']},
+             out_name: 'hard_pos'
+            },
+            {
+             mode: 'minning',
+             func: 'minning.general_hard_minning',
+             param: {n_ex: 10, mode: negatives, anchor_getter: ['forwd_query'], example_getter: ['forwd_neg']},
+             out_name: 'hard_neg'
+            },
+            {
+             mode: 'loss',
+             name: 'triplet_loss',
+             func: 'loss_func.adaptive_triplet_loss',
+             args: [['forwd_query'], ['hard_pos'], ['hard_neg']],
+             param:{margin: 0.1, swap: true}
+            },
+            {
+             mode: 'backprop',
+             name: 'main_backprop',
+             trainer: 'main_trainer',
+            },
+        ]
+    eval_forwards:
+        dataset:
+            [
+                {
+                 mode: 'batch_forward',
+                 func: minning.batch_to_var,
+                 param: {mode: 'query', target: [], mult_mod: True},
+                 net_name: 'Main',
+                 out_name: 'var_query'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['var_query', 'rgb'],]},
+                 net_name: 'Main',
+                 out_name: 'main_desc'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['var_query', 'mono_depth'],]},
+                 net_name: 'Aux',
+                 out_name: 'aux_desc'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['main_desc'], ['aux_desc']]},
+                 net_name: 'Fuse',
+                 out_name: 'desc'
+                },
+            ]
+        queries:
+            [
+                {
+                 mode: 'batch_forward',
+                 func: minning.batch_to_var,
+                 param: {mode: 'query', target: [], mult_mod: True},
+                 net_name: 'Main',
+                 out_name: 'var_query'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['var_query', 'rgb'],]},
+                 net_name: 'Main',
+                 out_name: 'main_desc'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['var_query', 'mono_depth'],]},
+                 net_name: 'Aux',
+                 out_name: 'aux_desc'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['main_desc'], ['aux_desc']]},
+                 net_name: 'Fuse',
+                 out_name: 'desc'
+                },
+            ]
+    eval_final_desc: ['desc']
+
+eval_class: 'score.Functions.MeanRecallAtN'
+param_eval_class:
+    n: 5
+    radius: 25
+test_func:
+    default:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 1
+            radius: 25
+    r5:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 5
+            radius: 25
+    r10:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 10
+            radius: 25
+    mr25:
+        class: 'score.Functions.MeanRecallAtN'
+        param_class:
+            n: 25
+            radius: 25
+    mean_recall:
+        class: 'score.Functions.MeanRecallAtN'
+        param_class:
+            n: 50
+            radius: 25
+    recall:
+        class: 'score.Functions.Recall'
+        param_class:
+            n: 50
+            radius: 25

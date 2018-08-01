@@ -1,0 +1,42 @@
+Main:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        agg_method: 'RMAC'
+        agg_method_param:
+            norm: True
+            R: 1
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: True
+            end_relu: False
+            batch_norm: False
+            jet_tf: False
+            jet_tf_is_trainable: False
+        layers_to_train: 'up_to_conv3'
+
+Aux:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        agg_method: 'RMAC'
+        agg_method_param:
+            norm: True
+            R: 1
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: True
+            end_relu: False
+            batch_norm: False
+            jet_tf: True
+            jet_tf_is_trainable: False
+        layers_to_train: 'all'
+
+Fuse:
+    class: 'networks.FeatAggregation.Concat'
+    param_class:
+        norm: False
+
+init_weights:
+        Main:
+            feat: '../DescLearning/SummerTests/RGB/MultNet/Alexnet/MAC/Main_feat.pth'
+        Aux:
+            feat: '../DescLearning/SummerTests/D/MultNet/Alexnet/MAC/Main_feat.pth'
