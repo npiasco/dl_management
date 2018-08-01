@@ -11,7 +11,6 @@ import system.DescriptorLearning as System
 
 
 if __name__ == '__main__':
-    print(os.getcwd())
     machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])],
                              dataset_file='../../../../datasets/default.yaml',
                              trainer_file='../trainer.yaml')

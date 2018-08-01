@@ -116,6 +116,44 @@ param_class:
              param:{margin: 0.1, swap: true}
             },
             {
+             mode: 'minning',
+             func: 'minning.general_hard_minning',
+             param: {n_ex: 1, mode: positives, anchor_getter: ['main_forwd_query', 'desc'], example_getter: ['main_forwd_pos', 'desc']},
+             out_name: 'hard_pos_main'
+            },
+            {
+             mode: 'minning',
+             func: 'minning.general_hard_minning',
+             param: {n_ex: 10, mode: negatives, anchor_getter: ['main_forwd_query', 'desc'], example_getter: ['main_forwd_neg', 'desc']},
+             out_name: 'hard_neg_main'
+            },
+            {
+             mode: 'loss',
+             name: 'main_triplet_loss',
+             func: 'loss_func.adaptive_triplet_loss',
+             args: [['main_forwd_query', 'desc'], ['hard_pos_main'], ['hard_neg_main']],
+             param:{margin: 0.1, swap: true}
+            },
+            {
+             mode: 'minning',
+             func: 'minning.general_hard_minning',
+             param: {n_ex: 1, mode: positives, anchor_getter: ['aux_forwd_query', 'desc'], example_getter: ['aux_forwd_pos', 'desc']},
+             out_name: 'hard_pos_aux'
+            },
+            {
+             mode: 'minning',
+             func: 'minning.general_hard_minning',
+             param: {n_ex: 10, mode: negatives, anchor_getter: ['aux_forwd_query', 'desc'], example_getter: ['aux_forwd_neg', 'desc']},
+             out_name: 'hard_neg_aux'
+            },
+            {
+             mode: 'loss',
+             name: 'aux_triplet_loss',
+             func: 'loss_func.adaptive_triplet_loss',
+             args: [['aux_forwd_query', 'desc'], ['hard_pos_aux'], ['hard_neg_aux']],
+             param:{margin: 0.1, swap: true}
+            },
+            {
              mode: 'backprop',
              name: 'main_backprop',
              trainer: 'main_trainer',
