@@ -169,23 +169,33 @@ def diversification_loss(anchor, positives, negatives, **kwargs):
     return loss
 
 
-def GANLoss(input, **kwargs):
+def GANLoss(*input, **kwargs):
     target_is_real = kwargs.pop('target_is_real', None)
     factor =  kwargs.pop('factor', 1.0)
     mse = kwargs.pop('mse', False)
+    multiples_instance = kwargs.pop('multiples_instance', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
+    if multiples_instance:
+        f_input = list()
+        for seq in input:
+            if isinstance(seq, list):
+                f_input += seq
+            else:
+                f_input.append(seq)
+        input = torch.cat(f_input, 0)
+
     if target_is_real:
-        target_tensor = torch.Tensor([rand.uniform(0.0,0.2)])
+        target_tensor = torch.rand(input.size())*0.2
     else:
-        target_tensor = torch.Tensor([rand.uniform(0.8,1.0)])
+        target_tensor =  torch.rand(input.size())*0.2 + 0.8
 
     if input.is_cuda:
         target_tensor = target_tensor.cuda()
 
-    target_tensor = auto.Variable(target_tensor.expand_as(input))
+    target_tensor = auto.Variable(target_tensor)
     if mse:
         loss = func.mse_loss(input, target_tensor) * factor
     else:

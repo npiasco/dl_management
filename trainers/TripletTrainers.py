@@ -359,7 +359,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             for batch in tqdm.tqdm(dataloader):
                 variables = {'batch': batch}
                 for action in self.eval_forwards['dataset']:
-                    variables = self._sequential_forward(action, variables)
+                    variables = self._sequential_forward(action, variables, networks)
 
                 errors.append(
                     loss_func.l1_modal_loss(
