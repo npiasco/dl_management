@@ -67,8 +67,7 @@ class Default(BaseClass.Base):
     def load_initial_net(self, init_weights):
         for net_part_name, weight_path in init_weights.items():
             logger.info(
-                'Loading pretrained weights {} for network {} (part {})'.format(weight_path, name_network,
-                                                                                net_part_name))
+                'Loading pretrained weights {} (part {})'.format(weight_path, net_part_name))
             getattr(self.trainer.network, net_part_name).load_state_dict(
                 torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
             )
@@ -352,15 +351,6 @@ class Deconv(Default):
 class MultNet(Default):
     def __init__(self, **kwargs):
         Default.__init__(self, **kwargs)
-        init_weights = self.network_params.get('init_weights', dict())
-
-        if self.curr_epoch == 0:
-            for name_network, net_part in init_weights.items():
-                for net_part_name, weight_path in net_part.items():
-                    logger.info('Loading pretrained weights {} for network {} (part {})'.format(weight_path, name_network, net_part_name))
-                    getattr(self.trainer.networks[name_network], net_part_name).load_state_dict(
-                        torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
-                    )
 
     def load_initial_net(self, init_weights):
         for name_network, net_part in init_weights.items():
