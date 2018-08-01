@@ -212,11 +212,18 @@ def custom_forward(net, outputs, **kwargs):
                 tmp_input = [inp[i].detach() for inp in inputs]
             else:
                 tmp_input = [inp[i] for inp in inputs]
-            for name_out, out in net(*tmp_input).items():
-                if name_out in forward.keys():
-                    forward[name_out].append(out)
-                else:
-                    forward[name_out] = [out]
+            forwarded = net(*tmp_input)
+            if isinstance(forwarded, dict):
+                for name_out, out in forwarded.items():
+                    if name_out in forward.keys():
+                        forward[name_out].append(out)
+                    else:
+                        forward[name_out] = [out]
+            elif isinstance(forward, dict):
+                forward = [forwarded]
+            else:
+                forward.append(forwarded)
+
     else:
         if detach_inputs:
             inputs = [inp.detach() for inp in inputs]
