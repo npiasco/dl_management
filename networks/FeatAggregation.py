@@ -28,6 +28,10 @@ class GatedFuse(nn.Module):
                 nn.Sigmoid()
             )
 
+    def get_training_layers(self):
+        return [{'params': self.gate.parameters()}]
+
+
     def forward(self, x1, x2):
         x_cat = torch.cat((x1, x2), dim=1)
 
@@ -64,3 +68,6 @@ class Concat(nn.Module):
             x = func.normalize(x)
 
         return x
+
+    def get_training_layers(self):
+        return []
