@@ -6,6 +6,7 @@ import torch
 import networks.Alexnet as Alexnet
 import networks.FeatAggregation as FeatAggregation
 
+
 logger = setlog.get_logger(__name__)
 
 
@@ -108,6 +109,7 @@ class Deconv(nn.Module):
         self.unet = kwargs.pop('unet', False)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
         self.return_all_desc = kwargs.pop('return_all_desc', False)
+        self.return_maps = kwargs.pop('return_maps', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -133,6 +135,8 @@ class Deconv(nn.Module):
 
         if feat_agg_method == 'Concat':
             self.feat_agg = FeatAggregation.Concat(**feat_agg_params)
+        elif feat_agg_method == 'Sum':
+            self.feat_agg = FeatAggregation.Sum(**feat_agg_params)
         else:
             raise AttributeError("Unknown feat aggregation method {}".format(feat_agg_method))
 
@@ -172,6 +176,11 @@ class Deconv(nn.Module):
             forward_pass['feat'] = {
                 'main': x_feat_ouput['feat'],
                 'aux': x_deconv_output[self.auxilary_feat]
+            }
+        elif self.return_maps:
+            forward_pass = {
+                'desc': x_desc,
+                'maps': x_deconv_output['maps']
             }
         else:
             forward_pass = x_desc
