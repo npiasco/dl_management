@@ -6,6 +6,7 @@ Main:
         dec_base_param:
             batch_norm: True
             leaky_relu: True
+            upsample: True
 
 Adver:
     class: 'networks.Discriminator.Main'
