@@ -197,8 +197,18 @@ class Deconv(nn.Module):
 
         if upsample:
             base_archi += [
-                ('upsample1', nn.Upsample(size=(224,224), mode='bilinear')),
-                ('conv0', nn.Conv2d(unet_multp * 64, modality_ch, kernel_size=3, stride=1, padding=1)),
+                ('deconv0', nn.ConvTranspose2d(unet_multp * 64, modality_ch, kernel_size=6, stride=2, padding=2,
+                                               output_padding=1)),
+                ('deconv1', nn.ConvTranspose2d(modality_ch, modality_ch, kernel_size=7, stride=2, padding=2,
+                                               output_padding=1)),
+                ('tanh', nn.Tanh())
+            ]
+        if upsample:
+            base_archi += [
+                ('deconv0', nn.ConvTranspose2d(unet_multp * 64, modality_ch, kernel_size=6, stride=2, padding=2,
+                                               output_padding=1)),
+                ('deconv1', nn.ConvTranspose2d(modality_ch, modality_ch, kernel_size=7, stride=2, padding=2,
+                                               output_padding=1)),
                 ('tanh', nn.Tanh())
             ]
         else:
@@ -311,19 +321,16 @@ if __name__ == '__main__':
     feat_output = net(auto.Variable(tensor_input).cuda())
     print(feat_output.size())
     print(net.down_ratio)
-    '''
-    conv = Feat(indices=True, res=True).cuda()
-    deconv = Deconv(res=True).cuda()
+
+    conv = Feat(indices=True, res=True, end_max_polling=True).cuda()
+    deconv = Deconv(res=True, upsample=True).cuda()
 
     output_conv = conv(auto.Variable(tensor_input).cuda())
+
     returned_maps = deconv(output_conv['output'],
-                  id1=output_conv['id'][0],
-                  id2=output_conv['id'][1],
-                  id3=output_conv['id'][2],
-                  res1=output_conv['res'][0],
-                  res2=output_conv['res'][1]
+                  id=output_conv['id'],
+                  res=output_conv['res'],
                   )
 
-    print(returned_maps['deconv0'].size())
-    print(returned_maps.keys())
-    '''
+    print(returned_maps['maps'].size())
+    #print(returned_maps.keys())
