@@ -9,25 +9,26 @@ param_class:
             param:
                 lr: 0.0001
                 weight_decay: 0.001
+
     training_pipeline:
         [
             # ----------------BATCH TO VAR------------------ #
             {
-             mode: 'forward',
+             mode: 'batch_forward',
              func: minning.batch_to_var,
              param: {mode: 'query', target: ['query'], mult_mod: True},
              net_name: 'Main',
              out_name: 'var_query'
             },
             {
-             mode: 'forward',
+             mode: 'batch_forward',
              func: minning.batch_to_var,
              param: {mode: 'positives', target: [], mult_mod: True},
              net_name: 'Main',
              out_name: 'var_pos'
             },
             {
-             mode: 'forward',
+             mode: 'batch_forward',
              func: minning.batch_to_var,
              param: {mode: 'negatives', target: [], mult_mod: True},
              net_name: 'Main',
