@@ -78,7 +78,10 @@ class Main(nn.Module):
 
         return train_parameters
 
-    def full_save(self):
+    def full_save(self, discard_tf=False):
+        if discard_tf:
+            del self.feature.base_archi['jet_tf']
+            self.feature.feature = nn.Sequential(self.feature.base_archi)
         return {'feature': self.feature.state_dict(),
                 'descriptor': self.descriptor.state_dict()}
 
@@ -227,7 +230,11 @@ class Deconv(nn.Module):
             layers_to_train = self.layers_to_train
         return sub_layers(layers_to_train)
 
-    def full_save(self):
+    def full_save(self, discard_tf=False):
+        if discard_tf:
+            del self.feature.base_archi['jet_tf']
+            self.feature.feature = nn.Sequential(self.feature.base_archi)
+
         return {'feature': self.feature.state_dict(),
                 'deconv': self.deconv.state_dict(),
                 'descriptor': self.descriptor.state_dict(),
@@ -274,6 +281,7 @@ if __name__ == '__main__':
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'].size())
     print(net.get_training_layers('only_jet'))
+    net.full_save(discard_tf=True)
 
     """
     net = Deconv(agg_method='RMAC',

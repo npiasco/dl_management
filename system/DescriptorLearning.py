@@ -370,16 +370,19 @@ class MultNet(Default):
 
         return {'networks': existings_networks}
 
-    def serialize_net(self, final=False):
+    def serialize_net(self, final=False, discard_tf=False):
         nets_to_test = dict()
         for net_name, network in self.trainer.networks.items():
             nets_to_test[net_name] = copy.deepcopy(network)
             if not final:
                 nets_to_test[net_name].load_state_dict(self.trainer.best_net[1][net_name])
 
-            serlz = nets_to_test[net_name].cpu().full_save()
+            serlz = nets_to_test[net_name].cpu().full_save(discard_tf=discard_tf)
             for part_name, data in serlz.items():
-                torch.save(data, net_name + '_' + part_name + '.pth')
+                serialization_name = net_name + '_' + part_name + '.pth'
+                if discard_tf:
+                    serialization_name = 'NoJet_' + serialization_name
+                torch.save(data, serialization_name)
 
     def map_print(self, net_name, final=False, mod='rgb', aux_mod='mono_depth', batch_size=4):
         tmp_net = copy.deepcopy(self.trainer.networks[net_name])
@@ -387,25 +390,28 @@ class MultNet(Default):
         if not final:
             tmp_net.load_state_dict(self.trainer.best_net[1][net_name])
         self.data['train'].used_mod = self.training_mod
-        dtload = data.DataLoader(self.data['train'], batch_size=batch_size)
+        #dtload = data.DataLoader(self.data['train'], batch_size=batch_size)
+        dtload = data.DataLoader(self.data['test']['data'], batch_size=batch_size)
         plt.figure(1)
         plt.figure(2)
         ccmap = plt.get_cmap('jet', lut=1024)
 
         for b in dtload:
-            main_mod = b['query'][mod].contiguous().view(batch_size, 3, 224, 224)
-            modality = b['query'][aux_mod].contiguous().view(batch_size, -1, 224, 224)
+            #main_mod = b['query'][mod].contiguous().view(batch_size, 3, 224, 224)
+            #modality = b['query'][aux_mod].contiguous().view(batch_size, -1, 224, 224)
+            main_mod = b[mod].contiguous().view(batch_size, 3, 224, 224)
+            modality = b[aux_mod].contiguous().view(batch_size, -1, 224, 224)
             output = tmp_net(
                 auto.Variable(
                     self.trainer.cuda_func(
-                        b['query'][mod]
+                        #b['query'][mod]
+                        b[mod]
                     ),
                     requires_grad=False
                 )
             )
-            '''
             print(output['desc'])
-
+            '''
             pruned_maps = trainers.minning_function.random_prunning({'maps': output['maps'], 'gt': auto.Variable(modality)},
                                                                     multiples_instance=False, target=['maps'], mask=['gt'])
             pruned_mod = trainers.minning_function.random_prunning(copy.deepcopy(modality),
