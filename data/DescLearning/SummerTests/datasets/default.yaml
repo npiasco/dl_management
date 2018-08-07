@@ -15,7 +15,7 @@ train:
             class: datasets.Robotcar.VBLDataset
             param_class:
                 root: 'training/TrainDataset_05_19_15/'
-                modalities: {rgb: 'pruned_dataset.txt', mono_depth: 'pruned_mono_depth_dataset.txt', depth: 'pruned_mono_depth_dataset.txt'}
+                modalities: {rgb: 'pruned_dataset.txt', mono_depth: 'pruned_mono_dense_depth_dataset.txt', depth: 'pruned_mono_dense_depth_dataset.txt'}
                 coord_file: 'pruned_coordxImbearing.txt'
                 bearing: True
                 transform:
@@ -40,7 +40,7 @@ train:
                 param_class:
                     {
                         root: 'training/TrainDataset_08_28_15/',
-                        modalities: {rgb: 'dataset.txt', mono_depth: 'mono_depth_dataset.txt', depth: 'mono_depth_dataset.txt'},
+                        modalities: {rgb: 'dataset.txt', mono_depth: 'mono_dense_depth_dataset.txt', depth: 'mono_dense_depth_dataset.txt'},
                         coord_file: 'coordxImbearing.txt',
                         bearing: True,
                         transform:
@@ -76,7 +76,7 @@ train:
                 param_class:
                     {
                         root: 'training/TrainDataset_11_10_15/',
-                        modalities: {rgb: 'dataset.txt', mono_depth: 'mono_depth_dataset.txt', depth: 'mono_depth_dataset.txt'},
+                        modalities: {rgb: 'dataset.txt', mono_depth: 'mono_dense_depth_dataset.txt', depth: 'mono_dense_depth_dataset.txt'},
                         coord_file: 'coordxImbearing.txt',
                         bearing: True,
                         transform:
