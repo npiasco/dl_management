@@ -139,7 +139,7 @@ val:
         class: datasets.Robotcar.VBLDataset
         param_class:
             root: 'training/TrainDataset_05_19_15/'
-            modalities: {rgb: 'val_pruned_dataset.txt', depth: 'val_pruned_mono_depth_dataset.txt', mono_depth: 'val_pruned_mono_depth_dataset.txt'}
+            modalities: {rgb: 'val_pruned_dataset.txt', depth: 'val_pruned_mono_dense_depth_dataset.txt', mono_depth: 'val_pruned_mono_dense_depth_dataset.txt'}
             coord_file: 'val_pruned_coordxIm.txt'
             bearing: False
             transform:
