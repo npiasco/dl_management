@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch
 import networks.Alexnet as Alexnet
 import networks.FeatAggregation as FeatAggregation
+import networks.ResNet as Resnet
 
 
 logger = setlog.get_logger(__name__)
@@ -30,6 +31,8 @@ class Main(nn.Module):
 
         if base_archi == 'Alexnet':
             self.feature = Alexnet.Feat(**base_archi_param)
+        elif base_archi == 'Resnet':
+            self.feature = Resnet.Feat(**base_archi_param)
         else:
             raise AttributeError("Unknown base architecture {}".format(base_archi))
 
@@ -267,21 +270,18 @@ if __name__ == '__main__':
 
     tensor_input = torch.rand([5, 1, 224, 224]).cuda()
 
-    net = Main(agg_method='NetVLAD',
-               agg_method_param={
-                   'cluster_size': 64,
-                   'feature_size': 256,
-                   'bias': True
-               },
-               base_archi_param={
-                   'jet_tf': True,
-                   'jet_tf_is_trainable': True
-               }
-               ).cuda()
+    net = Main(
+        base_archi='Resnet',
+        base_archi_param={
+            'num_layer': 50,
+            'jet_tf': True,
+            'jet_tf_is_trainable': False
+        }
+    ).cuda()
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['desc'].size())
-    print(net.get_training_layers('only_jet'))
-    net.full_save(discard_tf=True)
+    #print(net.get_training_layers('only_jet'))
+    #net.full_save(discard_tf=True)
 
     """
     net = Deconv(agg_method='RMAC',
