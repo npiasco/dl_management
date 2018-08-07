@@ -4,5 +4,5 @@ max_epoch: 200
 min_value_to_stop: 25
 num_workers: 8
 sucess_bad_epoch: 2
-testing_mod: [rgb]
-training_mod: [rgb]
+testing_mod: [rgb, mono_depth]
+training_mod: [rgb, mono_depth]

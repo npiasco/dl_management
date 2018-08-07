@@ -33,7 +33,7 @@ Main:
             aux_ratio: 0
             norm: True
 
-        layers_to_train: 'only_deconv'
+        layers_to_train: 'up_to_conv3'
 
 Aux:
     class: 'networks.Descriptor.Main'
@@ -54,12 +54,16 @@ Aux:
 Fuse:
     class: 'networks.FeatAggregation.Concat'
     param_class:
+        aux_ratio: 1.0
+        main_ratio: 1.0
         norm: False
 
-init_weights:
-        Main:
-            feature: '../DescLearning/SummerTests/RGBtoD/Alexnet/L1/Main_feature.pth'
-            deconv: '../DescLearning/SummerTests/RGBtoD/Alexnet/L1/Main_deconv.pth'
-
+#init_weights:
+        #Main:
+            #feature: '../DescLearning/SummerTests/RGB/MultNet/Alexnet/MAC/Main_feature.pth'
+            #feature: '../DescLearning/SummerTests/RGBtoD/Alexnet/L1/Main_feature.pth'
+            #deconv: '../DescLearning/SummerTests/RGBtoD/Alexnet/L1/Main_deconv.pth'
+        #Aux:
+        #    feature: '../DescLearning/SummerTests/RGBtrainD/Alexnet/BUTF/L1/Aux_feature.pth'
 
 

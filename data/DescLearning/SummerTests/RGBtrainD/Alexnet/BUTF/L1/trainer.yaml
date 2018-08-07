@@ -4,7 +4,7 @@ param_class:
     val_num_workers: 8
     optimizers_params:
         main_trainer:
-            associated_net: ['Aux', 'Fuse']
+            associated_net: ['Main', 'Aux', 'Fuse']
             optimizer_type: ADAM
             param:
                 lr: 0.0001
@@ -140,6 +140,24 @@ param_class:
                 },
              out_name: aux_hard_neg
             },
+            {
+             mode: 'minning',
+             func: 'minning.examples_selection',
+             param:
+                {idxs: ['hard_pos', 'idx'],
+                 getter: ['main_forwd_pos', 'desc'],
+                },
+             out_name: main_hard_pos
+            },
+            {
+             mode: 'minning',
+             func: 'minning.examples_selection',
+             param:
+                {idxs: ['hard_neg', 'idx'],
+                 getter: ['main_forwd_neg', 'desc'],
+                },
+             out_name: main_hard_neg
+            },
             # ---------------------------------------------- #
 
             # ----------------MAIN+AUX LOSSES--------------- #
@@ -152,15 +170,44 @@ param_class:
             },
             {
              mode: 'loss',
+             name: 'main_triplet_loss',
+             func: 'loss_func.adaptive_triplet_loss',
+             args: [['main_forwd_query', 'desc'], ['main_hard_pos'], ['main_hard_neg']],
+             param:{margin: 0.1, swap: true}
+            },
+            {
+             mode: 'loss',
              name: 'triplet_loss',
              func: 'loss_func.adaptive_triplet_loss',
              args: [['forwd_query'], ['hard_pos', 'ex'], ['hard_neg', 'ex']],
              param:{margin: 0.1, swap: true}
             },
+            # L1
             {
-             mode: 'backprop',
-             name: 'main_backprop',
-             trainer: 'main_trainer',
+                mode: loss,
+                name: 'l1_loss_pos',
+                func: 'loss_func.l1_modal_loss',
+                args: [['main_forwd_pos', 'maps'], ['var_pos', 'mono_depth']],
+                param:{p: 1, listed_maps: True, factor: 0.3, reg: 0.00001}
+            },
+            {
+                mode: loss,
+                name: 'l1_loss_neg',
+                func: 'loss_func.l1_modal_loss',
+                args: [['main_forwd_neg', 'maps'], ['var_neg', 'mono_depth']],
+                param:{p: 1, listed_maps: True, factor: 0.3, reg: 0.00001}
+            },
+            {
+                mode: loss,
+                name: 'l1_loss_query',
+                func: 'loss_func.l1_modal_loss',
+                args: [['main_forwd_query', 'maps'], ['var_query', 'mono_depth']],
+                param:{p: 1, listed_maps: False, factor: 0.3, reg: 0.00001}
+            },
+            {
+                mode: backprop,
+                name: 'main_backprop',
+                trainer: 'main_trainer'
             },
             # ---------------------------------------------- #
         ]
