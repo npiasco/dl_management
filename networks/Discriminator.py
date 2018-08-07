@@ -97,7 +97,10 @@ class Main(nn.Module):
 
         return train_parameters
 
-    def full_save(self):
+    def full_save(self, discard_tf=False):
+        if discard_tf:
+            del self.feature.base_archi['jet_tf']
+            self.feature.feature = nn.Sequential(self.feature.base_archi)
         return {'feature': self.feature.state_dict(),
                 'classifier': self.classifier.state_dict()}
 
