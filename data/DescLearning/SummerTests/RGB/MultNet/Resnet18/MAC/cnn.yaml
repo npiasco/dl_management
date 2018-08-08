@@ -1,0 +1,15 @@
+Main:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        agg_method: 'RMAC'
+        agg_method_param:
+            norm: True
+            R: 1
+        base_archi: 'Resnet'
+        base_archi_param:
+            load_imagenet: True
+            end_relu: False
+            jet_tf: False
+            jet_tf_is_trainable: False
+            num_layer: 18
+        layers_to_train: 'up_to_conv3'
