@@ -441,6 +441,37 @@ class MultNet(Default):
 
             plt.show()
 
+    def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1):
+        # TODO: PCA whitening like this
+        mod = 'rgb'
+        self.trainer.networks['Main'].train()
+        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
+        logger.info('Computing feats for clustering')
+        feats = list()
+        for example in tqdm.tqdm(dataset_loader):
+            feat = self.trainer.networks['Main'](auto.Variable(self.trainer.cuda_func(example[mod]),
+                                              requires_grad=False))['feat']
+            max_sample = feat.size(2)*feat.size(3)
+            feat = feat.view(feat.size(0), size_feat, max_sample).transpose(1, 2).contiguous()
+            feat = feat.view(-1, size_feat).cpu().data.numpy()
+
+            feats.append(feat)
+
+        logger.info('Normalizing feats')
+        normalized_feats = list()
+        for feature in tqdm.tqdm(feats):
+            normalized_feats += [f.tolist() for f in feature]
+            if len(normalized_feats) >= n_ex:
+                break
+
+        normalized_feats = skpre.normalize(normalized_feats)
+        logger.info('Computing clusters')
+        kmean = skclust.KMeans(n_clusters=size_cluster, n_jobs=jobs)
+        kmean.fit(normalized_feats)
+        torch_clusters = torch.FloatTensor(kmean.cluster_centers_).unsqueeze(0).transpose(1, 2)
+
+        torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_clusters.pth')
+
 
 if __name__ == '__main__':
 
