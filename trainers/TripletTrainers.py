@@ -276,9 +276,18 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 self.optimizers[action['trainer']].step()
                 sumed_loss = 0
                 for name in self.optimizers_params[action['trainer']]['associated_net']:
-                    for params in self.networks[name].get_training_layers():
+                    for params in self.networks[name].get_traianing_layers():
                         for param in params['params']:
                             param.requires_grad = False
+            elif action['mode'] == 'no_grad':
+                for name in self.optimizers_params[action['trainer']]['associated_net']:
+                    for params in self.networks[name].get_traianing_layers('all'):
+                        for param in params['params']:
+                            param.requires_grad = False
+                for name in self.optimizers_params[action['trainer']]['associated_net']:
+                    for params in self.networks[name].get_traianing_layers():
+                        for param in params['params']:
+                            param.requires_grad = True
 
     def _sequential_forward(self, action, variables, networks):
         if action['mode'] == 'batch_forward':
