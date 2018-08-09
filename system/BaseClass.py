@@ -109,10 +109,10 @@ class Base:
                 last_epoch = self.curr_epoch - 1 # self.curr_epoch if self.curr_epoch != 0 else -1
                 if hasattr(self.trainer, 'optimizers'):
                     lr_scheduler = dict()
-                    for name_trainer, t_scheduler in self.lr_scheduler.items():
-                        lr_scheduler[name_trainer] = eval(t_scheduler['class'])(self.trainer.optimizers[name_trainer],
-                                                                                **self.lr_scheduler['param'],
-                                                                                last_epoch=last_epoch)
+                    for name, t_scheduler in self.lr_scheduler.items():
+                        lr_scheduler[name] = eval(self.lr_scheduler['class'])(self.trainer.optimizers[name],
+                                                                              **self.lr_scheduler['param'],
+                                                                              last_epoch=last_epoch)
 
                 else:
                     lr_scheduler = eval(self.lr_scheduler['class'])(self.trainer.optimizer,
