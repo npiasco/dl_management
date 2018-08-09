@@ -111,7 +111,7 @@ class Base:
                     schedulers = dict()
                     for name, t_scheduler in self.lr_scheduler.items():
                         schedulers[name] = eval(t_scheduler['class'])(self.trainer.optimizers[name],
-                                                                      **self.lr_scheduler['param'],
+                                                                      **t_scheduler['param'],
                                                                       last_epoch=last_epoch)
 
                 else:
