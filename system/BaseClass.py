@@ -108,16 +108,16 @@ class Base:
             if self.lr_scheduler is not None:
                 last_epoch = self.curr_epoch - 1 # self.curr_epoch if self.curr_epoch != 0 else -1
                 if hasattr(self.trainer, 'optimizers'):
-                    lr_scheduler = dict()
+                    schedulers = dict()
                     for name, t_scheduler in self.lr_scheduler.items():
-                        lr_scheduler[name] = eval(t_scheduler['class'])(self.trainer.optimizers[name],
-                                                                        **self.lr_scheduler['param'],
-                                                                        last_epoch=last_epoch)
+                        schedulers[name] = eval(t_scheduler['class'])(self.trainer.optimizers[name],
+                                                                      **self.lr_scheduler['param'],
+                                                                      last_epoch=last_epoch)
 
                 else:
-                    lr_scheduler = eval(self.lr_scheduler['class'])(self.trainer.optimizer,
-                                                                    **self.lr_scheduler['param'],
-                                                                    last_epoch=last_epoch)
+                    scheduler = eval(self.lr_scheduler['class'])(self.trainer.optimizer,
+                                                                 **self.lr_scheduler['param'],
+                                                                 last_epoch=last_epoch)
 
 
             for ep in range(self.curr_epoch, self.max_epoch):
@@ -125,12 +125,12 @@ class Base:
 
                 if self.lr_scheduler is not None:
                     if hasattr(self.trainer, 'optimizers'):
-                        for scheduler in lr_scheduler.values():
+                        for scheduler in schedulers.values():
                             scheduler.step()
                             logger.info('Learning rate are {}'.format(scheduler.get_lr()))
                     else:
-                        lr_scheduler.step()
-                        logger.info('Learning rate are {}'.format(lr_scheduler.get_lr()))
+                        scheduler.step()
+                        logger.info('Learning rate are {}'.format(scheduler.get_lr()))
 
                 for b in tqdm.tqdm(dtload):
                     self.trainer.train(b)
