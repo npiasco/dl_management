@@ -441,9 +441,8 @@ class MultNet(Default):
 
             plt.show()
 
-    def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1):
+    def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1, mod='rgb'):
         # TODO: PCA whitening like this
-        mod = 'rgb'
         self.trainer.networks['Main'].train()
         dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
         logger.info('Computing feats for clustering')
