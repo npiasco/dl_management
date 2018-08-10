@@ -141,16 +141,16 @@ class Feat(models.ResNet):
             training_params = [{'params': self.parameters()} ]
         elif layers_to_train == 'up_to_conv4':
             training_params = [{'params': layers.parameters()} for layers in
-                                [self.layer4,]]
+                                [self.endlayer,]]
         elif layers_to_train == 'up_to_conv3':
             training_params = [{'params': layers.parameters()} for layers in
-                               [self.layer4, self.layer3]]
+                               [self.endlayer, self.layer3]]
         elif layers_to_train == 'up_to_conv2':
             training_params = [{'params': layers.parameters()} for layers in
-                               [self.layer4, self.layer3, self.layer2]]
+                               [self.endlayer, self.layer3, self.layer2]]
         elif layers_to_train == 'up_to_conv1':
             training_params = [{'params': layers.parameters()} for layers in
-                               [self.layer4, self.layer3, self.layer2, self.layer1]]
+                               [self.endlayer, self.layer3, self.layer2, self.layer1]]
         elif layers_to_train == 'only_jet':
             training_params = [{'params': self.jet_tf.parameters()}]
         else:
