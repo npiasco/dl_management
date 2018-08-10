@@ -59,7 +59,9 @@ class Feat(models.ResNet):
             for i in range(self.truncated,4):
                 delattr(self, 'layer{}'.format(i))
                 setattr(self, 'layer{}'.format(i), lambda x: x)
-            del self.layer4
+        else:
+            self.endlayer = self.layer4
+        del self.layer4
 
         logger.info('Final feature extractor architecture:')
         logger.info(self)
