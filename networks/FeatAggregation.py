@@ -69,8 +69,11 @@ class Concat(nn.Module):
 
         return x
 
-    def get_training_layers(self):
+    def get_training_layers(self, layers_to_train=None):
         return []
+
+    def full_save(self):
+        return {}
 
 
 class Sum(nn.Module):
@@ -78,8 +81,8 @@ class Sum(nn.Module):
         nn.Module.__init__(self)
 
         self.norm = kwargs.pop('norm', True)
-        self.main_ratio = kwargs.pop('main_ratio', 1)
-        self.aux_ratio = kwargs.pop('aux_ratio', 1)
+        self.main_ratio = kwargs.pop('main_ratio', 1.0)
+        self.aux_ratio = kwargs.pop('aux_ratio', 1.0)
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
