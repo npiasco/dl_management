@@ -27,7 +27,7 @@ class RecallAtN:
         return self.score
 
     def __str__(self):
-        return 'Recall @{}'.format(self.n)
+        return 'Recall @{} (radius is {}m)'.format(self.n, self.radius)
 
     @staticmethod
     def rank_score(new_score, old_score):
@@ -61,7 +61,7 @@ class MeanRecallAtN:
         return self.score
 
     def __str__(self):
-        return 'Mean Recall @{}'.format(self.n)
+        return 'Mean Recall @{} (radius is {}m)'.format(self.n, self.radius)
 
     @staticmethod
     def inc_func(i, val, r):
