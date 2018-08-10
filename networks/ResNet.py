@@ -21,6 +21,7 @@ class Feat(models.ResNet):
         self.indices = kwargs.pop('indices', False)
         self.res = kwargs.pop('res', False)
         self.unet = kwargs.pop('unet', False)
+        self.truncated = kwargs.pop('truncated', False)
         jet_tf = kwargs.pop('jet_tf', False)
         jet_tf_is_trainable = kwargs.pop('jet_tf_is_trainable', False)
 
@@ -53,6 +54,15 @@ class Feat(models.ResNet):
                                                 size_embedding=3,
                                                 trainable=jet_tf_is_trainable)
 
+        if self.truncated:
+            self.endlayer = getattr(self, 'layer{}'.format(self.truncated))
+            for i in range(self.truncated,4):
+                delattr(self, 'layer{}'.format(i))
+                setattr(self, 'layer{}'.format(i), lambda x: x)
+        else:
+            self.endlayer = self.layer4
+        del self.layer4
+
         logger.info('Final feature extractor architecture:')
         logger.info(self)
 
@@ -73,27 +83,24 @@ class Feat(models.ResNet):
 
         # Lay 4
         for i in range(self.n_block_last_layer-1):
-            x = self.layer4[i](x)
+            x = self.endlayer[i](x)
 
         i = self.n_block_last_layer-1
 
         residual = x
 
-        x = self.layer4[i].conv1(x)
-        x = self.layer4[i].bn1(x)
-        x = self.layer4[i].relu(x)
+        x = self.endlayer[i].conv1(x)
+        x = self.endlayer[i].bn1(x)
+        x = self.endlayer[i].relu(x)
 
-        x = self.layer4[i].conv2(x)
-        x = self.layer4[i].bn2(x)
+        x = self.endlayer[i].conv2(x)
+        x = self.endlayer[i].bn2(x)
 
         if self.n_block_last_layer == 3:
-            x = self.layer4[i].relu(x)
+            x = self.endlayer[i].relu(x)
 
-            x = self.layer4[i].conv3(x)
-            x = self.layer4[i].bn3(x)
-
-        if self.layer4[i].downsample is not None:
-            residual = self.downsample(x)
+            x = self.endlayer[i].conv3(x)
+            x = self.endlayer[i].bn3(x)
 
         x += residual
         if self.end_relu:
@@ -119,7 +126,6 @@ class Feat(models.ResNet):
         else:
             return self.feature(x)
         """
-
         return x
 
     def load(self, num_layer):
@@ -163,8 +169,6 @@ class Feat(models.ResNet):
 
 if __name__ == '__main__':
     tensor_input = torch.rand([10, 3, 224, 224]).cuda()
-    net = Feat(num_layer=50).cuda()
-
+    net = Feat(num_layer=18, truncated=2).cuda()
     feat_output = net(auto.Variable(tensor_input))
-
     print(feat_output)
