@@ -1,12 +1,10 @@
 import setlog
-import torch.nn as nn
-import collections as coll
 import torch.autograd as auto
 import torch
 import torchvision.models as models
 import os
 import networks.CustomLayers as custom
-import copy
+import types
 
 
 logger = setlog.get_logger(__name__)
@@ -144,13 +142,13 @@ class Feat(models.ResNet):
                                 [self.endlayer,]]
         elif layers_to_train == 'up_to_conv3':
             training_params = [{'params': layers.parameters()} for layers in
-                               [self.endlayer, self.layer3]]
+                               [self.endlayer, self.layer3] if not isinstance(layers, types.LambdaType)]
         elif layers_to_train == 'up_to_conv2':
             training_params = [{'params': layers.parameters()} for layers in
-                               [self.endlayer, self.layer3, self.layer2]]
+                               [self.endlayer, self.layer3, self.layer2] if not isinstance(layers, types.LambdaType)]
         elif layers_to_train == 'up_to_conv1':
             training_params = [{'params': layers.parameters()} for layers in
-                               [self.endlayer, self.layer3, self.layer2, self.layer1]]
+                               [self.endlayer, self.layer3, self.layer2, self.layer1] if not isinstance(layers, types.LambdaType)]
         elif layers_to_train == 'only_jet':
             training_params = [{'params': self.jet_tf.parameters()}]
         else:
@@ -168,7 +166,7 @@ class Feat(models.ResNet):
 
 
 if __name__ == '__main__':
-    tensor_input = torch.rand([10, 3, 224, 224]).cuda()
-    net = Feat(num_layer=18, truncated=2).cuda()
+    tensor_input = torch.rand([10, 3, 224, 224])
+    net = Feat(num_layer=18, truncated=3, load_imagenet=False)
     feat_output = net(auto.Variable(tensor_input))
-    print(feat_output)
+    print(net.get_training_layers('up_to_conv2'))
