@@ -170,6 +170,7 @@ class Deconv(nn.Module):
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
         self.res = kwargs.pop('res', False)
         self.unet = kwargs.pop('unet', False)
+        smooth = kwargs.pop('smooth', False)
         final_jet_tf = kwargs.pop('final_jet_tf', False)
         jet_tf_is_trainable = kwargs.pop('jet_tf_is_trainable', False)
         leaky_relu = kwargs.pop('leaky_relu', False)
@@ -195,14 +196,6 @@ class Deconv(nn.Module):
             ('unpool1', nn.MaxUnpool2d(kernel_size=3, stride=2)),       # 10
         ]
 
-        if upsample:
-            base_archi += [
-                ('deconv0', nn.ConvTranspose2d(unet_multp * 64, modality_ch, kernel_size=6, stride=2, padding=2,
-                                               output_padding=1)),
-                ('deconv1', nn.ConvTranspose2d(modality_ch, modality_ch, kernel_size=7, stride=2, padding=2,
-                                               output_padding=1)),
-                ('tanh', nn.Tanh())
-            ]
         if upsample:
             base_archi += [
                 ('deconv0', nn.ConvTranspose2d(unet_multp * 64, modality_ch, kernel_size=6, stride=2, padding=2,
@@ -323,7 +316,7 @@ if __name__ == '__main__':
     print(net.down_ratio)
 
     conv = Feat(indices=True, res=True, end_max_polling=True).cuda()
-    deconv = Deconv(res=True, upsample=True).cuda()
+    deconv = Deconv(res=True, smooth=True).cuda()
 
     output_conv = conv(auto.Variable(tensor_input).cuda())
 

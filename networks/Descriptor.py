@@ -29,6 +29,8 @@ class Main(nn.Module):
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
+        self.unet = base_archi_param.get('unet', False)
+
         if base_archi == 'Alexnet':
             self.feature = Alexnet.Feat(**base_archi_param)
         elif base_archi == 'Resnet':
@@ -43,6 +45,8 @@ class Main(nn.Module):
 
     def forward(self, x):
         x_feat = self.feature(x)
+        if self.unet:
+            x_feat = x_feat['feat']
         x_desc = self.descriptor(x_feat)
 
         if self.training:
@@ -159,7 +163,7 @@ class Deconv(nn.Module):
                                           res=x_feat_ouput['res'])
         elif self.res:
             x_deconv_output = self.deconv(x_feat_ouput['output'],
-                                          res=x_feat_ouput['res'])
+                                          *x_feat_ouput['res'])
         else:
             x_deconv_output = self.deconv(x_feat_ouput['output'],
                                           id=x_feat_ouput['id'])
