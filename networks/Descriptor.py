@@ -45,12 +45,20 @@ class Main(nn.Module):
 
     def forward(self, x):
         x_feat = self.feature(x)
+
         if self.unet:
-            x_feat = x_feat['feat']
-        x_desc = self.descriptor(x_feat)
+            x_desc = self.descriptor(x_feat['feat'])
+        else:
+            x_desc = self.descriptor(x_feat)
 
         if self.training:
-            forward_pass = {'desc': x_desc, 'feat': x_feat}
+            if self.unet:
+                forward_pass = {'desc': x_desc,
+                                'feat': x_feat['feat'],
+                                'res_1': x_feat['res_1'],
+                                'res_2': x_feat['res_2']}
+            else:
+                forward_pass = {'desc': x_desc, 'feat': x_feat}
         else:
             forward_pass = x_desc
 

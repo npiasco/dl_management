@@ -217,21 +217,14 @@ class Deconv(nn.Module):
         }
 
     def forward(self, x, res1, res2):
-        print(x.size(), res1.size(), res2.size())
         if self.up_factor > 1:
             x = func.upsample(x, scale_factor=self.up_factor)
             res2 = func.upsample(res2, scale_factor=self.up_factor)
-            print(x.size())
         x = self.deconv_1(x)
-        print(x.size())
         x = torch.cat((x, res2), dim=1)
-        print(x.size())
         x = self.deconv_2(x)
-        print(x.size())
         x = torch.cat((x, res1), dim=1)
-        print(x.size())
         map = self.deconv_3(x)
-        print(map.size())
 
         return map
 
@@ -249,7 +242,7 @@ class Deconv(nn.Module):
 
 if __name__ == '__main__':
     tensor_input = torch.rand([10, 3, 224, 224])
-    net = Feat(num_layer=18, truncated=3, load_imagenet=False, unet=True)
+    net = Feat(num_layer=18, truncated=3, load_imagenet=True, unet=True)
     feat_output = net(auto.Variable(tensor_input))
     #deconvnet = Deconv(size_res_1=256, input_size=512, up_factor=2)
     deconvnet = Deconv(size_res_1=128)
