@@ -1,0 +1,38 @@
+Main:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        layers_to_train: 'all'
+        base_archi: 'Resnet'
+        base_archi_param:
+            num_layer: 18
+            truncated: 3
+            load_imagenet: True
+            unet: True
+
+Deconv:
+    class: 'networks.ResNet.Deconv'
+    param_class:
+        layers_to_train: 'all'
+        size_res_1: 128
+        size_res_2: 64
+        input_size: 256
+        up_factor: 1
+
+Adver:
+    class: 'networks.Discriminator.Main'
+    param_class:
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: False
+            batch_norm: True
+            input_channels: 4
+            end_relu: True
+            leaky_relu: True
+            mean_pooling: True
+        input_size: 224
+        batch_gan: false
+        layers_to_train: 'all'
+
+#init_weights:
+#        Main:
+#            feature: '../DescLearning/SummerTests/RGB/MultNet/Resnet/MAC/Main_feature.pth'
