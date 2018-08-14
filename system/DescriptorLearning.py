@@ -385,10 +385,17 @@ class MultNet(Default):
                 torch.save(data, serialization_name)
 
     def map_print(self, net_name, final=False, mod='rgb', aux_mod='mono_depth', batch_size=4):
-        tmp_net = copy.deepcopy(self.trainer.networks[net_name])
-        tmp_net.train()  # To have the infered map
+
+        nets_to_test = self.trainer.networks
         if not final:
-            tmp_net.load_state_dict(self.trainer.best_net[1][net_name])
+            nets_to_test = dict()
+            for name, network in self.trainer.networks.items():
+                nets_to_test[name] = copy.deepcopy(network)
+                nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
+
+        for network in nets_to_test.values():
+            network.train()
+
         self.data['train'].used_mod = self.training_mod
         #dtload = data.DataLoader(self.data['train'], batch_size=batch_size)
         dtload = data.DataLoader(self.data['test']['data'], batch_size=batch_size)
@@ -401,16 +408,12 @@ class MultNet(Default):
             #modality = b['query'][aux_mod].contiguous().view(batch_size, -1, 224, 224)
             main_mod = b[mod].contiguous().view(batch_size, 3, 224, 224)
             modality = b[aux_mod].contiguous().view(batch_size, -1, 224, 224)
-            output = tmp_net(
-                auto.Variable(
-                    self.trainer.cuda_func(
-                        #b['query'][mod]
-                        b[mod]
-                    ),
-                    requires_grad=False
-                )
-            )
-            print(output['desc'])
+
+            variables = {'batch': b}
+            for action in self.trainer.eval_forwards['dataset']:
+                variables = self.trainer._sequential_forward(action, variables, nets_to_test)
+            output = trainers.minning_function.recc_acces(variables, self.trainer.eval_final_desc[0])
+
             '''
             pruned_maps = trainers.minning_function.random_prunning({'maps': output['maps'], 'gt': auto.Variable(modality)},
                                                                     multiples_instance=False, target=['maps'], mask=['gt'])
@@ -419,8 +422,8 @@ class MultNet(Default):
             images_batch = torch.cat((modality.cpu(), pruned_maps.data.cpu(), output['maps'].data.cpu()))
             '''
 
-            diff_map = torch.abs(modality.cpu()-output['maps'].data.cpu())
-            images_batch = torch.cat((modality.cpu(), output['maps'].data.cpu(), diff_map))
+            diff_map = torch.abs(modality.cpu()-output.data.cpu())
+            images_batch = torch.cat((modality.cpu(), output.data.cpu(), diff_map))
 
             grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
             plt.figure(1)
