@@ -153,9 +153,12 @@ class Deconv(nn.Module):
 
     def forward(self, x):
         x_feat_ouput = self.feature(x)
-        if self.res or self.unet:
+        if self.unet:
             x_deconv_output = self.deconv(x_feat_ouput['output'],
                                           id=x_feat_ouput['id'],
+                                          res=x_feat_ouput['res'])
+        elif self.res:
+            x_deconv_output = self.deconv(x_feat_ouput['output'],
                                           res=x_feat_ouput['res'])
         else:
             x_deconv_output = self.deconv(x_feat_ouput['output'],
