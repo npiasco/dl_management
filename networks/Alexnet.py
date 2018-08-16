@@ -99,7 +99,7 @@ class Feat(nn.Module):
                 if name == 'conv4':
                     feat = x
             if self.unet:
-                return {'output': x, 'feat': feat, 'res_1': res[0], 'res_2': res[1]}
+                return {'output': x, 'feat': feat, 'res_1': res[0], 'res_2': res[1], 'id': ind, 'res': res}
             else:
                 return {'output': x, 'feat': feat, 'id': ind, 'res': res}
         else:
