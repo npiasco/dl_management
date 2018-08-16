@@ -226,10 +226,8 @@ class Deconv(nn.Module):
             x = func.upsample(x, scale_factor=self.up_factor)
             res2 = func.upsample(res2, scale_factor=self.up_factor)
         x = self.deconv_1(x)
-        print(x.size(), res2.size())
         x = torch.cat((x, res2), dim=1)
         x = self.deconv_2(x)
-        print(x.size(), res1.size())
         x = torch.cat((x, res1), dim=1)
         map = self.deconv_3(x)
 
