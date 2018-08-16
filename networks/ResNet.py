@@ -150,6 +150,7 @@ class Feat(models.ResNet):
     def final_feat_num(self):
         return self._final_feat_num
 
+
 class Deconv(nn.Module):
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
@@ -233,7 +234,6 @@ class Deconv(nn.Module):
 
         return map
 
-
     def get_training_layers(self, layers_to_train=None):
         if layers_to_train is None:
             layers_to_train = self.layers_to_train
@@ -243,6 +243,11 @@ class Deconv(nn.Module):
             raise KeyError('No behaviour for layers_to_train = {}'.format(layers_to_train))
 
         return training_params
+
+    def full_save(self, discard_tf=False):
+        if discard_tf:
+            pass
+        return {'deconv': self.state_dict()}
 
 
 if __name__ == '__main__':
