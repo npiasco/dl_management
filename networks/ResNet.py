@@ -247,7 +247,9 @@ class Deconv(nn.Module):
     def full_save(self, discard_tf=False):
         if discard_tf:
             pass
-        return {'deconv': self.state_dict()}
+        return {'deconv1': self.deconv_1.state_dict(),
+                'deconv2': self.deconv_2.state_dict(),
+                'deconv3': self.deconv_3.state_dict()}
 
 
 if __name__ == '__main__':
@@ -259,3 +261,4 @@ if __name__ == '__main__':
     #deconvnet = Deconv(size_res_1=256, input_size=512, up_factor=2)
     deconvnet = Deconv(size_res_1=128)
     map = deconvnet(feat_output['feat'], feat_output['res_1'], feat_output['res_2'])
+    help(deconvnet)
