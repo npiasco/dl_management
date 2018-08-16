@@ -159,14 +159,18 @@ class Deconv(nn.Module):
         size_res_2 = kwargs.pop('size_res_2', 64)
         input_size = kwargs.pop('input_size', 256)
         self.up_factor = kwargs.pop('up_factor', 1)
+        alexnet_entry = kwargs.pop('alexnet_entry', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
+        out_pad = 1 if alexnet_entry else 0
+
         base_archi = {
             1:
                 [
-                    ('deconv4', nn.ConvTranspose2d(input_size, 256, kernel_size=4, stride=2, padding=1)),
+                    ('deconv4', nn.ConvTranspose2d(input_size, 256, kernel_size=4, stride=2, padding=1,
+                                                   output_padding=out_pad)),
                     ('norm4', nn.BatchNorm2d(256)),
                     ('relu4', nn.LeakyReLU(inplace=True, negative_slope=0.02)),  # 2
                     ('conv3', nn.Conv2d(256, 384, kernel_size=3, padding=1)),  # 3
@@ -178,13 +182,14 @@ class Deconv(nn.Module):
                 ],
             2:
                 [
-                    ('deconv1', nn.ConvTranspose2d(2 * size_res_1, 64, kernel_size=4, stride=2, padding=1)),
+                    ('deconv1', nn.ConvTranspose2d(2 * size_res_1, 64, kernel_size=4, stride=2, padding=1,
+                                                   output_padding=out_pad)),
                     ('norm1', nn.BatchNorm2d(64)),
                     ('relu1', nn.LeakyReLU(inplace=True, negative_slope=0.02)),  # 9
                 ],
             3:
                 [
-                    ('deconv0', nn.ConvTranspose2d(2 * size_res_2, modality_ch, kernel_size=6, stride=2, padding=2)),
+                    ('deconv0', nn.ConvTranspose2d(2 * size_res_2, modality_ch, kernel_size=6, stride=2, padding=2-out_pad)),
                     ('deconvf', nn.ConvTranspose2d(modality_ch, modality_ch, kernel_size=6, stride=2, padding=2,
                                                    output_padding=0)),
                     ('tanh', nn.Tanh()),
@@ -221,8 +226,10 @@ class Deconv(nn.Module):
             x = func.upsample(x, scale_factor=self.up_factor)
             res2 = func.upsample(res2, scale_factor=self.up_factor)
         x = self.deconv_1(x)
+        print(x.size(), res2.size())
         x = torch.cat((x, res2), dim=1)
         x = self.deconv_2(x)
+        print(x.size(), res1.size())
         x = torch.cat((x, res1), dim=1)
         map = self.deconv_3(x)
 
@@ -244,6 +251,8 @@ if __name__ == '__main__':
     tensor_input = torch.rand([10, 3, 224, 224])
     net = Feat(num_layer=18, truncated=3, load_imagenet=True, unet=True)
     feat_output = net(auto.Variable(tensor_input))
+    print(feat_output['feat'].size(),feat_output['res_1'].size(),feat_output['res_2'].size())
+
     #deconvnet = Deconv(size_res_1=256, input_size=512, up_factor=2)
     deconvnet = Deconv(size_res_1=128)
     map = deconvnet(feat_output['feat'], feat_output['res_1'], feat_output['res_2'])

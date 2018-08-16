@@ -83,7 +83,7 @@ class Feat(nn.Module):
             self.load(mono)
 
     def forward(self, x):
-        if self.indices or self.res:
+        if self.indices or self.res or self.unet:
             ind = list()
             res = list()
             for name, lay in self.feature.named_children():
@@ -98,8 +98,10 @@ class Feat(nn.Module):
                     res.append(x)
                 if name == 'conv4':
                     feat = x
-
-            return {'output': x, 'feat': feat, 'id': ind, 'res': res}
+            if self.unet:
+                return {'feat': feat, 'res_1': res[0], 'res_2': res[1]}
+            else:
+                return {'output': x, 'feat': feat, 'id': ind, 'res': res}
         else:
             return self.feature(x)
 
@@ -299,9 +301,14 @@ class Deconv(nn.Module):
 
 if __name__ == '__main__':
     tensor_input = torch.rand([10, 3, 224, 224]).cuda()
-    net = Feat().cuda()
+    net = Feat(unet=True, indices=True).cuda()
     feat_output = net(auto.Variable(tensor_input))
-    print(feat_output[0])
+    print(feat_output['feat'].size(),feat_output['res_1'].size(),feat_output['res_2'].size())
+    import networks.ResNet as RNet
+    deconv = RNet.Deconv(size_res_1=192, alexnet_entry=True).cuda()
+    map = deconv(feat_output['feat'], feat_output['res_1'], feat_output['res_2'])
+    print(map.size())
+    '''
     net = Feat(batch_norm=False, end_relu=True).cuda()
     feat_output = net(auto.Variable(tensor_input).cuda())
     net.eval()
@@ -327,3 +334,4 @@ if __name__ == '__main__':
 
     print(returned_maps['maps'].size())
     #print(returned_maps.keys())
+    '''
