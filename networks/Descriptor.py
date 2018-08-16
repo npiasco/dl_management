@@ -60,7 +60,13 @@ class Main(nn.Module):
             else:
                 forward_pass = {'desc': x_desc, 'feat': x_feat}
         else:
-            forward_pass = x_desc
+            if self.unet:
+                forward_pass = {'desc': x_desc,
+                                'feat': x_feat['feat'],
+                                'res_1': x_feat['res_1'],
+                                'res_2': x_feat['res_2']}
+            else:
+                forward_pass = x_desc
 
         return forward_pass
 
