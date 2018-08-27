@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as func
 import torch
 import setlog
+import networks.Aggregation as Agg
 
 
 logger = setlog.get_logger(__name__)
@@ -97,3 +98,30 @@ class Sum(nn.Module):
 
     def get_training_layers(self):
         return []
+
+class FuseVLAD(nn.Module):
+    def __init__(self, **kwargs):
+        nn.Module.__init__(self)
+
+        self.main_ratio = kwargs.pop('main_ratio', 1)
+        self.aux_ratio = kwargs.pop('aux_ratio', 1)
+        vlad_param = kwargs.pop('vlad_param', {})
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        self.vlad = Agg.NetVLAD(**vlad_param)
+
+    def forward(self, x1, x2):
+
+        x = torch.cat((x1 * self.main_ratio,
+                       x2 * self.aux_ratio), dim=1)
+
+        x = self.vlad(x)
+
+        return x
+
+    def get_training_layers(self, layers_to_train=None):
+        return [{'params': self.vlad.parameters()}]
+
+    def full_save(self):
+        return {'vlad': self.vlad.state_dict()}

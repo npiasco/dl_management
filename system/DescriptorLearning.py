@@ -394,11 +394,11 @@ class MultNet(Default):
                 nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
 
         for network in nets_to_test.values():
-            network.train()
+            network.eval()
 
         self.data['train'].used_mod = self.training_mod
         #dtload = data.DataLoader(self.data['train'], batch_size=batch_size)
-        dtload = data.DataLoader(self.data['test']['data'], batch_size=batch_size)
+        dtload = data.DataLoader(self.data['test']['queries'], batch_size=batch_size)
         plt.figure(1)
         plt.figure(2)
         ccmap = plt.get_cmap('jet', lut=1024)
@@ -412,7 +412,7 @@ class MultNet(Default):
             variables = {'batch': b}
             for action in self.trainer.eval_forwards['dataset']:
                 variables = self.trainer._sequential_forward(action, variables, nets_to_test)
-            output = trainers.minning_function.recc_acces(variables, self.trainer.eval_final_desc[0])
+            output = trainers.minning_function.recc_acces(variables, ['maps'])
 
             '''
             pruned_maps = trainers.minning_function.random_prunning({'maps': output['maps'], 'gt': auto.Variable(modality)},
@@ -473,6 +473,43 @@ class MultNet(Default):
         torch_clusters = torch.FloatTensor(kmean.cluster_centers_).unsqueeze(0).transpose(1, 2)
 
         torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_clusters.pth')
+
+    def creat_clusters_fusevlad(self, size_cluster, n_ex=1e6, size_feat=512, jobs=-1):
+        nets_to_test = self.trainer.networks
+        for network in nets_to_test.values():
+            network.eval()
+
+        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
+        logger.info('Computing feats for clustering')
+        feats = list()
+        for example in tqdm.tqdm(dataset_loader):
+            variables = {'batch': example}
+
+            for action in self.trainer.eval_forwards['dataset']:
+                variables = self.trainer._sequential_forward(action, variables, nets_to_test)
+
+            feat = torch.cat((variables['main_feat']['feat'], variables['aux_feat']['feat']), dim=1)
+
+            max_sample = feat.size(2) * feat.size(3)
+            feat = feat.view(feat.size(0), size_feat, max_sample).transpose(1, 2).contiguous()
+            feat = feat.view(-1, size_feat).cpu().data.numpy()
+
+            feats.append(feat)
+
+        logger.info('Normalizing feats')
+        normalized_feats = list()
+        for feature in tqdm.tqdm(feats):
+            normalized_feats += [f.tolist() for f in feature]
+            if len(normalized_feats) >= n_ex:
+                break
+
+        normalized_feats = skpre.normalize(normalized_feats)
+        logger.info('Computing clusters')
+        kmean = skclust.KMeans(n_clusters=size_cluster, n_jobs=jobs)
+        kmean.fit(normalized_feats)
+        torch_clusters = torch.FloatTensor(kmean.cluster_centers_).unsqueeze(0).transpose(1, 2)
+
+        torch.save(torch_clusters, 'kmeans_' + str(size_cluster) + '_clusters.pth')
 
 
 if __name__ == '__main__':
