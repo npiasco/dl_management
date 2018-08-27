@@ -110,6 +110,76 @@ class Recall:
             return val
 
 
+class Distance:
+    def __init__(self, **kwargs):
+        self.d_max = kwargs.pop('d_max', 50) # In meter
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    def __call__(self, ranked_queries):
+        logger.info('Computing score')
+        scores = [0 for _ in range(self.d_max)]
+
+        ranked_queries_one = [ranked[0] for ranked in ranked_queries]
+
+        for d in range(self.d_max):
+            scores[d] = [r_queries < d for r_queries in ranked_queries_one].count(True)
+
+        n_query = len(ranked_queries_one)
+        self.score = [s / n_query for s in scores]
+        return self.score
+
+    def __str__(self):
+        return 'Distance (computed up to {} m)'.format(self.d_max)
+
+class HistoDistance:
+    def __init__(self, **kwargs):
+        self.d_max = kwargs.pop('d_max', 50) # In meter
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    def __call__(self, ranked_queries):
+        logger.info('Computing score')
+        scores = [0 for _ in range(self.d_max)]
+
+        ranked_queries_one = [ranked[0] for ranked in ranked_queries]
+
+        for d in range(self.d_max):
+            scores[d] = [d-1 < r_queries < d for r_queries in ranked_queries_one].count(True)
+
+        n_query = len(ranked_queries_one)
+        self.score = [s / n_query for s in scores]
+        return self.score
+
+    def __str__(self):
+        return 'Distance hist (computed up to {} m)'.format(self.d_max)
+
+class MeanDistance:
+    def __init__(self, **kwargs):
+        self.d_max = kwargs.pop('d_max', 50)  # In meter
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    def __call__(self, ranked_queries):
+        logger.info('Computing score')
+        scores = 0
+        cpt = 0
+
+        ranked_queries_one = [ranked[0] for ranked in ranked_queries]
+        n_query = len(ranked_queries_one)
+
+        for d in range(self.d_max):
+            num_queries = [d-1 < r_queries < d for r_queries in ranked_queries_one].count(True)
+            scores += num_queries*d
+            cpt += num_queries
+
+        self.score = scores/cpt
+        return self.score
+
+    def __str__(self):
+        return 'Mean distance to closest candidate (computed up to {} m)'.format(self.d_max)
+
+
 class GlobalPoseError:
     def __init__(self, **kwargs):
         self.pooling_type = kwargs.pop('pooling_type', 'median')
