@@ -49,7 +49,7 @@ if args.compute:
     results = dict()
     for net_name, net in params['nets'].items():
         machine = eval(net['class'])(root=net['root'],
-                                     dataset_file= '../'*net['root'].count('/')  + params['dataset'],
+                                     dataset_file= '../'*net['root'].replace('../', '').count('/')  + params['dataset'],
                                      **net['param_class'])
         machine.test_func = test_func
         results[net_name] = machine.test()
