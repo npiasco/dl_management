@@ -182,9 +182,9 @@ class Base:
         datas = dict()
         for name, file in self.params['saved_files'].items():
             logger.info('Loading ' + name)
-            datas[name] = torch.load(file)
+            datas[name] = torch.load(self.root + file)
         self.trainer.load(datas)
-        self.results = torch.load(self.params['score_file'])
+        self.results = torch.load(self.root + self.params['score_file'])
 
     def plot(self, **kwargs):
         print_loss = kwargs.pop('print_loss', True)
