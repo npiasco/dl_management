@@ -83,7 +83,7 @@ for metric_name in test_func:
                     print('Dir already created')
 
             scores_to_plot[metric_name].append({'name': network_name, 'val': network_result[metric_name]})
-            with open(folder_name + '/{}/{}.txt'.format(metric_name, network_name), 'w') as new_f:
+            with open(folder_name + '/{}/{}.csv'.format(metric_name, network_name), 'w') as new_f:
                 spamwriter = csv.writer(new_f, delimiter=',')
                 spamwriter.writerow(network_result[metric_name])
 
