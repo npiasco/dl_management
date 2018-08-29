@@ -155,6 +155,7 @@ class Base:
         self.results = self.trainer.test(dataset=self.data['test'],
                                          score_functions=self.test_func)
         self.save(self.trainer.serialize())
+        return self.results
 
     def save(self, datas):
         self.params['saved_files'] = dict()
