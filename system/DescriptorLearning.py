@@ -87,7 +87,7 @@ class Default(BaseClass.Base):
     def test(self):
         self.data['test']['queries'].used_mod = self.testing_mod
         self.data['test']['data'].used_mod = self.testing_mod
-        BaseClass.Base.test(self)
+        return BaseClass.Base.test(self)
 
     def plot(self, **kwargs):
         BaseClass.Base.plot(self, **kwargs, size_dataset=len(self.data['train']))
