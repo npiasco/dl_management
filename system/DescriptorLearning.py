@@ -382,7 +382,7 @@ class MultNet(Default):
                 serialization_name = net_name + '_' + part_name + '.pth'
                 if discard_tf:
                     serialization_name = 'NoJet_' + serialization_name
-                torch.save(data, serialization_name)
+                torch.save(data, self.root + serialization_name)
 
     def map_print(self, net_name, final=False, mod='rgb', aux_mod='mono_depth', batch_size=4):
 
