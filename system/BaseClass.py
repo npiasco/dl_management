@@ -166,7 +166,7 @@ class Base:
         self.params['curr_epoch'] = self.curr_epoch
         self.params['score_file'] = 'score_file.pth'
         torch.save(self.results, self.root + 'score_file.pth')
-        with open(self.param_file, 'wt') as f:
+        with open(self.root + self.param_file, 'wt') as f:
             f.write(yaml.safe_dump(self.params))
         logger.info('Checkpoint saved at epoch {}'.format(self.curr_epoch))
 
