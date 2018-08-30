@@ -138,6 +138,8 @@ class Feat(models.ResNet):
                                [self.endlayer, self.layer3, self.layer2, self.layer1] if not isinstance(layers, types.LambdaType)]
         elif layers_to_train == 'only_jet':
             training_params = [{'params': self.jet_tf.parameters()}]
+        elif layers_to_train == 'no_layer':
+            training_params = []
         else:
             raise KeyError('No behaviour for layers_to_train = {}'.format(layers_to_train))
 
@@ -254,11 +256,13 @@ class Deconv(nn.Module):
 
 if __name__ == '__main__':
     tensor_input = torch.rand([10, 3, 224, 224])
-    net = Feat(num_layer=18, truncated=3, load_imagenet=True, unet=True)
+    net = Feat(num_layer=50, truncated=3, load_imagenet=True, unet=True)
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['feat'].size(),feat_output['res_1'].size(),feat_output['res_2'].size())
+    print(net.get_training_layers('up_to_conv3'))
+    print(net.get_training_layers('up_to_conv4'))
 
     #deconvnet = Deconv(size_res_1=256, input_size=512, up_factor=2)
-    deconvnet = Deconv(size_res_1=128)
+    deconvnet = Deconv(size_res_1=128, input_size=256, up_factor=1)
     map = deconvnet(feat_output['feat'], feat_output['res_1'], feat_output['res_2'])
-    help(deconvnet)
+    print(map.size())

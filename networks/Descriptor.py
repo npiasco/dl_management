@@ -94,6 +94,8 @@ class Main(nn.Module):
                                self.feature.get_training_layers('up_to_conv1')
         elif layers_to_train == 'only_jet':
             train_parameters = self.feature.get_training_layers('only_jet')
+        elif layers_to_train == 'no_layer':
+            train_parameters = []
         else:
             raise KeyError('No behaviour for layers_to_train = {}'.format(layers_to_train))
 
