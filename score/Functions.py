@@ -156,28 +156,19 @@ class HistoDistance:
 
 class MeanDistance:
     def __init__(self, **kwargs):
-        self.d_max = kwargs.pop('d_max', 50)  # In meter
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     def __call__(self, ranked_queries):
         logger.info('Computing score')
-        scores = 0
-        cpt = 0
 
         ranked_queries_one = [ranked[0] for ranked in ranked_queries]
-        n_query = len(ranked_queries_one)
 
-        for d in range(self.d_max):
-            num_queries = [d-1 < r_queries < d for r_queries in ranked_queries_one].count(True)
-            scores += num_queries*d
-            cpt += num_queries
-
-        self.score = scores/cpt
+        self.score = sum(ranked_queries_one)/len(ranked_queries_one)
         return self.score
 
     def __str__(self):
-        return 'Mean distance to closest candidate (computed up to {} m)'.format(self.d_max)
+        return 'Mean distance to closest candidate'
 
 
 class GlobalPoseError:
