@@ -288,6 +288,9 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                     for params in self.networks[name].get_training_layers():
                         for param in params['params']:
                             param.requires_grad = True
+            else:
+                if action['mode'] not in ('batch_forward', 'forward', 'minning'):
+                    raise NameError('Unknown action {}'.format(action['mode']))
 
     def _sequential_forward(self, action, variables, networks):
         if action['mode'] == 'batch_forward':
