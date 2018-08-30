@@ -241,6 +241,8 @@ class Deconv(nn.Module):
             layers_to_train = self.layers_to_train
         if layers_to_train == 'all':
             training_params = [{'params': self.parameters()}]
+        elif layers_to_train == 'no_layer':
+            training_params = []
         else:
             raise KeyError('No behaviour for layers_to_train = {}'.format(layers_to_train))
 
