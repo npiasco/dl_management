@@ -170,7 +170,7 @@ class MeanDistance:
         return self.score
 
     def __str__(self):
-        return 'Mean distance to closest candidate under {}m (lower is better)'.format()
+        return 'Mean distance to closest candidate under {}m (lower is better)'.format(self.d_max)
 
 
 class GlobalPoseError:
