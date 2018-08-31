@@ -33,68 +33,72 @@ params_file = args.input_file
 with open(params_file, 'rt') as f:
     params = yaml.safe_load(f)
 
-folder_name = 'Results_{}'.format(params['dataset'].replace('.yaml','').replace('datasets','').replace('/',''))
-try:
-    os.mkdir(folder_name)
-except FileExistsError:
-    print('Dir already created')
+for dataset in params['datasets']:
+    dataset_name = dataset.replace('.yaml','').replace('datasets','').replace('/','')
+    folder_name = 'Results_{}'.format(dataset_name)
+    try:
+        os.mkdir(folder_name)
+    except FileExistsError:
+        print('Dir already created')
 
-result_file = open(folder_name +'/raw_result.txt'.format(params['dataset']), 'w')
+    result_file = open(folder_name +'/raw_result.txt', 'w')
 
-test_func = dict()
-for test_func_name, fonction in params['test_func'].items():
-    test_func[test_func_name] = eval(fonction['class'])(**fonction['param_class'])
+    test_func = dict()
+    for test_func_name, fonction in params['test_func'].items():
+        test_func[test_func_name] = eval(fonction['class'])(**fonction['param_class'])
 
-if args.compute:
-    results = dict()
-    for net_name, net in params['nets'].items():
-        machine = eval(net['class'])(root=net['root'],
-                                     dataset_file= '../'*net['root'].replace('../', '').count('/')  + params['dataset'],
-                                     **net['param_class'])
-        machine.test_func = test_func
-        results[net_name] = machine.test()
+    if args.compute:
+        results = dict()
+        for net_name, net in params['nets'].items():
+            machine = eval(net['class'])(root=net['root'],
+                                         dataset_file= '../'*net['root'].replace('../', '').count('/')  + dataset,
+                                         **net['param_class'])
+            machine.test_func = test_func
+            results[net_name] = machine.test()
 
-    torch.save(results, folder_name + '/results.pth')
+        torch.save(results, folder_name + '/results.pth')
 
-results = torch.load(folder_name + '/results.pth')
+    results = torch.load(folder_name + '/results.pth')
 
-scores_to_plot = dict()
-for metric_name in test_func:
-    f_time = True
-    for network_name, network_result in results.items():
-        try:
-            len(network_result[metric_name])
-        except TypeError:
-            if f_time:
-                f_time = False
-                pstr = str(test_func[metric_name])
+    scores_to_plot = dict()
+    for metric_name in test_func:
+        f_time = True
+        for network_name, network_result in results.items():
+            try:
+                len(network_result[metric_name])
+            except TypeError:
+                if f_time:
+                    f_time = False
+                    pstr = str(test_func[metric_name])
+                    if args.plot:
+                        print(pstr)
+                    result_file.write(pstr + '\n')
+                pstr = '[{}] = {}'.format(network_name, network_result[metric_name])
                 if args.plot:
                     print(pstr)
                 result_file.write(pstr + '\n')
-            pstr = '[{}] = {}'.format(network_name, network_result[metric_name])
-            if args.plot:
-                print(pstr)
-            result_file.write(pstr + '\n')
-        else:
-            if len(scores_to_plot.setdefault(metric_name, list())) == 0:
-                try:
-                    os.mkdir(folder_name + '/{}'.format(metric_name))
-                except FileExistsError:
-                    print('Dir already created')
+            else:
+                if len(scores_to_plot.setdefault(metric_name, list())) == 0:
+                    try:
+                        os.mkdir(folder_name + '/{}'.format(metric_name))
+                    except FileExistsError:
+                        print('Dir already created')
 
-            scores_to_plot[metric_name].append({'name': network_name, 'val': network_result[metric_name]})
-            with open(folder_name + '/{}/{}.csv'.format(metric_name, network_name), 'w') as new_f:
-                spamwriter = csv.writer(new_f, delimiter=',')
-                spamwriter.writerow(network_result[metric_name])
+                scores_to_plot[metric_name].append({'name': network_name, 'val': network_result[metric_name]})
+                with open(folder_name + '/{}/{}.csv'.format(metric_name, network_name), 'w') as new_f:
+                    spamwriter = csv.writer(new_f, delimiter=',')
+                    spamwriter.writerow(network_result[metric_name])
 
-result_file.close()
+    result_file.close()
+
+    if args.plot:
+        if len(scores_to_plot):
+            for metric_name, score_values in scores_to_plot.items():
+                plt.figure()
+                plt.title(dataset_name + ' ' + metric_name)
+                for networks in score_values:
+                    plt.plot(networks['val'], label=networks['name'])
+                plt.legend(loc='best')
 
 if args.plot:
-    if len(scores_to_plot):
-        for metric_name, score_values in scores_to_plot.items():
-            plt.figure()
-            for networks in score_values:
-                plt.plot(networks['val'], label=networks['name'])
-            plt.legend()
-
     plt.show()
