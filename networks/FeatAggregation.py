@@ -73,7 +73,7 @@ class Concat(nn.Module):
     def get_training_layers(self, layers_to_train=None):
         return []
 
-    def full_save(self):
+    def full_save(self, discard_tf=False):
         return {}
 
 
