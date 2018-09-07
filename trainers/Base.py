@@ -19,6 +19,9 @@ class BaseTrainer:
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
+        if self.cuda_on and not torch.cuda.is_available():
+            self.cuda_on = False
+
         self.val_score = list()
         self.loss_log = dict()
 
@@ -114,6 +117,9 @@ class BaseMultNetTrainer:
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        if self.cuda_on and not torch.cuda.is_available():
+            self.cuda_on = False
 
         self.optimizers = self.init_optimizers(self.optimizers_params)
 
