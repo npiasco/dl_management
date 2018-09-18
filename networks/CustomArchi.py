@@ -26,7 +26,8 @@ class DeploymentNet(nn.Module):
                 'end_relu': False,
                 'num_layer': 18,
                 'truncated': 3,
-                'unet': True
+                'unet': True,
+                'load_imagenet': False
             }
         )
 
@@ -41,6 +42,7 @@ class DeploymentNet(nn.Module):
             base_archi_param={
                 'end_relu': False,
                 'jet_tf': True,
+                'load_imagenet': False
             }
         )
 
