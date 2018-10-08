@@ -203,7 +203,8 @@ test_func:
             radius: 25
     mean_recall:
         class: 'score.Functions.MeanRecallAtN'
-        param_class:
+        param_class:P
+
             n: 50
             radius: 25
     recall:

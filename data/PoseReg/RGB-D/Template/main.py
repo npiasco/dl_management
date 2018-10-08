@@ -10,7 +10,7 @@ setlog.reconfigure(conf_file, save_file)
 import system.PoseRegression as System
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':z
     machine = System.Default(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])])
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':

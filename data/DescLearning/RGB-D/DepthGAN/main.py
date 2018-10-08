@@ -2,6 +2,7 @@
 import os, sys
 import setlog
 
+
 conf_file = os.environ['DEV'] + 'dl_management/.log/logging.yaml'
 save_file = os.path.abspath(sys.argv[0])[:-len(sys.argv[0])] + 'log/'
 setlog.reconfigure(conf_file, save_file)
@@ -31,9 +32,9 @@ if __name__ == '__main__':
     elif action == 'sf':
         machine.serialize_net(final=True)
     elif action == 'm':
-        machine.map_print('Main', final=False)
+        machine.map_print('Main', final=False, batch_size=4)
     elif action == 'mf':
-        machine.map_print('Main', final=True)
+        machine.map_print('Main', final=True, batch_size=4)
     elif action == 'jet':
         machine.map_print()
     elif action == 'dataset':

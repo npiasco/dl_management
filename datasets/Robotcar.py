@@ -71,7 +71,7 @@ class TripletDataset(utils.data.Dataset):
         self.max_pose_dist = kwargs.pop('max_pose_dist', 7)        # meters
         self.min_neg_dist = kwargs.pop('min_neg_dist', 700)         # meters
         self.max_angle = kwargs.pop('max_angle', 0.174533)          # radians, 20 degrees
-        self.ex_shuffle = kwargs.pop('ex_shuffle', False)
+        self.ex_shuffle = kwargs.pop('ex_shuffle', True)
         load_triplets = kwargs.pop('load_triplets', None)
         self._used_mod = kwargs.pop('used_mod', ['rgb'])
 
@@ -149,11 +149,13 @@ def show_batch(sample_batched):
     """Show image with landmarks for a batch of samples."""
     buffer = tuple()
     for name, mod in sample_batched.items():
-        if name not in ('coord',):
+        if name not in ('coord'):
+            '''
             min_v = mod.min()
             mod -= min_v
             max_v = mod.max()
             mod /= max_v
+            '''
             buffer += (mod,)
 
     images_batch = torch.cat(buffer, 0)
@@ -165,18 +167,20 @@ def show_batch(sample_batched):
 if __name__ == '__main__':
     root_to_folders = os.environ['ROBOTCAR'] + 'training/TrainDataset_02_10_15/'
 
-    modtouse = {'rgb': 'dataset.txt'}  # , 'depth': 'depth_dataset.txt', 'ref': 'ref_dataset.txt'}
+    modtouse = {'rgb': 'dataset.txt'}#, 'mono_depth': 'mono_depth_dataset.txt', 'depth': 'depth_dataset.txt'}#, 'ref': 'mono_ref_dataset.txt'}
     transform = {
         'first': (tf.Resize((420, 420)),),
         'rgb': (tf.Equalize(), tf.ToTensor(), ),
+        'mono_depth': (tf.ToTensor(),tf.GradNorm()),
         'depth': (tf.ToTensor(),),
-        'ref': (tf.ToTensor(),)
+        'ref': (tf.ToTensor(), tf.Normalize(mean=[0.2164], std=[0.08]))
     }
     transform_wo_q = {
-        'first': (tf.Resize((420, 420)),),
+        'first': (tf.Resize((224, 224)),),
         'rgb': (tf.ToTensor(),),
+        'mono_depth': (tf.ToTensor(), tf.DepthTransform(depth_factor=1.0, error_value=0.0, replacing_value=1.0), tf.Normalize(mean=[0.2291], std=[1]), tf.JetTransform()),
         'depth': (tf.ToTensor(),),
-        'ref': (tf.ToTensor(),)
+        'ref': (tf.ToTensor(), tf.Normalize(mean=[0.2164], std=[0.08]))
     }
 
     """
@@ -195,21 +199,24 @@ if __name__ == '__main__':
     """
 
     dataset_1 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_05_19_15/',
+                           modalities={'rgb': 'pruned_dataset.txt'},
+                           coord_file='pruned_coordxImbearing.txt',
+                           transform=transform_wo_q)
+    '''
+    dataset_2 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_Night/',
                            modalities=modtouse,
                            coord_file='coordxImbearing.txt',
                            transform=transform_wo_q)
-    dataset_2 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_08_28_15/',
-                           modalities=modtouse,
-                           coord_file='coordxImbearing.txt',
-                           transform=transform_wo_q)
-    dataset_3 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_11_10_15/',
+    '''
+    dataset_2 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_Snow/',
                            modalities=modtouse,
                            coord_file='coordxImbearing.txt',
                            transform=transform_wo_q)
 
+
     triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_2, ],
-                                     num_triplets=20, num_positives=1, num_negatives=20, ex_shuffle=True)
-    torch.save(triplet_dataset.triplets, '400triplets.pth')
+                                     num_triplets=20, num_positives=2, num_negatives=20, ex_shuffle=True)
+    #%torch.save(triplet_dataset.triplets, 'night_200_triplets.pth')
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
     for b in dtload:

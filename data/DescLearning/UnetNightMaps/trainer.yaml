@@ -12,7 +12,7 @@ param_class:
             margin: 0.1
             swap: False
             factor:
-                full: 1
+                full: 0
     modal_loss:
         func: 'loss_func.l1_modal_loss'
         param:

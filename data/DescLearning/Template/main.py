@@ -49,5 +49,7 @@ if __name__ == '__main__':
     elif  action == 'mean':
         machine.compute_mean_std(jobs=8)
         machine.compute_mean_std(jobs=8, training=False, val=False, testing=True)
+    elif action == 'dataset':
+        machine.print('train')
     else:
         raise ValueError('Unknown cmd: {}'.format(action))

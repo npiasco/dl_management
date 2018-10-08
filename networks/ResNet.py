@@ -258,7 +258,7 @@ class Deconv(nn.Module):
 
 if __name__ == '__main__':
     tensor_input = torch.rand([10, 3, 224, 224])
-    net = Feat(num_layer=50, truncated=3, load_imagenet=True, unet=True)
+    net = Feat(num_layer=18, truncated=3, load_imagenet=True, unet=True)
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['feat'].size(),feat_output['res_1'].size(),feat_output['res_2'].size())
     print(net.get_training_layers('up_to_conv3'))

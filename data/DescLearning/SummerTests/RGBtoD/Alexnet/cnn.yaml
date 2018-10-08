@@ -22,3 +22,7 @@ Adver:
         input_size: 224
         batch_gan: false
         layers_to_train: 'all'
+
+init_weights:
+        Main:
+            feature: '../DescLearning/SummerTests/RGB/MultNet/Alexnet/MAC/Main_feature.pth'
