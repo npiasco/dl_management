@@ -14,6 +14,25 @@ import tqdm
 
 logger = setlog.get_logger(__name__)
 
+def rot_to_quat(m):
+    if m[2, 2] < 0:
+        if m[0, 0] > m[1, 1]:
+            t = 1 + m[0, 0] - m[1, 1] - m[2, 2]
+            q = torch.stack([m[1, 2] - m[2, 1], t, m[0, 1] + m[1, 0], m[2, 0] + m[0, 2]], 0)
+        else:
+            t = 1 - m[0, 0] + m[1, 1] - m[2, 2]
+            q = torch.stack([m[2, 0] - m[0, 2], m[0, 1] + m[1, 0], t, m[1, 2] + m[2, 1]], 0)
+    else:
+        if m[0, 0] < -m[1, 1]:
+            t = 1 - m[0, 0] - m[1, 1] + m[2, 2]
+            q = torch.stack([m[0, 1] - m[1, 0], m[2, 0] + m[0, 2], m[1, 2] + m[2, 1], t], 0)
+        else:
+            t = 1 + m[0, 0] + m[1, 1] + m[2, 2]
+            q = torch.stack([t, m[1, 2] - m[2, 1], m[2, 0] - m[0, 2], m[0, 1] - m[1, 0]], 0)
+
+    q = q * 0.5 / torch.sqrt(t)
+    return q
+
 
 def init_net():
     net = nn.Sequential(
@@ -88,31 +107,44 @@ if __name__ == '__main__':
     im_fwd = auto.Variable(im, requires_grad=True).unsqueeze(0).cuda()
     net = init_net().cuda()
     '''
-    pose =  auto.Variable(pose[:3,:])
-    im_fwd = auto.Variable(im, requires_grad=True).unsqueeze(0)
+    pose = pose[:3,:]
+    q = rot_to_quat(pose[:3, :3])
+    t = pose[:, 3]
+    im_fwd = im.unsqueeze(0)
     net = init_net()
-    optimizer = optim.SGD(net.parameters(), lr=1e-3)
+    optimizer = optim.Adam(net.parameters())
     #net.register_backward_hook(module_hook)
     it = 10000
-    n_hyps = 10
+    n_hyps = 1
     n_pt = 10
-    t_loss = list()
-    hyps = [[10, 32], [75, 55], [1, 42], [32, 0], [28, 47], [42, 50]]
+    tt_loss = list()
+    hyps = [[10, 32], [75, 55], [1, 42], [32, 0], [28, 47], [42, 50]]#
+    # , [12, 12]]
     for i in tqdm.tqdm(range(it)):
         optimizer.zero_grad()
         output = net(im_fwd)
         #output.register_hook(variable_hook)
         #print(output[0,:,10, 32])
-        loss = 0
+        q_loss = 0
+        t_loss = 0
         for hyp in range(n_hyps):
-            pose_net = utils.dlt(utils.draw_hyps(n_pt, width=640*scale, height=480*scale), sceneCoord=output.squeeze(), K=K, grad=True, cuda=False)
-           #    pose_net = utils.dlt(hyps, sceneCoord=output.squeeze(), K=K, grad=True, cuda=False)
+            # pose_net = utils.dlt(utils.draw_hyps(n_pt, width=640*scale, height=480*scale), sceneCoord=output.squeeze(), K=K, grad=True, cuda=False)
+            pose_net = utils.dlt(hyps, sceneCoord=output.squeeze(), K=K, grad=True, cuda=False)
             #pose_net.register_hook(variable_hook)
-            loss += torch.mean(functional.pairwise_distance(pose_net.view(-1,1), pose.view(-1,1)))
+            t_net = pose_net[:,3]
+            q_net = rot_to_quat(pose_net[:3,:3])
+            #q_loss += torch.mean(functional.pairwise_distance(q_net.view(-1,1), q.view(-1,1)))
+            q_loss += torch.abs(torch.dot(q_net, q))
+            t_loss += torch.mean(functional.pairwise_distance(t_net.view(-1, 1), t.view(-1, 1)))
 
-        t_loss.append(loss.item())
-        if not i%10:
-            print('Loss is {}'.format(loss.item()))
+        loss = 0.9*torch.max(torch.stack((q_loss, t_loss), 0)) + 0.1*torch.min(torch.stack((q_loss, t_loss), 0))
+        tt_loss.append(loss.item())
+        if not i%20:
+            print('Loss is {} {} (q) {} (t)'.format(loss.item(), q_loss.item(), t_loss.item()))
+            print('Pose is')
+            print(t_net, q_net)
+            print('Real pose is')
+            print(t, q)
 
         loss.backward()
         optimizer.step()

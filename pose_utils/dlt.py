@@ -47,22 +47,6 @@ def dlt(hyps, sceneCoord, K, **kwargs):
         raise ArithmeticError('No enought paired points ({}) to compute P with DLT'.format(len(hyps)))
 
     # Creation of matrix A
-    '''
-    A = torch.zeros(2*len(hyps), 12) if not grad else auto.Variable(torch.zeros(2*len(hyps), 12), requires_grad=False)
-    if cuda:
-        A = A.cuda()
-
-    for n_hyp, hyp in enumerate(hyps):
-        # Use torch.cat
-        A[n_hyp * 2, 4:7] = -1 * sceneCoord[:, hyp[1], hyp[0]]
-        A[n_hyp * 2, 7] = -1 # Homogeneous coord
-        A[n_hyp * 2, 8:11] = hyp[1] * sceneCoord[:, hyp[1], hyp[0]]
-        A[n_hyp * 2, 11] = hyp[1] # Homogeneous coord
-        A[n_hyp * 2 + 1, :3] = sceneCoord[:, hyp[1], hyp[0]]
-        A[n_hyp * 2 + 1, 3] = 1 # Homogeneous coord
-        A[n_hyp * 2 + 1, 8:11] = -hyp[0] * sceneCoord[:, hyp[1], hyp[0]]
-        A[n_hyp * 2 + 1, 11] = -hyp[0]
-    '''
     f_iter = True
     for n_hyp, hyp in enumerate(hyps):
         homo_3Dpt = torch.cat((sceneCoord[:, hyp[1], hyp[0]], torch.Tensor([1])), 0)
