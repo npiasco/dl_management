@@ -56,9 +56,12 @@ if __name__ == '__main__':
 
     K[2, 2] = 1
 
-    rgb_im = '/media/nathan/Data/7_Scenes/heads/seq-02/' + id + '.color.png'
-    depth_im = '/media/nathan/Data/7_Scenes/heads/seq-02/' + id + '.depth.png'
-    pose_im = '/media/nathan/Data/7_Scenes/heads/seq-02/' + id + '.pose.txt'
+    root = '/media/nathan/Data/7_Scenes/heads/seq-02/'
+    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+
+    rgb_im = root + id + '.color.png'
+    depth_im = root + id + '.depth.png'
+    pose_im = root + id + '.pose.txt'
 
     im = func.to_tensor(func.resize(PIL.Image.open(rgb_im), int(480*scale))).float()
     depth = func.to_tensor(func.resize(PIL.Image.open(depth_im), int(480*scale), interpolation=0),).float()
@@ -80,32 +83,36 @@ if __name__ == '__main__':
     quat._normalise()
     rot = torch.FloatTensor(quat.rotation_matrix)
     pose[:3, :3] = rot
-
+    '''
     pose =  auto.Variable(pose[:3,:]).cuda()
     im_fwd = auto.Variable(im, requires_grad=True).unsqueeze(0).cuda()
     net = init_net().cuda()
+    '''
+    pose =  auto.Variable(pose[:3,:])
+    im_fwd = auto.Variable(im, requires_grad=True).unsqueeze(0)
+    net = init_net()
     optimizer = optim.SGD(net.parameters(), lr=1e-3)
-    net.register_backward_hook(module_hook)
+    #net.register_backward_hook(module_hook)
     it = 10000
-    n_hyps = 1
-    n_pt = int(640*scale * 480*scale)
+    n_hyps = 10
+    n_pt = 10
     t_loss = list()
     hyps = [[10, 32], [75, 55], [1, 42], [32, 0], [28, 47], [42, 50]]
     for i in tqdm.tqdm(range(it)):
         optimizer.zero_grad()
         output = net(im_fwd)
-        output.register_hook(variable_hook)
+        #output.register_hook(variable_hook)
         #print(output[0,:,10, 32])
         loss = 0
         for hyp in range(n_hyps):
-        #   pose_net = utils.dlt(utils.draw_hyps(n_pt, width=640*scale, height=480*scale), sceneCoord=output.squeeze(), K=K, grad=True, cuda=True)
-            pose_net = utils.dlt(hyps, sceneCoord=output.squeeze(), K=K, grad=True, cuda=True)
-            pose_net.register_hook(variable_hook)
+            pose_net = utils.dlt(utils.draw_hyps(n_pt, width=640*scale, height=480*scale), sceneCoord=output.squeeze(), K=K, grad=True, cuda=False)
+           #    pose_net = utils.dlt(hyps, sceneCoord=output.squeeze(), K=K, grad=True, cuda=False)
+            #pose_net.register_hook(variable_hook)
             loss += torch.mean(functional.pairwise_distance(pose_net.view(-1,1), pose.view(-1,1)))
 
-        t_loss.append(loss.data[0])
-        if not i%100:
-            print(loss)
+        t_loss.append(loss.item())
+        if not i%10:
+            print('Loss is {}'.format(loss.item()))
 
         loss.backward()
         optimizer.step()

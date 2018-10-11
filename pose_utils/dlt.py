@@ -47,12 +47,13 @@ def dlt(hyps, sceneCoord, K, **kwargs):
         raise ArithmeticError('No enought paired points ({}) to compute P with DLT'.format(len(hyps)))
 
     # Creation of matrix A
-    A = torch.zeros(2*len(hyps), 12) if not grad else auto.Variable(torch.zeros(2*len(hyps), 12), requires_grad=True)
-
+    '''
+    A = torch.zeros(2*len(hyps), 12) if not grad else auto.Variable(torch.zeros(2*len(hyps), 12), requires_grad=False)
     if cuda:
         A = A.cuda()
 
     for n_hyp, hyp in enumerate(hyps):
+        # Use torch.cat
         A[n_hyp * 2, 4:7] = -1 * sceneCoord[:, hyp[1], hyp[0]]
         A[n_hyp * 2, 7] = -1 # Homogeneous coord
         A[n_hyp * 2, 8:11] = hyp[1] * sceneCoord[:, hyp[1], hyp[0]]
@@ -61,10 +62,28 @@ def dlt(hyps, sceneCoord, K, **kwargs):
         A[n_hyp * 2 + 1, 3] = 1 # Homogeneous coord
         A[n_hyp * 2 + 1, 8:11] = -hyp[0] * sceneCoord[:, hyp[1], hyp[0]]
         A[n_hyp * 2 + 1, 11] = -hyp[0]
+    '''
+    f_iter = True
+    for n_hyp, hyp in enumerate(hyps):
+        homo_3Dpt = torch.cat((sceneCoord[:, hyp[1], hyp[0]], torch.Tensor([1])), 0)
+        if f_iter:
+            A = torch.cat((0 * homo_3Dpt, -1 * homo_3Dpt, hyp[1] * homo_3Dpt,) ,0)
+            A = torch.stack((A,
+                             torch.cat((1 * homo_3Dpt, 0 * homo_3Dpt, -hyp[0] * homo_3Dpt), 0)
+                             ), 0)
+            f_iter = False
+        else:
+            A = torch.cat((A,
+                          torch.cat((0 * homo_3Dpt, -1 * homo_3Dpt, hyp[1] * homo_3Dpt), 0).unsqueeze(0)
+                          ), 0)
+            A = torch.cat((A,
+                           torch.cat((1 * homo_3Dpt, 0 * homo_3Dpt, -hyp[0] * homo_3Dpt), 0).unsqueeze(0)
+                           ), 0)
 
-    (U, S, V) = torch.svd(A, True)
+    (U, S, V) = torch.svd(A)
 
     p = V[:,-1]
+
     if grad:
         if p[10].data.cpu().numpy() < 0: # Diag of rot mat should be > 0
             p = p * -1
@@ -72,19 +91,11 @@ def dlt(hyps, sceneCoord, K, **kwargs):
             p *= -1
 
     norm = (p[8]**2 + p[9]**2 + p[10]**2)**0.5
-    p /= norm
+    p = p/norm
+    P = p.view(3,4)
 
-    P = torch.zeros(3, 4) if not grad else auto.Variable(torch.zeros(3, 4), requires_grad=True)
     if cuda:
-        P = P.cuda()
-        P.register_hook(variable_hook)
-
-    P[0, :] = p[:4]
-    P[1, :] = p[4:8]
-    P[2, :] = p[8:]
-
-    if grad:
-        K = auto.Variable(K, requires_grad=True).cuda() if cuda else auto.Variable(K, requires_grad=True)
+        K = K.cuda()
 
     pose = K.inverse().matmul(P)
 
