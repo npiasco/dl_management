@@ -13,14 +13,27 @@ import torch.autograd as auto
 
 logger = setlog.get_logger(__name__)
 
+
 def mat_proj(T, bVec, homo=False):
     if homo:
-        homo_bVec = torch.ones(4, bVec.size(1), bVec.size(2))
-        homo_bVec[:3, :, :] = bVec
-        return mat_proj(T, homo_bVec)
-    tbVec = bVec.transpose(0, 2).transpose(0, 1).contiguous().unsqueeze(-1)
-    tproj = torch.matmul(T, tbVec)
-    proj = tproj.transpose(0, 2).transpose(1, 2).contiguous().squeeze()
+        d_size = 1
+        for s in bVec.size()[1:]:
+            d_size *= s
+        homo_bVec = torch.ones(4, d_size)
+        homo_bVec[:3, :] = bVec.view(3, -1)
+        tbVec = homo_bVec.view(homo_bVec.size(0), -1).transpose(0, 1).contiguous().unsqueeze(-1)
+        tproj = torch.matmul(T, tbVec)
+        proj = tproj.transpose(0, 1).contiguous().view(bVec.size())
+    else:
+    #tbVec = bVec.transpose(0, 2).transpose(0, 1).contiguous().unsqueeze(-1)
+    #tproj = torch.matmul(T, tbVec)
+    #proj = tproj.transpose(0, 2).transpose(1, 2).contiguous().squeeze()
+        tbVec = bVec.view(bVec.size(0), -1).transpose(0, 1).contiguous().unsqueeze(-1)
+        tproj = torch.matmul(T, tbVec)
+        proj = tproj.transpose(0, 1).contiguous().view(bVec.size())
+    #tbVec = bVec.view(-1, bVec.size(0)).unsqueeze(0)
+    #tproj = torch.matmul(tbVec.t(), T)
+    #proj = tproj.view(3, bVec.size(1), bVec.size(2))
 
     return proj
 
@@ -106,6 +119,9 @@ def draw_hyps(n, width=640, height=480):
     return [[rd.randint(0, width-1), rd.randint(0, height-1)] for _ in range(n)]
 
 if __name__ == '__main__':
+    #root = '/media/nathan/Data/7_Scenes/heads/seq-02/'
+    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+
     ids = ['frame-000100', 'frame-000125',]#, 'frame-000300' 'frame-000500', 'frame-000400', 'frame-000600', 'frame-000700', 'frame-000800', 'frame-000900']
 
     pc = list()
@@ -122,9 +138,9 @@ if __name__ == '__main__':
     K[2, 2] = 1
 
     for id in ids:
-        rgb_im = '/media/nathan/Data/7_Scenes/heads/seq-02/' + id + '.color.png'
-        depth_im = '/media/nathan/Data/7_Scenes/heads/seq-02/' + id + '.depth.png'
-        pose_im = '/media/nathan/Data/7_Scenes/heads/seq-02/' + id + '.pose.txt'
+        rgb_im = root + id + '.color.png'
+        depth_im = root + id + '.depth.png'
+        pose_im = root + id + '.pose.txt'
 
         im = func.to_tensor(func.resize(PIL.Image.open(rgb_im), int(480*scale))).float()
         depth = func.to_tensor(func.resize(PIL.Image.open(depth_im), int(480*scale), interpolation=0),).float()
@@ -163,14 +179,12 @@ if __name__ == '__main__':
         print(dlt_pose - pose.inverse()[:3, :])
 
         pc.append(X)
-        '''
         plt.figure(1)
         grid = torchvision.utils.make_grid(im)
         plt.imshow(grid.numpy().transpose((1, 2, 0)))
         grid = torchvision.utils.make_grid(depth)
         plt.figure(2)
         plt.imshow(grid.numpy().transpose((1, 2, 0))[:,:,0], cmap=plt.get_cmap('jet'))
-        '''
 
     fig = plt.figure(3)
     ax = fig.add_subplot(111, projection='3d')

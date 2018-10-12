@@ -15,27 +15,29 @@ def soft_knn(pc_ref, pc_to_align):
     return pc_ref
 
 def best_fit_transform(pc_ref, pc_to_align):
-    pc_ref_centroid = -1 * torch.mean(pc_ref,0)
+    pc_ref = pc_ref.view(3, -1)
+    pc_ref_centroid = -1 * torch.mean(pc_ref, -1)
     pc_ref_centroid_tf = torch.eye(3,4)
-    pc_ref_centroid_tf[:,3] = pc_ref_centroid
+    pc_ref_centroid_tf[:, 3] = pc_ref_centroid
     pc_ref_centred = utils.mat_proj(pc_ref_centroid_tf, pc_ref, homo=True)
 
-    pc_to_align_centroid = -1 * torch.mean(pc_to_align, 0)
+    pc_to_align = pc_to_align.view(3, -1)
+    pc_to_align_centroid = -1 * torch.mean(pc_to_align, -1)
     pc_to_align_centroid_tf = torch.eye(3, 4)
     pc_to_align_centroid_tf[:, 3] = pc_to_align_centroid
     pc_to_align_centred = utils.mat_proj(pc_to_align_centroid_tf, pc_to_align, homo=True)
 
-    H = torch.dot(pc_ref_centred.t(), pc_to_align_centred)
+    H = torch.matmul(pc_ref_centred.t(), pc_to_align_centred)
     U, S, V = torch.svd(H)
-    R = torch.dot(V, U.t())
+    R = torch.matmul(U, V.t())
 
     # special reflection case
     if torch.det(R) < 0:
        V.t()[:3,:] = V[:3,:] * -1
-       R = torch.dot(V, U.T)
+       R = torch.matmul(U, V.t())
 
     # translation
-    t = pc_ref_centroid.t() - torch.dot(R, pc_to_align_centroid.t())
+    t = pc_ref_centroid - torch.matmul(R, pc_to_align_centroid)
 
     # homogeneous transformation
     T = torch.eye(4,4)
@@ -54,7 +56,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     T = init_T
 
     for i in range(iter):
-        pc_rec = utils.mat_proj(T, pc_to_align, homo=True)
+        pc_rec = utils.mat_proj(T[:3, :], pc_to_align, homo=True)
 
         pc_nearest = soft_knn(pc_ref, pc_rec)
         new_T = best_fit_transform(pc_nearest, pc_rec)
@@ -78,8 +80,8 @@ if __name__ == '__main__':
 
     K[2, 2] = 1
 
-    root = '/media/nathan/Data/7_Scenes/heads/seq-02/'
-    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    #root = '/media/nathan/Data/7_Scenes/heads/seq-02/'
+    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
     depths = list()
