@@ -7,7 +7,7 @@ import torch.nn.functional as functional
 import torch.nn as nn
 import torch.autograd as auto
 import datasets.custom_quaternion as custom_q
-import pose_utils.dlt as utils
+import pose_utils.DLT as utils
 import torch.optim as optim
 import tqdm
 
@@ -15,15 +15,15 @@ import tqdm
 logger = setlog.get_logger(__name__)
 
 def rot_to_quat(m):
-    if m[2, 2] < 0:
-        if m[0, 0] > m[1, 1]:
+    if m[2, 2].item() < 0:
+        if m[0, 0].item() > m[1, 1].item():
             t = 1 + m[0, 0] - m[1, 1] - m[2, 2]
             q = torch.stack([m[1, 2] - m[2, 1], t, m[0, 1] + m[1, 0], m[2, 0] + m[0, 2]], 0)
         else:
             t = 1 - m[0, 0] + m[1, 1] - m[2, 2]
             q = torch.stack([m[2, 0] - m[0, 2], m[0, 1] + m[1, 0], t, m[1, 2] + m[2, 1]], 0)
     else:
-        if m[0, 0] < -m[1, 1]:
+        if m[0, 0].item() < -m[1, 1].item():
             t = 1 - m[0, 0] - m[1, 1] + m[2, 2]
             q = torch.stack([m[0, 1] - m[1, 0], m[2, 0] + m[0, 2], m[1, 2] + m[2, 1], t], 0)
         else:
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     K[2, 2] = 1
 
     root = '/media/nathan/Data/7_Scenes/heads/seq-02/'
-    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     rgb_im = root + id + '.color.png'
     depth_im = root + id + '.depth.png'
@@ -102,20 +102,26 @@ if __name__ == '__main__':
     quat._normalise()
     rot = torch.FloatTensor(quat.rotation_matrix)
     pose[:3, :3] = rot
+
     '''
-    pose =  auto.Variable(pose[:3,:]).cuda()
-    im_fwd = auto.Variable(im, requires_grad=True).unsqueeze(0).cuda()
+    pose =  pose[:3,:].cuda()
+    im_fwd = im.unsqueeze(0).cuda()
     net = init_net().cuda()
-    '''
-    pose = pose[:3,:]
     q = rot_to_quat(pose[:3, :3])
-    t = pose[:, 3]
+    t = pose[:3, 3]
+    '''
+
+    pose = pose[:3,:]
     im_fwd = im.unsqueeze(0)
     net = init_net()
+    q = rot_to_quat(pose[:3, :3])
+    t = pose[:3, 3]
+
+
     optimizer = optim.Adam(net.parameters())
     #net.register_backward_hook(module_hook)
     it = 10000
-    n_hyps = 1
+    n_hyps = 10
     n_pt = 10
     tt_loss = list()
     hyps = [[10, 32], [75, 55], [1, 42], [32, 0], [28, 47], [42, 50]]#
@@ -123,18 +129,18 @@ if __name__ == '__main__':
     for i in tqdm.tqdm(range(it)):
         optimizer.zero_grad()
         output = net(im_fwd)
-        #output.register_hook(variable_hook)
-        #print(output[0,:,10, 32])
         q_loss = 0
         t_loss = 0
         for hyp in range(n_hyps):
-            # pose_net = utils.dlt(utils.draw_hyps(n_pt, width=640*scale, height=480*scale), sceneCoord=output.squeeze(), K=K, grad=True, cuda=False)
-            pose_net = utils.dlt(hyps, sceneCoord=output.squeeze(), K=K, grad=True, cuda=False)
+            pose_net = utils.dlt(utils.draw_hyps(n_pt, width=640*scale, height=480*scale), sceneCoord=output.squeeze(), K=K, grad=True, cuda=False)
+             #pose_net = utils.dlt(hyps, sceneCoord=output.squeeze(), K=K, grad=True, cuda=False)
             #pose_net.register_hook(variable_hook)
             t_net = pose_net[:,3]
-            q_net = rot_to_quat(pose_net[:3,:3])
+
+            q_net = rot_to_quat(pose_net[:3, :3])
             #q_loss += torch.mean(functional.pairwise_distance(q_net.view(-1,1), q.view(-1,1)))
-            q_loss += torch.abs(torch.dot(q_net, q))
+
+            q_loss += torch.mean(functional.pairwise_distance(q_net.view(-1, 1), q.view(-1, 1)))
             t_loss += torch.mean(functional.pairwise_distance(t_net.view(-1, 1), t.view(-1, 1)))
 
         loss = 0.9*torch.max(torch.stack((q_loss, t_loss), 0)) + 0.1*torch.min(torch.stack((q_loss, t_loss), 0))

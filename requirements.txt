@@ -1,0 +1,4 @@
+colorlog
+Pillow
+torchvision
+tqdm

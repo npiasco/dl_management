@@ -13,6 +13,16 @@ import torch.autograd as auto
 
 logger = setlog.get_logger(__name__)
 
+def mat_proj(T, bVec, homo=False):
+    if homo:
+        homo_bVec = torch.ones(4, bVec.size(1), bVec.size(2))
+        homo_bVec[:3, :, :] = bVec
+        return mat_proj(T, homo_bVec)
+    tbVec = bVec.transpose(0, 2).transpose(0, 1).contiguous().unsqueeze(-1)
+    tproj = torch.matmul(T, tbVec)
+    proj = tproj.transpose(0, 2).transpose(1, 2).contiguous().squeeze()
+
+    return proj
 
 def toSceneCoord(depth, pose, K):
 
@@ -21,15 +31,9 @@ def toSceneCoord(depth, pose, K):
 
     inv_K = K.inverse()
     p_d = p * depth
-    p_d = p_d.transpose(0, 2).transpose(0, 1).contiguous().unsqueeze(3)
+    x = mat_proj(inv_K, p_d)
 
-    x = torch.matmul(inv_K, p_d)
-
-    homo_x = torch.ones(depth.size(1), depth.size(2), 4, 1)
-    homo_x[:, :, :3, ] = x
-    X = torch.matmul(pose[:3, :], homo_x)
-    X = X.transpose(0, 2).transpose(1, 2).contiguous()
-
+    X = mat_proj(pose[:3, :], x, homo=True)
     return X
 
 def variable_hook(grad):
@@ -49,7 +53,10 @@ def dlt(hyps, sceneCoord, K, **kwargs):
     # Creation of matrix A
     f_iter = True
     for n_hyp, hyp in enumerate(hyps):
-        homo_3Dpt = torch.cat((sceneCoord[:, hyp[1], hyp[0]], torch.Tensor([1])), 0)
+        if cuda:
+            homo_3Dpt = torch.cat((sceneCoord[:, hyp[1], hyp[0]].squeeze(), torch.Tensor([1]).cuda()), 0)
+        else:
+            homo_3Dpt = torch.cat((sceneCoord[:, hyp[1], hyp[0]].squeeze(), torch.Tensor([1])), 0)
         if f_iter:
             A = torch.cat((0 * homo_3Dpt, -1 * homo_3Dpt, hyp[1] * homo_3Dpt,) ,0)
             A = torch.stack((A,
@@ -68,11 +75,9 @@ def dlt(hyps, sceneCoord, K, **kwargs):
 
     p = V[:,-1]
 
-    if grad:
-        if p[10].data.cpu().numpy() < 0: # Diag of rot mat should be > 0
-            p = p * -1
-    elif p[10] <  0: # Diag of rot mat should be > 0
-            p *= -1
+
+    if p[10].item() < 0: # Diag of rot mat should be > 0
+        p = p * -1
 
     norm = (p[8]**2 + p[9]**2 + p[10]**2)**0.5
     p = p/norm
@@ -85,14 +90,26 @@ def dlt(hyps, sceneCoord, K, **kwargs):
 
     return pose
 
+
+def plt_pc(pc, ax, pas = 50, color='b'):
+    x = pc[0, :, :].view(1, -1).numpy()[0]
+    x = [x[i] for i in range(0, len(x), pas)]
+    y = pc[1, :, :].view(1, -1).numpy()[0]
+    y = [y[i] for i in range(0, len(y), pas)]
+    z = pc[2, :, :].view(1, -1).numpy()[0]
+    z = [z[i] for i in range(0, len(z), pas)]
+
+    ax.scatter(x, y, z, c=color, depthshade=True)
+
+
 def draw_hyps(n, width=640, height=480):
     return [[rd.randint(0, width-1), rd.randint(0, height-1)] for _ in range(n)]
 
 if __name__ == '__main__':
-    ids = ['frame-000100', 'frame-000200', 'frame-000300',]# 'frame-000500', 'frame-000400', 'frame-000600', 'frame-000700', 'frame-000800', 'frame-000900']
+    ids = ['frame-000100', 'frame-000125',]#, 'frame-000300' 'frame-000500', 'frame-000400', 'frame-000600', 'frame-000700', 'frame-000800', 'frame-000900']
 
     pc = list()
-    scale = 0.125
+    scale = 1/32
 
     K = torch.zeros(3, 3)
     K[0, 0] = 585
@@ -111,7 +128,6 @@ if __name__ == '__main__':
 
         im = func.to_tensor(func.resize(PIL.Image.open(rgb_im), int(480*scale))).float()
         depth = func.to_tensor(func.resize(PIL.Image.open(depth_im), int(480*scale), interpolation=0),).float()
-        print(depth.size())
         depth[depth==65535] = 0
         depth *= 1e-3
 
@@ -131,7 +147,6 @@ if __name__ == '__main__':
         pose[:3, :3] = rot
 
         X = toSceneCoord(depth, pose, K)
-
         hyps = draw_hyps(10, width=640*scale, height=480*scale)
 
         X_noise = torch.rand(X.size())*1e-4 + X
@@ -160,17 +175,11 @@ if __name__ == '__main__':
     fig = plt.figure(3)
     ax = fig.add_subplot(111, projection='3d')
     pas = int(250*scale)
-    color = ['c']*10
+    pas = 1
+
+    color = ['c', 'b']
 
     for n_pc, point_cloud in enumerate(pc):
-        x = point_cloud[0, :, :].view(1, -1).numpy()[0]
-        x = [x[i] for i in range(0, len(x), pas)]
-        y = point_cloud[1, :, :].view(1, -1).numpy()[0]
-        y = [y[i] for i in range(0, len(y), pas)]
-        z = point_cloud[2, :, :].view(1, -1).numpy()[0]
-        z = [z[i] for i in range(0, len(z), pas)]
-
-        ax.scatter(x, y, z, c=color[n_pc], depthshade=True)
+        plt_pc(point_cloud, ax, pas, color[n_pc])
 
     plt.show()
-
