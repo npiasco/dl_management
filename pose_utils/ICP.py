@@ -15,17 +15,13 @@ def soft_knn(pc_ref, pc_to_align):
     return pc_ref
 
 def best_fit_transform(pc_ref, pc_to_align):
-    pc_ref = pc_ref.view(3, -1)
-    pc_ref_centroid = -1 * torch.mean(pc_ref, -1)
-    pc_ref_centroid_tf = torch.eye(3,4)
-    pc_ref_centroid_tf[:, 3] = pc_ref_centroid
-    pc_ref_centred = utils.mat_proj(pc_ref_centroid_tf, pc_ref, homo=True)
+    row_pc_ref = pc_ref.view(3, -1)
+    pc_ref_centroid = torch.mean(row_pc_ref, -1)
+    pc_ref_centred = (row_pc_ref.transpose(0, 1) - pc_ref_centroid)
 
-    pc_to_align = pc_to_align.view(3, -1)
-    pc_to_align_centroid = -1 * torch.mean(pc_to_align, -1)
-    pc_to_align_centroid_tf = torch.eye(3, 4)
-    pc_to_align_centroid_tf[:, 3] = pc_to_align_centroid
-    pc_to_align_centred = utils.mat_proj(pc_to_align_centroid_tf, pc_to_align, homo=True)
+    row_pc_to_align = pc_to_align.view(3, -1)
+    pc_to_align_centroid = torch.mean(row_pc_to_align, -1)
+    pc_to_align_centred = (row_pc_to_align.transpose(0, 1) - pc_to_align_centroid)
 
     H = torch.matmul(pc_ref_centred.t(), pc_to_align_centred)
     U, S, V = torch.svd(H)
@@ -37,6 +33,9 @@ def best_fit_transform(pc_ref, pc_to_align):
        R = torch.matmul(U, V.t())
 
     # translation
+    print(pc_ref_centroid)
+    print(pc_to_align_centroid)
+    print(torch.matmul(R, pc_to_align_centroid))
     t = pc_ref_centroid - torch.matmul(R, pc_to_align_centroid)
 
     # homogeneous transformation
@@ -61,9 +60,24 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
         pc_nearest = soft_knn(pc_ref, pc_rec)
         new_T = best_fit_transform(pc_nearest, pc_rec)
 
-        T = torch.matmul(new_T, T)
+        T = torch.matmul(T, new_T)
+        print('Iter {}'.format(i))
+        print(T)
+
 
     return T
+
+def rotation_matrix(axis, theta):
+    axis = axis/torch.norm(axis)
+    a = torch.cos(theta/2.)
+    axsin = -axis*torch.sin(theta/2.)
+    b = axsin[0]
+    c = axsin[1]
+    d = axsin[2]
+
+    return torch.FloatTensor([[a*a+b*b-c*c-d*d, 2*(b*c-a*d), 2*(b*d+a*c)],
+                              [2*(b*c+a*d), a*a+c*c-b*b-d*d, 2*(c*d-a*b)],
+                              [2*(b*d-a*c), 2*(c*d+a*b), a*a+d*d-b*b-c*c]])
 
 if __name__ == '__main__':
     ids = ['frame-000100','frame-000125']
@@ -120,8 +134,9 @@ if __name__ == '__main__':
         pcs.append(utils.toSceneCoord(depth, pose, K))
 
     rd_trans = torch.eye(3,4)
-    rd_trans[:,3] = torch.FloatTensor([0.1,0.5,-0.1])
-
+    rd_trans[:,3] = torch.FloatTensor([0.5, -1, 1])
+    #rd_trans[:3, :3] = rotation_matrix(torch.Tensor([1, 0, 0]), torch.Tensor([1]))
+    rd_trans[:3, :3] = poses[1][:3,:3]
     pc_ref = pcs[0]
 
     pc_to_align = utils.mat_proj(rd_trans, pcs[1], homo=True)
@@ -139,9 +154,8 @@ if __name__ == '__main__':
 
     print('Before alignement')
 
-    T = soft_icp(pc_to_align, pc_ref, torch.eye(4,4))[:3,:]
-
-    pc_aligned = utils.mat_proj(T, pc_to_align, homo=True)
+    T = soft_icp(pc_ref, pc_to_align, torch.eye(4,4))[:3,:]
+    pc_aligned = utils.mat_proj(T[:3, :], pc_to_align, homo=True)
 
     fig = plt.figure(2)
     ax = fig.add_subplot(111, projection='3d')
@@ -149,6 +163,7 @@ if __name__ == '__main__':
 
     utils.plt_pc(pc_ref, ax, pas, 'b')
     utils.plt_pc(pc_aligned, ax, pas, 'c')
+
 
     print('After alignement')
     plt.show()
