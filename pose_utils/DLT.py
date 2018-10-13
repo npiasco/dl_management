@@ -31,12 +31,16 @@ def mat_proj(T, bVec, homo=False):
 
     return proj
 
-def toSceneCoord(depth, pose, K):
+def toSceneCoord(depth, pose, K, remove_zeros=False):
     p = [[[i, j, 1] for j in range(depth.size(1))] for i in range(depth.size(2))]
     p = torch.FloatTensor(p).transpose(0, 2).contiguous()
 
     inv_K = K.inverse()
-    p_d = p * depth
+    p_d = (p * depth).view(3, -1).transpose(0, 1)
+
+    if remove_zeros:
+        p_d = p_d[p_d.nonzero()][:, 0]
+    p_d = p_d.transpose(0, 1)
 
     x = mat_proj(inv_K, p_d)
 
@@ -48,8 +52,9 @@ def variable_hook(grad):
     print('grad', grad)
 
 def dlt(hyps, sceneCoord, K, **kwargs):
-    grad = kwargs.pop('grad', False)
     cuda = kwargs.pop('cuda', False)
+    width = kwargs.pop('width', 640)
+    height = kwargs.pop('height', 480)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -59,11 +64,12 @@ def dlt(hyps, sceneCoord, K, **kwargs):
 
     # Creation of matrix A
     f_iter = True
+    print(sceneCoord.size())
     for n_hyp, hyp in enumerate(hyps):
         if cuda:
-            homo_3Dpt = torch.cat((sceneCoord[:, hyp[1], hyp[0]].squeeze(), torch.Tensor([1]).cuda()), 0)
+            homo_3Dpt = torch.cat((sceneCoord[:, hyp[1]*width + hyp[0]].squeeze(), torch.Tensor([1]).cuda()), 0)
         else:
-            homo_3Dpt = torch.cat((sceneCoord[:, hyp[1], hyp[0]].squeeze(), torch.Tensor([1])), 0)
+            homo_3Dpt = torch.cat((sceneCoord[:, hyp[1]*width + hyp[0]].squeeze(), torch.Tensor([1])), 0)
         if f_iter:
             A = torch.cat((0 * homo_3Dpt, -1 * homo_3Dpt, hyp[1] * homo_3Dpt,) ,0)
             A = torch.stack((A,
@@ -99,11 +105,11 @@ def dlt(hyps, sceneCoord, K, **kwargs):
 
 
 def plt_pc(pc, ax, pas = 50, color='b'):
-    x = pc[0, :, :].view(1, -1).numpy()[0]
+    x = pc[0, :].view(1, -1).numpy()[0]
     x = [x[i] for i in range(0, len(x), pas)]
-    y = pc[1, :, :].view(1, -1).numpy()[0]
+    y = pc[1, :].view(1, -1).numpy()[0]
     y = [y[i] for i in range(0, len(y), pas)]
-    z = pc[2, :, :].view(1, -1).numpy()[0]
+    z = pc[2, :].view(1, -1).numpy()[0]
     z = [z[i] for i in range(0, len(z), pas)]
 
     ax.scatter(x, y, z, c=color, depthshade=True)
@@ -161,7 +167,7 @@ if __name__ == '__main__':
 
         X_noise = torch.rand(X.size())*1e-4 + X
 
-        dlt_pose = dlt(hyps, X, K)
+        dlt_pose = dlt(hyps, X, K, width=int(640*scale), height=int(480*scale))
 
         print('Real P:')
         print(K.matmul(pose.inverse()[:3, :]))

@@ -147,7 +147,7 @@ if __name__ == '__main__':
 
         poses.append(pose)
 
-        pcs.append(utils.toSceneCoord(depth, pose, K))
+        pcs.append(utils.toSceneCoord(depth, pose, K, remove_zeros=True))
 
     rd_trans = torch.eye(3,4)
     #rd_trans[:,3] = torch.FloatTensor([0.5, -1, 1])
