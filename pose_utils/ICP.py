@@ -10,18 +10,24 @@ import matplotlib.pyplot as plt
 
 logger = setlog.get_logger(__name__)
 
-def soft_knn(pc_ref, pc_to_align):
+def soft_knn(pc_ref, pc_to_align, fact=10):
+    pc_nearest = pc_to_align.clone()
+    pc_ref_t = pc_ref.transpose(0, 1)
+    mean_distance = 0
+    for i, pt in enumerate(pc_to_align.transpose(0, 1)):
+        d_to_pt = torch.sum((pc_ref_t - pt)**2, 1)
+        prob = torch.softmax(fact * -d_to_pt, 0)
+        pc_nearest[:, i] = torch.sum(pc_ref * prob, 1)
+        mean_distance += torch.norm(pt - pc_nearest[:, i]).item()
 
-    return pc_ref
+    return pc_nearest, mean_distance/(i+1)
 
 def best_fit_transform(pc_ref, pc_to_align):
-    row_pc_ref = pc_ref.view(3, -1)
-    pc_ref_centroid = torch.mean(row_pc_ref, -1)
-    pc_ref_centred = (row_pc_ref.transpose(0, 1) - pc_ref_centroid)
+    pc_ref_centroid = torch.mean(pc_ref, -1)
+    pc_ref_centred = (pc_ref.transpose(0, 1) - pc_ref_centroid)
 
-    row_pc_to_align = pc_to_align.view(3, -1)
-    pc_to_align_centroid = torch.mean(row_pc_to_align, -1)
-    pc_to_align_centred = (row_pc_to_align.transpose(0, 1) - pc_to_align_centroid)
+    pc_to_align_centroid = torch.mean(pc_to_align, -1)
+    pc_to_align_centred = (pc_to_align.transpose(0, 1) - pc_to_align_centroid)
 
     H = torch.matmul(pc_ref_centred.t(), pc_to_align_centred)
     U, S, V = torch.svd(H)
@@ -33,9 +39,6 @@ def best_fit_transform(pc_ref, pc_to_align):
        R = torch.matmul(U, V.t())
 
     # translation
-    print(pc_ref_centroid)
-    print(pc_to_align_centroid)
-    print(torch.matmul(R, pc_to_align_centroid))
     t = pc_ref_centroid - torch.matmul(R, pc_to_align_centroid)
 
     # homogeneous transformation
@@ -46,24 +49,37 @@ def best_fit_transform(pc_ref, pc_to_align):
     return T
 
 def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
-    iter = kwargs.pop('iter', 10)
+    iter = kwargs.pop('iter', 100)
     tolerance = kwargs.pop('tolerance', 1e-3)
+    fact = kwargs.pop('fact', 1)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     T = init_T
 
-    for i in range(iter):
-        pc_rec = utils.mat_proj(T[:3, :], pc_to_align, homo=True)
+    # Row data
+    row_pc_ref = pc_ref.view(3, -1)
+    row_pc_to_align = pc_to_align.view(3, -1)
 
-        pc_nearest = soft_knn(pc_ref, pc_rec)
+    prev_dist = 0
+
+    for i in range(iter):
+        pc_rec = utils.mat_proj(T[:3, :], row_pc_to_align, homo=True)
+
+        pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, fact=fact)
         new_T = best_fit_transform(pc_nearest, pc_rec)
 
         T = torch.matmul(T, new_T)
-        print('Iter {}'.format(i))
-        print(T)
+        entrop = abs(prev_dist - dist)
+        fact = max(1/entrop, 1)
+        print(fact)
+        if entrop < tolerance:
+            break
+        else:
+            prev_dist = dist
 
+    print('Done in {} it'.format(i))
 
     return T
 
@@ -134,8 +150,8 @@ if __name__ == '__main__':
         pcs.append(utils.toSceneCoord(depth, pose, K))
 
     rd_trans = torch.eye(3,4)
-    rd_trans[:,3] = torch.FloatTensor([0.5, -1, 1])
-    #rd_trans[:3, :3] = rotation_matrix(torch.Tensor([1, 0, 0]), torch.Tensor([1]))
+    #rd_trans[:,3] = torch.FloatTensor([0.5, -1, 1])
+    rd_trans[:3, :3] = rotation_matrix(torch.Tensor([1, 0, 0]), torch.Tensor([1]))
     rd_trans[:3, :3] = poses[1][:3,:3]
     pc_ref = pcs[0]
 
@@ -164,6 +180,15 @@ if __name__ == '__main__':
     utils.plt_pc(pc_ref, ax, pas, 'b')
     utils.plt_pc(pc_aligned, ax, pas, 'c')
 
-
     print('After alignement')
+
+    fig = plt.figure(3)
+    ax = fig.add_subplot(111, projection='3d')
+    pas = 1
+
+    utils.plt_pc(pc_ref, ax, pas, 'b')
+    utils.plt_pc(pcs[1], ax, pas, 'c')
+
+    print('GT')
+
     plt.show()

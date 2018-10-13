@@ -25,25 +25,19 @@ def mat_proj(T, bVec, homo=False):
         tproj = torch.matmul(T, tbVec)
         proj = tproj.transpose(0, 1).contiguous().view(bVec.size())
     else:
-    #tbVec = bVec.transpose(0, 2).transpose(0, 1).contiguous().unsqueeze(-1)
-    #tproj = torch.matmul(T, tbVec)
-    #proj = tproj.transpose(0, 2).transpose(1, 2).contiguous().squeeze()
         tbVec = bVec.view(bVec.size(0), -1).transpose(0, 1).contiguous().unsqueeze(-1)
         tproj = torch.matmul(T, tbVec)
         proj = tproj.transpose(0, 1).contiguous().view(bVec.size())
-    #tbVec = bVec.view(-1, bVec.size(0)).unsqueeze(0)
-    #tproj = torch.matmul(tbVec.t(), T)
-    #proj = tproj.view(3, bVec.size(1), bVec.size(2))
 
     return proj
 
 def toSceneCoord(depth, pose, K):
-
     p = [[[i, j, 1] for j in range(depth.size(1))] for i in range(depth.size(2))]
     p = torch.FloatTensor(p).transpose(0, 2).contiguous()
 
     inv_K = K.inverse()
     p_d = p * depth
+
     x = mat_proj(inv_K, p_d)
 
     X = mat_proj(pose[:3, :], x, homo=True)

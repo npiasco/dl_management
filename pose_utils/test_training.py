@@ -132,7 +132,11 @@ if __name__ == '__main__':
         q_loss = 0
         t_loss = 0
         for hyp in range(n_hyps):
-            pose_net = utils.dlt(utils.draw_hyps(n_pt, width=640*scale, height=480*scale), sceneCoord=output.squeeze(), K=K, grad=True, cuda=False)
+            pose_net = utils.dlt(utils.draw_hyps(n_pt, width=640*scale, height=480*scale),
+                                 sceneCoord=output.squeeze(),
+                                 K=K,
+                                 grad=True,
+                                 cuda=False)
              #pose_net = utils.dlt(hyps, sceneCoord=output.squeeze(), K=K, grad=True, cuda=False)
             #pose_net.register_hook(variable_hook)
             t_net = pose_net[:,3]
