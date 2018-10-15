@@ -65,7 +65,7 @@ def variable_hook(grad):
 if __name__ == '__main__':
     ids = ['frame-000100','frame-000125', 'frame-000150']
 
-    scale = 1/4
+    scale = 1/8
 
     K = torch.zeros(3, 3)
     K[0, 0] = 585
@@ -78,7 +78,7 @@ if __name__ == '__main__':
     K[2, 2] = 1
 
     root = '/media/nathan/Data/7_Scenes/heads/seq-02/'
-    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
     ims_nn = list()
@@ -177,6 +177,9 @@ if __name__ == '__main__':
         depth_map_loss = torch.mean(functional.pairwise_distance(depth_map.view(-1, 1), depths[1].view(-1, 1), p=1))
 
         tt_loss.append(loss.item())
+
+        loss.backward()
+        optimizer.step()
         if not i%25:
             print('Loss is {} {} (q) {} (t) {} (d) {} (dist)'.format(loss.item(), q_loss.item(), t_loss.item(), depth_map_loss.item(), dist.item()))
             print('Pose is')
@@ -205,10 +208,14 @@ if __name__ == '__main__':
             grid = torchvision.utils.make_grid(ims_nn[1])
             plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
-            plt.show()
+            plt.figure(4)
+            d_maps = [ICP.error_map(pc_ref.view(3,-1),
+                                    pc_to_align.view(3,-1),
+                                    fact, int(640*scale)).unsqueeze(0).detach() for fact in (1, 5, 10, 100)]
+            grid = torchvision.utils.make_grid(torch.cat(d_maps, 0), nrow=2)
+            plt.imshow(grid.numpy().transpose((1, 2, 0))[:, :, 0], cmap=plt.get_cmap('jet'))
+            plt.colorbar()
 
-        #pc_to_align.register_hook(variable_hook)
-        loss.backward()
-        optimizer.step()
+            plt.show()
 
     plt.show()

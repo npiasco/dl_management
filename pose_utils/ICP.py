@@ -11,6 +11,19 @@ from mpl_toolkits.mplot3d import Axes3D
 logger = setlog.get_logger(__name__)
 
 
+def error_map(pc_ref, pc_to_align, fact, width):
+    d_map = torch.zeros((1, pc_to_align.size(-1)//width, width))
+    pc_ref_t = pc_ref.transpose(0, 1)
+    print('Error map computation...')
+    for i, pt in (enumerate(pc_to_align.transpose(0, 1))):
+        d_to_pt = torch.sum((pc_ref_t - pt)**2, 1)
+        prob = torch.softmax(fact * -d_to_pt, 0)
+        p_nearest = torch.sum(pc_ref * prob, 1)
+        d_map[0, i//width, i - (i//width)*width] = torch.norm(pt - p_nearest, p=2)
+    print('Error map computed!')
+    return d_map
+
+
 def outlier_filter(pc_nearest, pc_to_align, mean_distance):
     for i, pt in enumerate(pc_to_align.transpose(0, 1)):
         if mean_distance < 1 and torch.norm(pt - pc_nearest[:, i], p=2) > mean_distance**0.5:
@@ -121,7 +134,7 @@ if __name__ == '__main__':
     K[2, 2] = 1
 
     root = '/media/nathan/Data/7_Scenes/heads/seq-02/'
-    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
     depths = list()
