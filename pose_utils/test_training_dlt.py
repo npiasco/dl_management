@@ -61,9 +61,9 @@ def variable_hook(grad):
 
 
 if __name__ == '__main__':
-    id = 'frame-000100'
+    id = 'frame-000125'
 
-    scale = 0.125
+    scale = 1/32
 
     K = torch.zeros(3, 3)
     K[0, 0] = 585
@@ -71,7 +71,7 @@ if __name__ == '__main__':
     K[1, 1] = 585
     K[1, 2] = 240
 
-    K *= 0.5
+    K *= scale
 
     K[2, 2] = 1
 
@@ -132,11 +132,11 @@ if __name__ == '__main__':
         q_loss = 0
         t_loss = 0
         for hyp in range(n_hyps):
-            pose_net = utils.dlt(utils.draw_hyps(n_pt, width=640*scale, height=480*scale),
-                                 sceneCoord=output.squeeze(),
+            pose_net = utils.dlt(utils.draw_hyps(n_pt, width=int(640*scale), height=int(480*scale)),
+                                 sceneCoord=output.squeeze().view(3, -1),
                                  K=K,
-                                 grad=True,
-                                 cuda=False)
+                                 cuda=False,
+                                 width=int(640*scale))
              #pose_net = utils.dlt(hyps, sceneCoord=output.squeeze(), K=K, grad=True, cuda=False)
             #pose_net.register_hook(variable_hook)
             t_net = pose_net[:,3]
@@ -147,6 +147,8 @@ if __name__ == '__main__':
             q_loss += torch.mean(functional.pairwise_distance(q_net.view(-1, 1), q.view(-1, 1)))
             t_loss += torch.mean(functional.pairwise_distance(t_net.view(-1, 1), t.view(-1, 1)))
 
+        q_loss = q_loss/n_hyps
+        t_loss = t_loss/n_hyps
         loss = 0.9*torch.max(torch.stack((q_loss, t_loss), 0)) + 0.1*torch.min(torch.stack((q_loss, t_loss), 0))
         tt_loss.append(loss.item())
         if not i%20:
