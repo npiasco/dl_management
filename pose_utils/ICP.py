@@ -2,13 +2,23 @@ import setlog
 import PIL.Image
 import torch
 import torchvision.transforms.functional as func
-import torch.nn.functional as functional
+import pose_utils.utils as utils
 import datasets.custom_quaternion as custom_q
-import pose_utils.DLT as utils
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 
 logger = setlog.get_logger(__name__)
+
+
+def outlier_filter(pc_nearest, pc_to_align, mean_distance):
+    for i, pt in enumerate(pc_to_align.transpose(0, 1)):
+        if mean_distance < 1 and torch.norm(pt - pc_nearest[:, i], p=2) > mean_distance**0.5:
+            pc_nearest[:, i] *= 0
+            pc_to_align[:, i] *= 0
+
+    return pc_nearest, pc_to_align
+
 
 def soft_knn(pc_ref, pc_to_align, fact=10):
     pc_nearest = pc_to_align.clone()
@@ -18,9 +28,10 @@ def soft_knn(pc_ref, pc_to_align, fact=10):
         d_to_pt = torch.sum((pc_ref_t - pt)**2, 1)
         prob = torch.softmax(fact * -d_to_pt, 0)
         pc_nearest[:, i] = torch.sum(pc_ref * prob, 1)
-        mean_distance += torch.norm(pt - pc_nearest[:, i]).item()
+        mean_distance += torch.norm(pt - pc_nearest[:, i], p=2)
 
     return pc_nearest, mean_distance/(i+1)
+
 
 def best_fit_transform(pc_ref, pc_to_align):
     pc_ref_centroid = torch.mean(pc_ref, -1)
@@ -30,12 +41,13 @@ def best_fit_transform(pc_ref, pc_to_align):
     pc_to_align_centred = (pc_to_align.transpose(0, 1) - pc_to_align_centroid)
 
     H = torch.matmul(pc_ref_centred.t(), pc_to_align_centred)
+
     U, S, V = torch.svd(H)
     R = torch.matmul(U, V.t())
 
     # special reflection case
     if torch.det(R) < 0:
-       V.t()[:3,:] = V[:3,:] * -1
+       V = (V * -1).t()
        R = torch.matmul(U, V.t())
 
     # translation
@@ -48,10 +60,11 @@ def best_fit_transform(pc_ref, pc_to_align):
 
     return T
 
+
 def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     iter = kwargs.pop('iter', 100)
     tolerance = kwargs.pop('tolerance', 1e-3)
-    fact = kwargs.pop('fact', 1)
+    unit_fact = kwargs.pop('fact', 1)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -62,41 +75,38 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     row_pc_ref = pc_ref.view(3, -1)
     row_pc_to_align = pc_to_align.view(3, -1)
 
-    prev_dist = 0
 
+    # First iter
+    fact = 1 * unit_fact
+    pc_rec = utils.mat_proj(T[:3, :], row_pc_to_align, homo=True)
+    pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, fact=fact)
+    prev_dist = dist
     for i in range(iter):
-        pc_rec = utils.mat_proj(T[:3, :], row_pc_to_align, homo=True)
-
-        pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, fact=fact)
         new_T = best_fit_transform(pc_nearest, pc_rec)
 
         T = torch.matmul(T, new_T)
-        entrop = abs(prev_dist - dist)
-        fact = max(1/entrop, 1)
-        print(fact)
+
+        pc_rec = utils.mat_proj(T[:3, :], row_pc_to_align, homo=True)
+        pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, fact=fact)
+        pc_nearest, pc_rec = outlier_filter(pc_nearest, pc_rec, dist)
+
+        entrop = abs(prev_dist - dist.item())
+        fact = max(1/entrop, 1) * unit_fact
+        # fact = unit_fact ** max(1 / entrop, 1)
+
+        logger.debug('Softmax factor is {}'.format(fact))
         if entrop < tolerance:
             break
         else:
             prev_dist = dist
 
-    print('Done in {} it'.format(i))
+    logger.debug('Done in {} it'.format(i))
 
-    return T
+    return T, dist
 
-def rotation_matrix(axis, theta):
-    axis = axis/torch.norm(axis)
-    a = torch.cos(theta/2.)
-    axsin = -axis*torch.sin(theta/2.)
-    b = axsin[0]
-    c = axsin[1]
-    d = axsin[2]
-
-    return torch.FloatTensor([[a*a+b*b-c*c-d*d, 2*(b*c-a*d), 2*(b*d+a*c)],
-                              [2*(b*c+a*d), a*a+c*c-b*b-d*d, 2*(c*d-a*b)],
-                              [2*(b*d-a*c), 2*(c*d+a*b), a*a+d*d-b*b-c*c]])
 
 if __name__ == '__main__':
-    ids = ['frame-000100','frame-000125']
+    ids = ['frame-000100','frame-000125', 'frame-000150']
 
     scale = 1/32
 
@@ -110,8 +120,8 @@ if __name__ == '__main__':
 
     K[2, 2] = 1
 
-    #root = '/media/nathan/Data/7_Scenes/heads/seq-02/'
-    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    root = '/media/nathan/Data/7_Scenes/heads/seq-02/'
+    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
     depths = list()
@@ -147,17 +157,17 @@ if __name__ == '__main__':
 
         poses.append(pose)
 
-        pcs.append(utils.toSceneCoord(depth, pose, K, remove_zeros=True))
+        pcs.append(utils.toSceneCoord(depth, pose, K, remove_zeros=False))
 
-    rd_trans = torch.eye(3,4)
+    rd_trans = torch.eye(4,4)
     #rd_trans[:,3] = torch.FloatTensor([0.5, -1, 1])
-    rd_trans[:3, :3] = rotation_matrix(torch.Tensor([1, 0, 0]), torch.Tensor([1]))
+    rd_trans[:3, :3] = utils.rotation_matrix(torch.Tensor([1, 0, 0]), torch.Tensor([1]))
     rd_trans[:3, :3] = poses[1][:3,:3]
-    pc_ref = pcs[0]
+    pc_ref = torch.cat((pcs[0], pcs[2]), 1)
+    print(pc_ref.size())
 
-    pc_to_align = utils.mat_proj(rd_trans, pcs[1], homo=True)
-
-    print(pc_to_align.size())
+    pc_to_align = utils.mat_proj(rd_trans[:3, :], pcs[1], homo=True)
+    pc_to_align = utils.depth_map_to_pc(depths[1], K, remove_zeros=True)
 
     print('Loading finished')
 
@@ -170,7 +180,7 @@ if __name__ == '__main__':
 
     print('Before alignement')
 
-    T = soft_icp(pc_ref, pc_to_align, torch.eye(4,4))[:3,:]
+    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4,4), tolerance=1e-3, iter=100, fact=2)
     pc_aligned = utils.mat_proj(T[:3, :], pc_to_align, homo=True)
 
     fig = plt.figure(2)
@@ -190,5 +200,8 @@ if __name__ == '__main__':
     utils.plt_pc(pcs[1], ax, pas, 'c')
 
     print('GT')
+
+    print(torch.matmul(T, poses[1].inverse()))
+    print(d)
 
     plt.show()
