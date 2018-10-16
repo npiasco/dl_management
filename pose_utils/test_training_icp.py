@@ -18,26 +18,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def rot_to_quat(m):
-    if m[2, 2].item() < 0:
-        if m[0, 0].item() > m[1, 1].item():
-            t = 1 + m[0, 0] - m[1, 1] - m[2, 2]
-            q = torch.stack([m[1, 2] - m[2, 1], t, m[0, 1] + m[1, 0], m[2, 0] + m[0, 2]], 0)
-        else:
-            t = 1 - m[0, 0] + m[1, 1] - m[2, 2]
-            q = torch.stack([m[2, 0] - m[0, 2], m[0, 1] + m[1, 0], t, m[1, 2] + m[2, 1]], 0)
-    else:
-        if m[0, 0].item() < -m[1, 1].item():
-            t = 1 - m[0, 0] - m[1, 1] + m[2, 2]
-            q = torch.stack([m[0, 1] - m[1, 0], m[2, 0] + m[0, 2], m[1, 2] + m[2, 1], t], 0)
-        else:
-            t = 1 + m[0, 0] + m[1, 1] + m[2, 2]
-            q = torch.stack([t, m[1, 2] - m[2, 1], m[2, 0] - m[0, 2], m[0, 1] - m[1, 0]], 0)
-
-    q = q * 0.5 / torch.sqrt(t)
-    return q
-
-
 def init_net():
     net = nn.Sequential(
         nn.Conv2d(3, 50, 4),
@@ -56,6 +36,20 @@ def init_net():
 
     return net
 
+def small_init_net():
+    net = nn.Sequential(
+        nn.Conv2d(3, 50, 4, stride=2),
+        nn.ReLU(inplace=True),
+        nn.Conv2d(50, 100, 4, stride=1),
+        nn.ReLU(inplace=True),
+        nn.ConvTranspose2d(100, 50, 4, stride=1),
+        nn.ReLU(inplace=True),
+        nn.ConvTranspose2d(50, 1, 2),
+        nn.Sigmoid()
+    )
+
+    return net
+
 
 def variable_hook(grad):
     print('variable hook')
@@ -64,6 +58,7 @@ def variable_hook(grad):
 
 if __name__ == '__main__':
     ids = ['frame-000100','frame-000125', 'frame-000150']
+    scale_net = 1 / 2
 
     scale = 1/8
 
@@ -77,8 +72,8 @@ if __name__ == '__main__':
 
     K[2, 2] = 1
 
-    root = '/media/nathan/Data/7_Scenes/heads/seq-02/'
-    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
+    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
     ims_nn = list()
@@ -135,53 +130,65 @@ if __name__ == '__main__':
     pose = poses[1][:3,:]
 
     im_fwd = ims[1].unsqueeze(0)
-    net = init_net()
-    q = rot_to_quat(pose[:3, :3])
+    #net = init_net()
+    net = small_init_net()
+    q = utils.rot_to_quat(pose[:3, :3])
     t = pose[:3, 3]
 
     optimizer = optim.Adam(net.parameters())
     #net.register_backward_hook(module_hook)
     it = 10000
-    n_pt = 450
-    icp_it = 3
+    n_pt = 300
     n_hyp = 5
     tt_loss = list()
     nb_pt_total = int(640 * 480 * scale**2)
+    param_icp = {
+        'iter': 3,
+        'fact': 2,
+        'dnorm': True,
+        'outlier': False
+    }
+
 
     init_pose = torch.eye(4,4)
     for i in tqdm.tqdm(range(it)):
         optimizer.zero_grad()
         inv_depth_map = net(im_fwd)
+        print(im_fwd.size())
+        print(inv_depth_map.size())
+
         depth_map = 1/inv_depth_map - 1
-        pc_to_align = utils.depth_map_to_pc(depth_map.squeeze(0), K)
+        Knet = K * scale_net
+        Knet[-1,-1] = 1
+        pc_to_align = utils.depth_map_to_pc(depth_map.squeeze(0), Knet)
 
         loss = 0
         for hyp in range(n_hyp):
-            pc_to_align_pruned = pc_to_align.view(3,-1)[:, np.random.choice(nb_pt_total, (n_pt), replace = False)]
-            pc_ref_pruned = pc_ref.view(3,-1)[:, np.random.choice(nb_pt_total * 2, (n_pt), replace = False)]
+            pc_to_align_pruned = pc_to_align.view(3,-1)[:, np.random.choice(int(nb_pt_total * scale_net**2), (n_pt), replace = False)]
+            pc_ref_pruned = pc_ref.view(3,-1)[:, np.random.choice(nb_pt_total, (n_pt), replace = False)]
 
-            pose_net, dist = ICP.soft_icp(pc_ref_pruned, pc_to_align_pruned, init_T=init_pose, iter=icp_it, fact=2)
-
-           #pose_net = inv_pose_net.inverse()
+            #pose_net, dist = ICP.soft_icp(pc_ref_pruned, pc_to_align_pruned, init_T=init_pose, **param_icp)
+            pose_net, dist = ICP.soft_icp(pc_to_align_pruned, pc_ref_pruned, init_T=init_pose, **param_icp)
+            pose_net = pose_net.inverse()
 
             t_net = pose_net[:3, 3]
 
-            q_net = rot_to_quat(pose_net[:3, :3])
+            q_net = utils.rot_to_quat(pose_net[:3, :3])
             #q_loss += torch.mean(functional.pairwise_distance(q_net.view(-1,1), q.view(-1,1)))
 
             q_loss = torch.mean(functional.pairwise_distance(q_net.view(-1, 1), q.view(-1, 1)))
             t_loss = torch.mean(functional.pairwise_distance(t_net.view(-1, 1), t.view(-1, 1)))
 
             loss =+ 0.9*torch.max(torch.stack((q_loss, t_loss), 0)) + 0.1*torch.min(torch.stack((q_loss, t_loss), 0)) + 0.05*dist
-            #loss = 0.1*dist + q_loss + t_loss
-        depth_map_loss = torch.mean(functional.pairwise_distance(depth_map.view(-1, 1), depths[1].view(-1, 1), p=1))
+
+        #depth_map_loss = torch.mean(functional.pairwise_distance(depth_map.view(-1, 1), depths[1].view(-1, 1), p=1))
 
         tt_loss.append(loss.item())
 
         loss.backward()
         optimizer.step()
         if not i%25:
-            print('Loss is {} {} (q) {} (t) {} (d) {} (dist)'.format(loss.item(), q_loss.item(), t_loss.item(), depth_map_loss.item(), dist.item()))
+            print('Loss is {} {} (q) {} (t) {} (d) {} (dist)'.format(loss.item(), q_loss.item(), t_loss.item(), 0, dist.item()))
             print('Pose is')
             print(t_net, q_net)
             print('Real pose is')
@@ -197,17 +204,22 @@ if __name__ == '__main__':
 
             plt.figure(1)
             grid = torchvision.utils.make_grid(torch.cat(
-                (depths[1].unsqueeze(0).detach(),
-                 1/(1 + depths[1]).unsqueeze(0).detach(),
-                 depth_map.detach(),
+                (depth_map.detach(),
                  inv_depth_map.detach()),
+            ), nrow=2
+            )
+            plt.imshow(grid.numpy().transpose((1, 2, 0))[:, :, 0], cmap=plt.get_cmap('jet'))
+            plt.figure(4)
+            grid = torchvision.utils.make_grid(torch.cat(
+                (depths[1].unsqueeze(0).detach(),
+                 1 / (1 + depths[1]).unsqueeze(0).detach(),),
             ), nrow=2
             )
             plt.imshow(grid.numpy().transpose((1, 2, 0))[:, :, 0], cmap=plt.get_cmap('jet'))
             plt.figure(2)
             grid = torchvision.utils.make_grid(ims_nn[1])
             plt.imshow(grid.numpy().transpose((1, 2, 0)))
-
+            '''
             plt.figure(4)
             d_maps = [ICP.error_map(pc_ref.view(3,-1),
                                     pc_to_align.view(3,-1),
@@ -215,7 +227,8 @@ if __name__ == '__main__':
             grid = torchvision.utils.make_grid(torch.cat(d_maps, 0), nrow=2)
             plt.imshow(grid.numpy().transpose((1, 2, 0))[:, :, 0], cmap=plt.get_cmap('jet'))
             plt.colorbar()
-
+            '''
             plt.show()
 
     plt.show()
+
