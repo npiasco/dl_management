@@ -5,6 +5,8 @@ import torchvision.transforms.functional as func
 import pose_utils.utils as utils
 import datasets.custom_quaternion as custom_q
 import matplotlib.pyplot as plt
+import torchvision as tvis
+import math
 from mpl_toolkits.mplot3d import Axes3D
 
 
@@ -24,21 +26,65 @@ def error_map(pc_ref, pc_to_align, fact, width):
     return d_map
 
 
-def outlier_filter(pc_nearest, pc_to_align, mean_distance):
+def show_outliers(pc_ref, pc_to_align, threshold, width):
+    out_map = torch.zeros((1, pc_to_align.size(-1)//width, width))
+
+    print('Outliers map computation...')
+    for i, pt in (enumerate(pc_to_align.transpose(0, 1))):
+        if torch.norm(pt - pc_ref[:, i], p=2) > threshold:
+            out_map[0, i // width, i - (i // width) * width] = 1
+    print('Outliers map computed!')
+    return out_map
+
+
+def outlier_filter(pc_nearest, pc_to_align, threshold):
+    pc_nearest_filtered = None
+    pc_to_align_filtered = None
     for i, pt in enumerate(pc_to_align.transpose(0, 1)):
-        if mean_distance < 1 and torch.norm(pt - pc_nearest[:, i], p=2) > mean_distance**0.5:
-            pc_nearest[:, i] *= 0
-            pc_to_align[:, i] *= 0
+        if torch.norm(pt - pc_nearest[:, i], p=2) < threshold:
+            if pc_nearest_filtered is None:
+                pc_nearest_filtered = pc_nearest[:, i].unsqueeze(1)
+                pc_to_align_filtered = pc_to_align[:, i].unsqueeze(1)
+            else:
+                pc_nearest_filtered = torch.cat((pc_nearest_filtered, pc_nearest[:, i].unsqueeze(1)), 1)
+                pc_to_align_filtered = torch.cat((pc_to_align_filtered, pc_to_align[:, i].unsqueeze(1)), 1)
 
-    return pc_nearest, pc_to_align
+    if pc_to_align_filtered is None:
+        return outlier_filter(pc_nearest, pc_to_align, 2*threshold)
+    else:
+        return pc_nearest_filtered, pc_to_align_filtered
 
 
-def soft_knn(pc_ref, pc_to_align, fact=10):
+def weighted_knn(pc_ref, pc_to_align, fact=10):
+    pc_ref_t = pc_ref.transpose(0, 1)
+    npc_to_align = None
+    pc_nearest = None
+    mean_distance = 0
+    for i, pt in enumerate(pc_to_align.transpose(0, 1)):
+        d_to_pt = torch.sum((pc_ref_t - pt)**2, 1)
+        d_to_pt = d_to_pt / torch.mean(d_to_pt)
+        prob = torch.softmax(fact * -d_to_pt, 0)
+
+        if pc_nearest is None:
+            pc_nearest = (pc_ref * prob)
+            npc_to_align = pt.unsqueeze(1).repeat(1, prob.size(0)) * prob
+        else:
+            pc_nearest = torch.cat((pc_nearest, (pc_ref * prob)), 1)
+            npc_to_align = torch.cat((npc_to_align, pt.unsqueeze(1).repeat(1, prob.size(0)) * prob), 1)
+
+        mean_distance += torch.norm(pt - torch.sum(pc_ref * prob, 1), p=2)
+
+    return pc_nearest, npc_to_align, mean_distance/(i+1)
+
+
+def soft_knn(pc_ref, pc_to_align, fact=10, d_norm=True):
     pc_nearest = pc_to_align.clone()
     pc_ref_t = pc_ref.transpose(0, 1)
     mean_distance = 0
     for i, pt in enumerate(pc_to_align.transpose(0, 1)):
         d_to_pt = torch.sum((pc_ref_t - pt)**2, 1)
+        if d_norm:
+            d_to_pt = d_to_pt / torch.mean(d_to_pt)
         prob = torch.softmax(fact * -d_to_pt, 0)
         pc_nearest[:, i] = torch.sum(pc_ref * prob, 1)
         mean_distance += torch.norm(pt - pc_nearest[:, i], p=2)
@@ -78,6 +124,9 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     iter = kwargs.pop('iter', 100)
     tolerance = kwargs.pop('tolerance', 1e-3)
     unit_fact = kwargs.pop('fact', 1)
+    outlier_rejection = kwargs.pop('outlier', False)
+    distance_norm = kwargs.pop('dnorm', True)
+    verbose = kwargs.pop('verbose', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -88,30 +137,62 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     row_pc_ref = pc_ref.view(3, -1)
     row_pc_to_align = pc_to_align.view(3, -1)
 
-
     # First iter
     fact = 1 * unit_fact
     pc_rec = utils.mat_proj(T[:3, :], row_pc_to_align, homo=True)
-    pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, fact=fact)
-    prev_dist = dist
+    pc_nearest, init_dist = soft_knn(row_pc_ref, pc_rec, fact=fact, d_norm=distance_norm)
+    prev_dist = init_dist
+
     for i in range(iter):
         new_T = best_fit_transform(pc_nearest, pc_rec)
-
         T = torch.matmul(T, new_T)
 
         pc_rec = utils.mat_proj(T[:3, :], row_pc_to_align, homo=True)
-        pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, fact=fact)
-        pc_nearest, pc_rec = outlier_filter(pc_nearest, pc_rec, dist)
+        pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, fact=fact, d_norm=distance_norm)
 
         entrop = abs(prev_dist - dist.item())
-        fact = max(1/entrop, 1) * unit_fact
-        # fact = unit_fact ** max(1 / entrop, 1)
+        fact = min(100, max(1, 1/entrop)) * unit_fact
+        if outlier_rejection:
+            threshold = math.tanh(fact*0.05- math.exp(1)) + 1.5
+            if verbose:
+                out_map = show_outliers(pc_nearest, pc_rec, threshold*dist, int(640 * scale)).unsqueeze(0)
+                er_map = error_map(row_pc_ref, pc_rec, fact, int(640 * scale)).unsqueeze(0)
+                logger.debug('Softmax factor is {}'.format(fact))
+                logger.info('Fact {}, thresh {} dist {} init_dist {} entrop {} inv entrop {}'.format(
+                    fact, threshold, dist, init_dist, entrop, 1/entrop))
 
-        logger.debug('Softmax factor is {}'.format(fact))
+            pc_nearest, pc_rec = outlier_filter(pc_nearest, pc_rec, threshold*dist)
+
         if entrop < tolerance:
             break
         else:
             prev_dist = dist
+
+        if verbose:
+            # Ploting
+            fig = plt.figure(1)
+            ax = fig.add_subplot(111, projection='3d')
+            pas = 1
+
+            utils.plt_pc(row_pc_ref, ax, pas, 'b')
+            utils.plt_pc(pc_rec, ax, pas, 'r')
+
+            fig = plt.figure(2)
+            ax = fig.add_subplot(111, projection='3d')
+            pas = 1
+
+            utils.plt_pc(pc_nearest, ax, pas, 'c')
+            utils.plt_pc(pc_rec, ax, pas, 'r')
+
+            plt.figure(4)
+            grid = tvis.utils.make_grid(torch.cat((out_map, er_map)))
+            print(dist, dist*2)
+
+            plt.imshow(grid.numpy().transpose((1, 2, 0))[:, :, 0], cmap=plt.get_cmap('jet'))
+            plt.colorbar()
+
+            plt.show()
+
 
     logger.debug('Done in {} it'.format(i))
 
@@ -119,9 +200,9 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
 
 
 if __name__ == '__main__':
-    ids = ['frame-000100','frame-000125', 'frame-000150']
+    ids = ['frame-000100','frame-000150', 'frame-000150']
 
-    scale = 1/32
+    scale = 1/16
 
     K = torch.zeros(3, 3)
     K[0, 0] = 585
@@ -133,8 +214,8 @@ if __name__ == '__main__':
 
     K[2, 2] = 1
 
-    root = '/media/nathan/Data/7_Scenes/heads/seq-02/'
-    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
+    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
     depths = list()
@@ -177,10 +258,11 @@ if __name__ == '__main__':
     rd_trans[:3, :3] = utils.rotation_matrix(torch.Tensor([1, 0, 0]), torch.Tensor([1]))
     rd_trans[:3, :3] = poses[1][:3,:3]
     pc_ref = torch.cat((pcs[0], pcs[2]), 1)
+    pc_ref = pcs[0]
     print(pc_ref.size())
 
     pc_to_align = utils.mat_proj(rd_trans[:3, :], pcs[1], homo=True)
-    pc_to_align = utils.depth_map_to_pc(depths[1], K, remove_zeros=True)
+    pc_to_align = utils.depth_map_to_pc(depths[1], K, remove_zeros=False)
 
     print('Loading finished')
 
@@ -193,7 +275,7 @@ if __name__ == '__main__':
 
     print('Before alignement')
 
-    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4,4), tolerance=1e-3, iter=100, fact=2)
+    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4,4), tolerance=1e-6, iter=100, fact=2)
     pc_aligned = utils.mat_proj(T[:3, :], pc_to_align, homo=True)
 
     fig = plt.figure(2)
@@ -216,5 +298,13 @@ if __name__ == '__main__':
 
     print(torch.matmul(T, poses[1].inverse()))
     print(d)
-
+    '''
+    plt.figure(4)
+    d_maps = [error_map(pc_ref.view(3, -1),
+                        pc_aligned.view(3, -1),
+                        fact, int(640 * scale)).unsqueeze(0).detach() for fact in (100,)]
+    grid = tvis.utils.make_grid(torch.cat(d_maps, 0), nrow=2)
+    plt.imshow(grid.numpy().transpose((1, 2, 0))[:, :, 0], cmap=plt.get_cmap('jet'))
+    plt.colorbar()
+    '''
     plt.show()
