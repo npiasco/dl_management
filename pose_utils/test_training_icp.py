@@ -57,10 +57,10 @@ def variable_hook(grad):
 
 
 if __name__ == '__main__':
-    ids = ['frame-000100','frame-000125', 'frame-000150']
+    ids = ['frame-000001','frame-000011', 'frame-000021']
     scale_net = 1 / 2
 
-    scale = 1/8
+    scale = 1/32
 
     K = torch.zeros(3, 3)
     K[0, 0] = 585
@@ -126,6 +126,16 @@ if __name__ == '__main__':
         pcs.append(utils.toSceneCoord(depth, pose, K, remove_zeros=True))
 
     pc_ref = torch.cat((pcs[0], pcs[2]), 1)
+
+    pc_ref = torch.cat((pcs[0], pcs[1], pcs[2]), 1)
+    torch.save(pc_ref.detach(), 'model.pth')
+    fig = plt.figure(3)
+    ax = fig.add_subplot(111, projection='3d')
+    pas = 1
+
+    utils.plt_pc(pc_ref, ax, pas, 'b')
+    plt.show()
+
     pc_ref.requires_grad = False
     pose = poses[1][:3,:]
 
@@ -145,7 +155,7 @@ if __name__ == '__main__':
     param_icp = {
         'iter': 3,
         'fact': 2,
-        'dnorm': True,
+        'dnorm': False,
         'outlier': False
     }
 
@@ -195,7 +205,6 @@ if __name__ == '__main__':
             print(t, q)
 
             fig = plt.figure(3)
-            plt.clf()
             ax = fig.add_subplot(111, projection='3d')
             pas = 1
 
