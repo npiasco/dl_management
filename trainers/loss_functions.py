@@ -10,8 +10,8 @@ logger = setlog.get_logger(__name__)
 
 def mean_dist(predicted, gt):
     return torch.mean(func.pairwise_distance(
-        predicted,
-        gt)
+        predicted.float(),
+        gt.float())
     )
 
 

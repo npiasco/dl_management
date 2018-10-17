@@ -83,16 +83,17 @@ def batched_icp(variable, **kwargs):
         'q': batched_pc_to_align.new_zeros(n_batch, 4),
     }
 
-    for i, pc_to_align in batched_pc_to_align:
+    for i, pc_to_align in enumerate(batched_pc_to_align):
         if batched_init_T is not None:
             init_T = batched_init_T[i, :]
         else:
-            init_T = pc_to_align.new_eye(4, 4)
+            init_T = pc_to_align.new_zeros(4, 4)
+            init_T[0,0] = init_T[1,0] = init_T[2,2] = init_T[3,3] = 1
 
         if batched_ref:
-            computed_pose = ICP.soft_icp(batched_pc_ref[i, :, :], pc_to_align, init_T, **param_icp)
+            computed_pose, _ = ICP.soft_icp(batched_pc_ref[i, :, :], pc_to_align, init_T, **param_icp)
         else:
-            computed_pose = ICP.soft_icp(batched_pc_ref, pc_to_align, init_T, **param_icp)
+            computed_pose, _ = ICP.soft_icp(batched_pc_ref, pc_to_align, init_T, **param_icp)
 
         poses['p'][i, :] = computed_pose[3, :3]
         poses['q'][i, :] = utils.rot_to_quat(computed_pose[:3, :3])

@@ -15,7 +15,7 @@ param_class:
             {
              mode: 'minning',
              func: 'b_wrapper.add_variable',
-             param: {value: [[36.5625, 0, 20.0], [0.0, 36.5625, 15.0], [0.0, 0.0, 1.0]], load: false, source: ['batch', 'rgb' ]},
+             param: {value: [[273, 0, 112.0], [0.0, 273.5625, 112.0], [0.0, 0.0, 1.0]], load: false, source: ['batch', 'rgb' ]},
              out_name: 'K'
             },
             {
@@ -36,7 +36,7 @@ param_class:
             {
                 mode: forward,
                 func: minning.custom_forward,
-                param: {multiples_instance: false, input_targets: [['fw_main' , 'feat'], ['fw_main', 'res_1'], ['fw_main', 'res_2']]},
+                param: {multiples_instance: false, input_targets: [['fw_main'], ]},
                 net_name: 'Deconv',
                 out_name: 'maps'
             },
@@ -58,7 +58,7 @@ param_class:
             {
              mode: 'minning',
              func: 'b_wrapper.batched_icp',
-             param: {pc_ref: [model], pc_to_align: [pruned_pc], param_icp: {iter: 1, tolerance: 0.001, unit_fact: 2, distance_norm: False}},
+             param: {pc_ref: [model], pc_to_align: [pruned_pc], param_icp: {iter: 1, tolerance: 0.001, fact: 2, dnorm: False}},
              out_name: 'poses'
             },
             #-------------------------------------------------#
@@ -88,7 +88,7 @@ param_class:
                 {
                  mode: 'minning',
                  func: 'b_wrapper.add_variable',
-                 param: {value: [[36.5625, 0, 20.0], [0.0, 36.5625, 15.0], [0.0, 0.0, 1.0]], load: false, source: ['batch', 'rgb' ]},
+                 param: {value: [[273, 0, 112.0], [0.0, 273.5625, 112.0], [0.0, 0.0, 1.0]], load: false, source: ['batch', 'rgb' ]},
                  out_name: 'K'
                 },
                 {
@@ -108,7 +108,7 @@ param_class:
                 {
                     mode: forward,
                     func: minning.custom_forward,
-                    param: {multiples_instance: false, input_targets: [['fw_main' , 'feat'], ['fw_main', 'res_1'], ['fw_main', 'res_2']]},
+                    param: {multiples_instance: false, input_targets: [['fw_main'], ]},
                     net_name: 'Deconv',
                     out_name: 'maps'
                 },
@@ -121,7 +121,7 @@ param_class:
                 {
                  mode: 'minning',
                  func: 'b_wrapper.batched_icp',
-                 param: {pc_ref: [model], pc_to_align: [pc], param_icp: {iter: 1, tolerance: 0.001, unit_fact: 2, distance_norm: False}},
+                 param: {pc_ref: [model], pc_to_align: [pc], param_icp: {iter: 1, tolerance: 0.001, fact: 2, dnorm: False}},
                  out_name: 'pose'
                 },
             ]

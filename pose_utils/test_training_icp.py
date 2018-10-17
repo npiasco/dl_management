@@ -60,7 +60,7 @@ if __name__ == '__main__':
     ids = ['frame-000001','frame-000011', 'frame-000021']
     scale_net = 1 / 2
 
-    scale = 1/32
+    scale = 1/2.142857142857143
 
     K = torch.zeros(3, 3)
     K[0, 0] = 585
@@ -72,14 +72,16 @@ if __name__ == '__main__':
 
     K[2, 2] = 1
 
-    root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
-    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    #root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
+    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
     ims_nn = list()
     depths = list()
+    depthsquares = list()
     poses = list()
     pcs = list()
+    pcssquare = list()
 
     for id in ids:
         rgb_im = root + id + '.color.png'
@@ -101,7 +103,9 @@ if __name__ == '__main__':
             ).float(),
         )
 
-        depth = func.to_tensor(func.resize(PIL.Image.open(depth_im), int(480 * scale), interpolation=0), ).float()
+        depth = func.to_tensor(
+                func.resize(PIL.Image.open(depth_im), int(480 * scale), interpolation=0),
+        ).float()
         depth[depth == 65535] = 0
         depth *= 1e-3
         depths.append(depth)
@@ -128,12 +132,14 @@ if __name__ == '__main__':
     pc_ref = torch.cat((pcs[0], pcs[2]), 1)
 
     pc_ref = torch.cat((pcs[0], pcs[1], pcs[2]), 1)
-    torch.save(pc_ref.detach(), 'model.pth')
+
+    torch.save(pc_ref.detach(), 'base_model.pth')
     fig = plt.figure(3)
     ax = fig.add_subplot(111, projection='3d')
-    pas = 1
+    pas = 500
 
     utils.plt_pc(pc_ref, ax, pas, 'b')
+
     plt.show()
 
     pc_ref.requires_grad = False

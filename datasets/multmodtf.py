@@ -28,6 +28,16 @@ class RandomCrop(tf.RandomCrop):
         return sample
 
 
+class CenterCrop(tf.CenterCrop):
+    def __init__(self, size):
+        tf.CenterCrop.__init__(self, size=size)
+
+    def __call__(self, sample):
+        for name, mod in sample.items():
+            sample[name] = func.center_crop(mod, self.size)
+        return sample
+
+
 class ToTensor(tf.ToTensor):
     def __init__(self):
         tf.ToTensor.__init__(self)

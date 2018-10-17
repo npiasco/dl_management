@@ -8,6 +8,7 @@ import datasets.SevenScene              # Needed for class creation with eval
 import trainers.loss_functions
 import trainers.PoseTrainers
 import networks.Pose
+import networks.CustomArchi
 
 
 logger = setlog.get_logger(__name__)

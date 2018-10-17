@@ -1,19 +1,14 @@
 Main:
-    class: 'networks.Descriptor.Main'
+    class: 'networks.CustomArchi.PixEncoder'
     param_class:
         layers_to_train: 'all'
-        base_archi: 'Alexnet'
-        base_archi_param:
-            load_imagenet: True
-            unet: True
-            indices: True
+        k_size: 2
+        d_fact: 4
 
 Deconv:
-    class: 'networks.ResNet.Deconv'
+    class: 'networks.CustomArchi.PixDecoder'
     param_class:
         layers_to_train: 'all'
-        size_res_1: 192
-        size_res_2: 64
-        input_size: 256
-        up_factor: 1
-        alexnet_entry: True
+        k_size: 2
+        d_fact: 4
+        out_channel: 1

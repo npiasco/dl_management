@@ -261,7 +261,8 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                     param.requires_grad = True
 
         # Forward pass
-        variables = {'batch': batch.to(self.device)}
+        # TODO: .to to move on device
+        variables = {'batch': batch}
         sumed_loss = 0
         for action in self.training_pipeline:
 
@@ -403,9 +404,9 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 variables = self._sequential_forward(action, variables, networks)
 
             if model is None:
-                model =  recc_acces(variables, 'model')
+                model =  recc_acces(variables, ['model',])
             else:
-                model = self.build_model(model, recc_acces(variables, 'model'))
+                model = self.build_model(model, recc_acces(variables, ['model',]))
 
         errors = {
             'position': list(),
@@ -414,11 +415,11 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         logger.info('Computing position and orientation errors')
         for query in tqdm.tqdm(queries_loader):
             variables = {'batch': query}
-            variables['model': model]
+            variables['model'] = model
             for action in self.eval_forwards['queries']:
                 variables = self._sequential_forward(action, variables, networks)
 
-            pose = recc_acces(variables, 'pose')
+            pose = recc_acces(variables, ['pose',])
 
             errors['position'].append(np.linalg.norm(pose['p'].cpu().data.numpy() -
                                                      query['pose']['position'].numpy()))

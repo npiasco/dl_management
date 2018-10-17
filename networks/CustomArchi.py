@@ -112,10 +112,14 @@ class PixEncoder(nn.Module):
         output = dict()
         for name, lay in self.feature.named_children():
             x = lay(x)
-            print(name)
-            print(x.size())
             output[name] = x
         return output
+
+    def get_training_layers(self, layers_to_train=None):
+        if layers_to_train is None:
+            layers_to_train = self.layers_to_train
+        if layers_to_train == 'all':
+            return [{'params': self.feature.parameters()}]
 
 
 class PixDecoder(nn.Module):
@@ -127,9 +131,7 @@ class PixDecoder(nn.Module):
         d_fact = kwargs.pop('d_fact', 1)
         k_size = kwargs.pop('k_size', 2)
         out_pad = kwargs.pop('out_pad', 0)
-
-        if kwargs:
-            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+        #TODO: construct various archi depending on the desired scale factor according to the output size
 
         base_archi = [
             ('conv7', nn.ConvTranspose2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
@@ -137,17 +139,17 @@ class PixDecoder(nn.Module):
             ('conv6', nn.ConvTranspose2d(int(512 / d_fact * 2), int(512 / d_fact), kernel_size=k_size, stride=2, output_padding=out_pad)),
             ('bn6', nn.BatchNorm2d(int(512 / d_fact))),
             ('relu6', nn.ReLU(inplace=True)),
-            ('conv5', nn.ConvTranspose2d(int(512 / d_fact * 2), int(512 / d_fact * 2), kernel_size=k_size+1, stride=1, padding=1)),
+            ('conv5', nn.ConvTranspose2d(int(512 / d_fact * 2), int(512 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
             ('bn5', nn.BatchNorm2d(int(512 / d_fact))),
             ('relu5', nn.ReLU(inplace=True)),
-            ('conv4', nn.ConvTranspose2d(int(512 / d_fact * 2), int(512 / d_fact), kernel_size=k_size, stride=2, output_padding=out_pad)),
+            ('conv4', nn.ConvTranspose2d(int(512 / d_fact * 2), int(512 / d_fact), kernel_size=k_size, stride=2, output_padding=0)),
             ('bn4', nn.BatchNorm2d(int(512 / d_fact))),
             ('relu4', nn.ReLU(inplace=True)),
             ('conv3', nn.ConvTranspose2d(int(512 / d_fact * 2), int(256 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
-            ('bn3', nn.BatchNorm2d(int(512 / d_fact))),
+            ('bn3', nn.BatchNorm2d(int(256 / d_fact))),
             ('relu3', nn.ReLU(inplace=True)),
-            ('conv2', nn.ConvTranspose2d(int(256 / d_fact * 2), int(128 / d_fact), kernel_size=k_size, stride=2, output_padding=out_pad)),
-            ('bn2', nn.BatchNorm2d(int(512 / d_fact))),
+            ('conv2', nn.ConvTranspose2d(int(256 / d_fact * 2), int(128 / d_fact), kernel_size=k_size, stride=2, output_padding=0)),
+            ('bn2', nn.BatchNorm2d(int(128 / d_fact))),
             ('relu2', nn.ReLU(inplace=True)),
             ('conv1', nn.ConvTranspose2d(int(128 / d_fact * 2), int(64 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
             ('bn1', nn.BatchNorm2d(int(64 / d_fact))),
@@ -166,18 +168,21 @@ class PixDecoder(nn.Module):
                 x = lay(unet[name])
             else:
                 if 'conv' in name:
-                    print(name)
-                    print(x.size())
-                    print(unet[name].size())
                     x = torch.cat((x, unet[name]), dim=1)
                 x = lay(x)
         return x
 
+    def get_training_layers(self, layers_to_train=None):
+        if layers_to_train is None:
+            layers_to_train = self.layers_to_train
+        if layers_to_train == 'all':
+            return [{'params': self.feature.parameters()}]
 
 
 
 if __name__ == '__main__':
-    tensor_input = torch.rand([10, 3, 60, 80])
+    input_size = 224
+    tensor_input = torch.rand([10, 3, input_size, input_size])
     '''
     net = DeploymentNet()
 
@@ -192,10 +197,11 @@ if __name__ == '__main__':
 
     torch.save(net.state_dict(), 'default.pth')
     '''
-    enc = PixEncoder(k_size=2, d_fact=2)
-    dec= PixDecoder(k_size=2, d_fact=2, out_channel=1, out_pad=1)
+    enc = PixEncoder(k_size=2, d_fact=4)
+    dec= PixDecoder(k_size=2, d_fact=4, out_channel=1)
 
     feat_output = enc(tensor_input)
     output = dec(feat_output)
+    print(output.size())
     #print([res.size() for res in feat_output.values()])
 
