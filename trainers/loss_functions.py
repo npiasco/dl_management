@@ -21,6 +21,16 @@ def full_pose_loss(predicted, gt, key='full', combine_func=None):
                                 mean_dist(predicted[key]['q'], gt['q']))
 
 
+def minmax_pose_loss(p_ps, p_qs, gt_ps, gt_qs):
+    loss = 0
+    for i, p_p in enumerate(p_ps):
+        p_loss = mean_dist(p_p, gt_ps[i,:])
+        q_loss = mean_dist(p_qs[i, :], gt_qs[i, :])
+        loss += 0.9*torch.max(torch.stack((p_loss, q_loss), 0)) + 0.1*torch.min(torch.stack((p_loss, q_loss), 0))
+
+    return loss/(i+1)
+
+
 class AlphaWeights:
     def __init__(self, init_weight=(0, -3), cuda=False):
 
