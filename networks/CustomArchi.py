@@ -1,10 +1,10 @@
 import setlog
 import torch.nn as nn
-import torch.autograd as auto
 import torch
 import networks.Descriptor as Desc
 import networks.ResNet as ResNet
 import networks.FeatAggregation as Agg
+import collections as coll
 
 
 logger = setlog.get_logger(__name__)
@@ -66,8 +66,119 @@ class DeploymentNet(nn.Module):
 
         return desc
 
+class PixEncoder(nn.Module):
+    def __init__(self, **kwargs):
+        nn.Module.__init__(self)
+
+        self.layers_to_train = kwargs.pop('layers_to_train', 'all')
+        i_channel = kwargs.pop('input_channels', 3)
+        d_fact = kwargs.pop('d_fact', 1)
+        k_size = kwargs.pop('k_size', 2)
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        base_archi = [
+            ('conv0', nn.Conv2d(i_channel, int(64 / d_fact), kernel_size=k_size, stride=2)),
+            ('relu0', nn.LeakyReLU(0.2, inplace=True)),
+            ('conv1', nn.Conv2d(int(64 / d_fact), int(128 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('bn1', nn.BatchNorm2d(int(128/d_fact))),
+            ('relu1', nn.LeakyReLU(0.2, inplace=True)),
+            ('conv2', nn.Conv2d(int(128 / d_fact), int(256 / d_fact), kernel_size=k_size, stride=2)),
+            ('bn2', nn.BatchNorm2d(int(256 / d_fact))),
+            ('relu2', nn.LeakyReLU(0.2, inplace=True)),
+            ('conv3', nn.Conv2d(int(256 / d_fact), int(512 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('bn3', nn.BatchNorm2d(int(512 / d_fact))),
+            ('relu3', nn.LeakyReLU(0.2, inplace=True)),
+            ('conv4', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size, stride=2)),
+            ('bn4', nn.BatchNorm2d(int(512 / d_fact))),
+            ('relu4', nn.LeakyReLU(0.2, inplace=True)),
+            ('conv5', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('bn5', nn.BatchNorm2d(int(512 / d_fact))),
+            ('relu5', nn.LeakyReLU(0.2, inplace=True)),
+            ('conv6', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size, stride=2)),
+            ('bn6', nn.BatchNorm2d(int(512 / d_fact))),
+            ('relu6', nn.LeakyReLU(0.2, inplace=True)),
+            ('conv7', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('bn7', nn.BatchNorm2d(int(512 / d_fact))),
+            ('relu7', nn.LeakyReLU(0.2, inplace=True)),
+        ]
+
+        self.feature = nn.Sequential(
+            coll.OrderedDict(base_archi)
+        )
+
+    def forward(self, x):
+        output = dict()
+        for name, lay in self.feature.named_children():
+            x = lay(x)
+            print(name)
+            print(x.size())
+            output[name] = x
+        return output
+
+
+class PixDecoder(nn.Module):
+    def __init__(self, **kwargs):
+        nn.Module.__init__(self)
+
+        self.layers_to_train = kwargs.pop('layers_to_train', 'all')
+        out_channel = kwargs.pop('out_channel', 1)
+        d_fact = kwargs.pop('d_fact', 1)
+        k_size = kwargs.pop('k_size', 2)
+        out_pad = kwargs.pop('out_pad', 0)
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        base_archi = [
+            ('conv7', nn.ConvTranspose2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('relu7', nn.ReLU(inplace=True)),
+            ('conv6', nn.ConvTranspose2d(int(512 / d_fact * 2), int(512 / d_fact), kernel_size=k_size, stride=2, output_padding=out_pad)),
+            ('bn6', nn.BatchNorm2d(int(512 / d_fact))),
+            ('relu6', nn.ReLU(inplace=True)),
+            ('conv5', nn.ConvTranspose2d(int(512 / d_fact * 2), int(512 / d_fact * 2), kernel_size=k_size+1, stride=1, padding=1)),
+            ('bn5', nn.BatchNorm2d(int(512 / d_fact))),
+            ('relu5', nn.ReLU(inplace=True)),
+            ('conv4', nn.ConvTranspose2d(int(512 / d_fact * 2), int(512 / d_fact), kernel_size=k_size, stride=2, output_padding=out_pad)),
+            ('bn4', nn.BatchNorm2d(int(512 / d_fact))),
+            ('relu4', nn.ReLU(inplace=True)),
+            ('conv3', nn.ConvTranspose2d(int(512 / d_fact * 2), int(256 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('bn3', nn.BatchNorm2d(int(512 / d_fact))),
+            ('relu3', nn.ReLU(inplace=True)),
+            ('conv2', nn.ConvTranspose2d(int(256 / d_fact * 2), int(128 / d_fact), kernel_size=k_size, stride=2, output_padding=out_pad)),
+            ('bn2', nn.BatchNorm2d(int(512 / d_fact))),
+            ('relu2', nn.ReLU(inplace=True)),
+            ('conv1', nn.ConvTranspose2d(int(128 / d_fact * 2), int(64 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('bn1', nn.BatchNorm2d(int(64 / d_fact))),
+            ('relu1', nn.ReLU(inplace=True)),
+            ('conv0', nn.ConvTranspose2d(int(64 / d_fact * 2), int(out_channel), kernel_size=k_size, stride=2)),
+            ('sig0', nn.Sigmoid()),
+        ]
+
+        self.feature = nn.Sequential(
+            coll.OrderedDict(base_archi)
+        )
+
+    def forward(self, unet):
+        for name, lay in self.feature.named_children():
+            if name == 'conv7':
+                x = lay(unet[name])
+            else:
+                if 'conv' in name:
+                    print(name)
+                    print(x.size())
+                    print(unet[name].size())
+                    x = torch.cat((x, unet[name]), dim=1)
+                x = lay(x)
+        return x
+
+
+
+
 if __name__ == '__main__':
-    tensor_input = torch.rand([10, 3, 224, 224])
+    tensor_input = torch.rand([10, 3, 60, 80])
+    '''
     net = DeploymentNet()
 
     root = '/mnt/anakim/data/RGBtrainD/Resnet18T/BUTF/OTS/2NetVLAD/'
@@ -80,6 +191,11 @@ if __name__ == '__main__':
     net.aux_desc.descriptor.load_state_dict(torch.load(root + 'Aux_descriptor.pth'))
 
     torch.save(net.state_dict(), 'default.pth')
+    '''
+    enc = PixEncoder(k_size=2, d_fact=2)
+    dec= PixDecoder(k_size=2, d_fact=2, out_channel=1, out_pad=1)
 
-    feat_output = net(auto.Variable(tensor_input))
-    print(feat_output)
+    feat_output = enc(tensor_input)
+    output = dec(feat_output)
+    #print([res.size() for res in feat_output.values()])
+
