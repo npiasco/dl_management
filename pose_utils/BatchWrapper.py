@@ -87,6 +87,7 @@ def batched_icp(variable, **kwargs):
         batched_init_T = recc_acces(variable, batched_init_T)
 
     n_batch = batched_pc_to_align.size(0)
+    dist = batched_pc_to_align.new_zeros(n_batch, 1)
     poses = {
         'p': batched_pc_to_align.new_zeros(n_batch, 3),
         'q': batched_pc_to_align.new_zeros(n_batch, 4),
@@ -97,14 +98,14 @@ def batched_icp(variable, **kwargs):
             init_T = batched_init_T[i, :]
         else:
             init_T = pc_to_align.new_zeros(4, 4)
-            init_T[0,0] = init_T[1,0] = init_T[2,2] = init_T[3,3] = 1
+            init_T[0,0] = init_T[1,1] = init_T[2,2] = init_T[3,3] = 1
 
         if batched_ref:
-            computed_pose, _ = ICP.soft_icp(batched_pc_ref[i, :, :], pc_to_align, init_T, **param_icp)
+            computed_pose, d = ICP.soft_icp(batched_pc_ref[i, :, :], pc_to_align, init_T, **param_icp)
         else:
-            computed_pose, _ = ICP.soft_icp(batched_pc_ref, pc_to_align, init_T, **param_icp)
-
+            computed_pose, d = ICP.soft_icp(batched_pc_ref, pc_to_align, init_T, **param_icp)
+        dist[i] = d
         poses['p'][i, :] = computed_pose[:3, 3]
         poses['q'][i, :] = utils.rot_to_quat(computed_pose[:3, :3])
 
-    return poses
+    return {'dist': dist, 'poses': poses}

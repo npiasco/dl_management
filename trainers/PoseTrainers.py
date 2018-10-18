@@ -228,6 +228,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         training_pipeline = kwargs.pop('training_pipeline', list())
         eval_forwards = kwargs.pop('eval_forwards', dict())
         build_model_func = kwargs.pop('build_model_func', None)
+        self.access_pose = kwargs.pop('access_pose', ['pose'])
 
         Base.BaseMultNetTrainer.__init__(self, **kwargs)
 
@@ -263,7 +264,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         # Forward pass
         # TODO: .to to move on device
         variables = {'batch': batch}
-        sumed_loss = 0
+        summed_loss = 0
         for action in self.training_pipeline:
 
             variables = self._sequential_forward(action, variables, self.networks)
@@ -271,16 +272,16 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             if action['mode'] == 'loss':
                 input_args = [recc_acces(variables, name) for name in action['args']]
                 val = action['func'](*input_args, **action['param'])
-                sumed_loss += val
+                summed_loss += val
                 self.loss_log[action['name']].append(val.item())
                 logger.debug(action['name'] + ' loss is {}'.format(val.item()))
             elif action['mode'] == 'backprop':
                 self.optimizers[action['trainer']].zero_grad()
 
-                sumed_loss.backward()
-                # sumed_loss.backward(retain_graph=True)
+                summed_loss.backward()
+                # summed_loss.backward(retain_graph=True)
                 self.optimizers[action['trainer']].step()
-                sumed_loss = 0
+                summed_loss = 0
                 for name in self.optimizers_params[action['trainer']]['associated_net']:
                     for params in self.networks[name].get_training_layers():
                         for param in params['params']:
@@ -297,6 +298,8 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             else:
                 if action['mode'] not in ('batch_forward', 'forward', 'minning'):
                     raise NameError('Unknown action {}'.format(action['mode']))
+
+        del summed_loss, variables
 
     def _sequential_forward(self, action, variables, networks):
         if action['mode'] == 'batch_forward':
@@ -421,7 +424,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             for action in self.eval_forwards['queries']:
                 variables = self._sequential_forward(action, variables, networks)
 
-            pose = recc_acces(variables, ['pose',])
+            pose = recc_acces(variables, self.access_pose)
 
             errors['position'].append(np.linalg.norm(pose['p'].cpu().detach().numpy() -
                                                      query['pose']['position'].numpy()))
@@ -438,7 +441,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         :param q2:
         :return: angle (in degree)
         """
-        # q2[0,1:] *= -1 # Inverse computation
+        #q2[1:] *= -1 # Inverse computation
 
         w3 = np.abs(np.dot(q1, q2))
         angle = 2 * np.arccos(w3)

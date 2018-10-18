@@ -21,12 +21,20 @@ def full_pose_loss(predicted, gt, key='full', combine_func=None):
                                 mean_dist(predicted[key]['q'], gt['q']))
 
 
-def minmax_pose_loss(p_ps, p_qs, gt_ps, gt_qs):
+def minmax_pose_loss(p_ps, p_qs, gt_ps, gt_qs, **kwargs):
+    pose_factor = kwargs.pop('pose_factor', 1)
+    ori_factor = kwargs.pop('ori_factor', 1)
+    min_factor = kwargs.pop('min_factor', 0.1)
+    max_factor = kwargs.pop('max_factor', 0.9)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
     loss = 0
     for i, p_p in enumerate(p_ps):
-        p_loss = mean_dist(p_p, gt_ps[i,:])
-        q_loss = mean_dist(p_qs[i, :], gt_qs[i, :])
-        loss += 0.9*torch.max(torch.stack((p_loss, q_loss), 0)) + 0.1*torch.min(torch.stack((p_loss, q_loss), 0))
+        p_loss = pose_factor*mean_dist(p_p, gt_ps[i,:])
+        q_loss = ori_factor*mean_dist(p_qs[i, :], gt_qs[i, :])
+        loss += max_factor*torch.max(torch.stack((p_loss, q_loss), 0)) + min_factor*torch.min(torch.stack((p_loss, q_loss), 0))
 
     return loss/(i+1)
 
