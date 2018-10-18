@@ -19,10 +19,11 @@ logger = setlog.get_logger(__name__)
 
 
 def matrix_2_quaternion(mat):
-    pos = np.array(mat[0:3, 3])
-    rot = np.array(mat[0:3, 0:3])
+    pos = np.array(mat[0:3, 3], dtype=np.float32)
+    rot = np.array(mat[0:3, 0:3], dtype=np.float32)
     quat = custom_q.Quaternion(matrix=rot)
     quat = quat.q / np.linalg.norm(quat.q)  # Renormalization
+    quat = np.array(quat, dtype=np.float32)
     return {'position': pos, 'orientation': quat}
 
 
@@ -72,7 +73,7 @@ class Base(utils.Dataset):
                     sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod: sample[mod]})[mod]
 
         pose_file = self.folders[fold] + 'frame-' + num + '.pose.txt'
-        pose = np.ndarray((4, 4), dtype=float)
+        pose = np.ndarray((4, 4), dtype=np.float32)
         with open(pose_file, 'r') as pose_file_pt:
             for i, line in enumerate(pose_file_pt):
                 for j, c in enumerate(line.split('\t')):
