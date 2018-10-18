@@ -9,6 +9,9 @@ import trainers.loss_functions
 import trainers.PoseTrainers
 import networks.Pose
 import networks.CustomArchi
+import matplotlib.pyplot as plt
+import torch.utils.data as data
+import torchvision as torchvis
 
 
 logger = setlog.get_logger(__name__)
@@ -158,6 +161,56 @@ class MultNet(Default):
         self.data['test']['queries'].used_mod = self.testing_mod
         self.data['test']['data'].used_mod = self.testing_mod
         BaseClass.Base.test(self)
+
+    def map_print(self, final=False, mod='rgb', aux_mod='depth', batch_size=1):
+        nets_to_test = self.trainer.networks
+        if not final:
+            nets_to_test = dict()
+            for name, network in self.trainer.networks.items():
+                nets_to_test[name] = copy.deepcopy(network)
+                nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
+
+        for network in nets_to_test.values():
+            network.eval()
+
+        dataset = 'val'
+        mode = 'queries'
+        self.data[dataset][mode].used_mod = [mod, aux_mod]
+
+        dtload = data.DataLoader(self.data[dataset][mode], batch_size=batch_size)
+        plt.figure(1)
+        plt.figure(2)
+        ccmap = plt.get_cmap('jet', lut=1024)
+
+        for b in dtload:
+            _, _, h, w = b[mod].size()
+            main_mod = b[mod].contiguous().view(batch_size, 3, h, w)
+            modality = b[aux_mod].contiguous().view(batch_size, -1, h, w)
+
+            variables = {'batch': b}
+            for action in self.trainer.eval_forwards['queries']:
+                variables = self.trainer._sequential_forward(action, variables, nets_to_test)
+            output = trainers.minning_function.recc_acces(variables, ['maps'])
+            inv_output = 1/output - 1
+            inv_mod = 1/(modality + 1)
+
+            plt.figure(1)
+            images_batch = torch.cat((modality.cpu(), inv_output.detach().cpu()))
+            grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
+            plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
+            plt.colorbar()
+
+            plt.figure(2)
+            images_batch = torch.cat((inv_mod.cpu(), output.detach().cpu()))
+            grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
+            plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
+            plt.colorbar()
+
+            plt.figure(3)
+            grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=batch_size)
+            plt.imshow(grid.numpy().transpose(1, 2, 0))
+
+            plt.show()
 
 if __name__ == '__main__':
     system = Default(root=os.environ['DATA'] + 'PoseReg/')
