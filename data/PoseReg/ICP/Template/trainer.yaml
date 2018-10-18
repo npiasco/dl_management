@@ -15,7 +15,7 @@ param_class:
             {
              mode: 'minning',
              func: 'b_wrapper.add_variable',
-             param: {value: [[273, 0, 112.0], [0.0, 273.5625, 112.0], [0.0, 0.0, 1.0]], load: false, source: ['batch', 'rgb' ]},
+             param: {value: [[136.5, 0, 56], [0.0, 136.5, 56], [0.0, 0.0, 1.0]], load: false, source: ['batch', 'rgb' ]},
              out_name: 'K'
             },
             {
@@ -52,14 +52,14 @@ param_class:
             {
              mode: 'minning',
              func: 'b_wrapper.batched_pc_pruning',
-             param: {pc: [pc], mode: 'random', pruning_fact: 0.1},
-             out_name: 'pruned_pc'
+             param: {pc: [pc], mode: 'random', pruning_fact: 0.05},
+             out_name: 'pc'
             },
             {
              mode: 'minning',
              func: 'b_wrapper.batched_icp',
-             param: {pc_ref: [model], pc_to_align: [pruned_pc], param_icp: {iter: 1, tolerance: 0.001, fact: 2, dnorm: False}},
-             out_name: 'poses'
+             param: {pc_ref: [model], pc_to_align: [pc], param_icp: {iter: 3, fact: 2, dnorm: False}},
+             out_name: 'icp'
             },
             #-------------------------------------------------#
 
@@ -68,13 +68,18 @@ param_class:
              mode: 'loss',
              name: 'min_max_pq_loss',
              func: 'loss_func.minmax_pose_loss',
-             args: [['poses', 'p'], ['poses', 'q'], ['batch', 'pose', 'position'], ['batch', 'pose', 'orientation']],
-             param: {}
+             args: [['icp', 'poses', 'p'], ['icp', 'poses', 'q'], ['batch', 'pose', 'position'], ['batch', 'pose', 'orientation']],
+             param: {pose_factor: 1, ori_factor: 1, min_factor: 0.1, max_factor: 0.9}
             },
+            {
+             mode: 'backprop',
+             name: 'main_backprop',
+             trainer: 'main_trainer'
+            }
             #-------------------------------------------------#
         ]
     eval_forwards:
-        dataset:
+        data:
             [
                 {
                  mode: 'minning',
@@ -88,7 +93,7 @@ param_class:
                 {
                  mode: 'minning',
                  func: 'b_wrapper.add_variable',
-                 param: {value: [[273, 0, 112.0], [0.0, 273.5625, 112.0], [0.0, 0.0, 1.0]], load: false, source: ['batch', 'rgb' ]},
+                 param: {value: [[136.5, 0, 56], [0.0, 136.5, 56], [0.0, 0.0, 1.0]], load: false, source: ['batch', 'rgb' ]},
                  out_name: 'K'
                 },
                 {
@@ -120,11 +125,18 @@ param_class:
                 },
                 {
                  mode: 'minning',
+                 func: 'b_wrapper.batched_pc_pruning',
+                 param: {pc: [pc], mode: 'regular', pruning_fact: 0.05},
+                 out_name: 'pruned_pc'
+                },
+                {
+                 mode: 'minning',
                  func: 'b_wrapper.batched_icp',
-                 param: {pc_ref: [model], pc_to_align: [pc], param_icp: {iter: 1, tolerance: 0.001, fact: 2, dnorm: False}},
-                 out_name: 'pose'
+                 param: {pc_ref: [model], pc_to_align: [pruned_pc], param_icp: {iter: 3, tolerance: 0.001, fact: 2, dnorm: False}},
+                 out_name: 'icp'
                 },
             ]
+    access_pose: ['icp', 'poses']
     build_model_func: torch.cat
 
 eval_class: 'score.Functions.GlobalPoseError'

@@ -21,6 +21,10 @@ if __name__ == '__main__':
         machine.plot(print_loss=False, print_val=False)
     elif action == 'P':
         machine.plot()
+    elif action == 'm':
+        machine.map_print()
+    elif action == 'mf':
+        machine.map_print(final=True)
     elif action == '':
         machine.train()
         machine.test()
