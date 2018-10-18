@@ -24,6 +24,7 @@ def add_variable(variable, **kwargs):
 def batched_depth_map_to_pc(variable, **kwargs):
     depth_maps = kwargs.pop('depth_maps', None)
     K = kwargs.pop('K', None)
+    inverse_depth = kwargs.pop('inverse_depth', True)
     remove_zeros = kwargs.pop('remove_zeros', False)
 
     if kwargs:
@@ -36,6 +37,8 @@ def batched_depth_map_to_pc(variable, **kwargs):
     batched_pc = batched_depth_maps.new_zeros(n_batch, 3, height*width)
 
     for i, depth_maps in enumerate(batched_depth_maps):
+        if inverse_depth:
+            depth_maps = 1/depth_maps - 1
         batched_pc[i, :, :] = utils.depth_map_to_pc(depth_maps, K, remove_zeros)
 
     return batched_pc
@@ -53,11 +56,17 @@ def batched_pc_pruning(variable, **kwargs):
     n_batch, _, n_pt = batched_pc.size()
 
     new_n_pt = int(pruning_fact * n_pt)
+    step = n_pt//new_n_pt
+    new_n_pt = (len(range(0, n_pt, step)))
+
     batched_pruned_pc = batched_pc.new_zeros(n_batch, 3, new_n_pt)
 
     for i, pc in enumerate(batched_pc):
         if mode == 'random':
             batched_pruned_pc[i, :, :] = pc[:, np.random.choice(n_pt, new_n_pt, replace = False)]
+        elif mode == 'regular':
+            batched_pruned_pc[i, :, :] = pc[:, range(0, n_pt, step)]
+
 
     return batched_pruned_pc
 
@@ -95,7 +104,7 @@ def batched_icp(variable, **kwargs):
         else:
             computed_pose, _ = ICP.soft_icp(batched_pc_ref, pc_to_align, init_T, **param_icp)
 
-        poses['p'][i, :] = computed_pose[3, :3]
+        poses['p'][i, :] = computed_pose[:3, 3]
         poses['q'][i, :] = utils.rot_to_quat(computed_pose[:3, :3])
 
     return poses
