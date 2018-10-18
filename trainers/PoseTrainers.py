@@ -239,10 +239,10 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             if self.training_pipeline[-1]['mode'] == 'loss':
                 self.loss_log[action['name']] = list()
 
-        self.eval_forwards = {'dataset': list(), 'queries': list()}
-        for forward in eval_forwards['dataset']:
-            self.eval_forwards['dataset'].append(forward)
-            self.eval_forwards['dataset'][-1]['func'] = eval(forward['func'])
+        self.eval_forwards = {'data': list(), 'queries': list()}
+        for forward in eval_forwards['data']:
+            self.eval_forwards['data'].append(forward)
+            self.eval_forwards['data'][-1]['func'] = eval(forward['func'])
         for forward in eval_forwards['queries']:
             self.eval_forwards['queries'].append(forward)
             self.eval_forwards['queries'][-1]['func'] = eval(forward['func'])
@@ -272,10 +272,11 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 input_args = [recc_acces(variables, name) for name in action['args']]
                 val = action['func'](*input_args, **action['param'])
                 sumed_loss += val
-                self.loss_log[action['name']].append(val.data[0])
-                logger.debug(action['name'] + ' loss is {}'.format(val.data[0]))
+                self.loss_log[action['name']].append(val.item())
+                logger.debug(action['name'] + ' loss is {}'.format(val.item()))
             elif action['mode'] == 'backprop':
                 self.optimizers[action['trainer']].zero_grad()
+
                 sumed_loss.backward()
                 # sumed_loss.backward(retain_graph=True)
                 self.optimizers[action['trainer']].step()
@@ -335,6 +336,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                     errors = self._compute_errors(self.networks, dataset['queries'], dataset['data'])
 
                 score = score_function(errors)
+
                 self.val_score.append(score)
                 if score_function.rank_score(score, self.best_net[0]):
                     self._save_current_net(score)
@@ -357,7 +359,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                         for score_function in score_functions.values()]:
                 errors = self._compute_rerror(nets_to_test, dataset['queries'], dataset['data'])
             else:
-                errors = self._compute_sim(nets_to_test, dataset['queries'], dataset['data'])
+                errors = self._compute_errors(nets_to_test, dataset['queries'], dataset['data'])
             results = dict()
             for function_name, score_func in score_functions.items():
                 results[function_name] = score_func(errors)
@@ -376,7 +378,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         for dataloader in (dataset_loader, queries_loader):
             for batch in tqdm.tqdm(dataloader):
                 variables = {'batch': batch}
-                for action in self.eval_forwards['dataset']:
+                for action in self.eval_forwards['data']:
                     variables = self._sequential_forward(action, variables, networks)
 
                 errors.append(
@@ -400,13 +402,13 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         model = None
         for batch in tqdm.tqdm(dataset_loader):
             variables = {'batch': batch}
-            for action in self.eval_forwards['queries']:
+            for action in self.eval_forwards['data']:
                 variables = self._sequential_forward(action, variables, networks)
 
             if model is None:
                 model =  recc_acces(variables, ['model',])
             else:
-                model = self.build_model(model, recc_acces(variables, ['model',]))
+                model = self.build_model((model, recc_acces(variables, ['model',])))
 
         errors = {
             'position': list(),
@@ -421,9 +423,9 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
 
             pose = recc_acces(variables, ['pose',])
 
-            errors['position'].append(np.linalg.norm(pose['p'].cpu().data.numpy() -
+            errors['position'].append(np.linalg.norm(pose['p'].cpu().detach().numpy() -
                                                      query['pose']['position'].numpy()))
-            errors['orientation'].append(self.distance_between_q(pose['q'].cpu().data.numpy()[0],
+            errors['orientation'].append(self.distance_between_q(pose['q'].cpu().detach().numpy()[0],
                                                                  query['pose']['orientation'].numpy()[0]))
         return errors
 
