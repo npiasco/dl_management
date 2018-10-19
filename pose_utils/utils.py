@@ -11,7 +11,7 @@ def mat_proj(T, bVec, homo=False):
         d_size = 1
         for s in bVec.size()[1:]:
             d_size *= s
-        homo_bVec = torch.ones(4, d_size)
+        homo_bVec = T.new_ones(4, d_size)
         homo_bVec[:3, :] = bVec.view(3, -1)
         tbVec = homo_bVec.view(homo_bVec.size(0), -1).transpose(0, 1).contiguous().unsqueeze(-1)
         tproj = torch.matmul(T, tbVec)
@@ -26,7 +26,7 @@ def mat_proj(T, bVec, homo=False):
 
 def depth_map_to_pc(depth_map, K, remove_zeros=False):
     p = [[[i, j, 1] for j in range(depth_map.size(1))] for i in range(depth_map.size(2))]
-    p = torch.FloatTensor(p).transpose(0, 2).contiguous()
+    p = depth_map.new_tensor(p).transpose(0, 2).contiguous()
 
     inv_K = K.inverse()
     p_d = (p * depth_map).view(3, -1).transpose(0, 1)

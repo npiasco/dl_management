@@ -113,9 +113,10 @@ def best_fit_transform(pc_ref, pc_to_align):
     t = pc_ref_centroid - torch.matmul(R, pc_to_align_centroid)
 
     # homogeneous transformation
-    T = torch.eye(4,4)
+    T = pc_ref.new_zeros(4,4)
     T[:3, :3] = R
     T[:3, 3] = t
+    T[3, 3] = 1
 
     return T
 
@@ -131,8 +132,16 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    T = init_T
+    if verbose:
+        fig1 = plt.figure(1)
+        ax1 = fig1.add_subplot(111, projection='3d')
+        fig2 = plt.figure(2)
+        ax2 = fig2.add_subplot(111, projection='3d')
+        plt.ion()
+        plt.show()
+        pas = 5
 
+    T = init_T
     # Row data
     row_pc_ref = pc_ref.view(3, -1)
     row_pc_to_align = pc_to_align.view(3, -1)
@@ -170,32 +179,32 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
 
         if verbose:
             # Ploting
-            fig = plt.figure(1)
-            ax = fig.add_subplot(111, projection='3d')
-            pas = 1
+            #fig1.clf()
+            ax1.clear()
+            utils.plt_pc(row_pc_ref, ax1, pas, 'b')
+            utils.plt_pc(pc_rec, ax1, pas, 'r')
+            ax1.set_xlim([-1, 1])
+            ax1.set_ylim([-1, 1])
+            ax1.set_zlim([-1, 1])
 
-            utils.plt_pc(row_pc_ref, ax, pas, 'b')
-            utils.plt_pc(pc_rec, ax, pas, 'r')
+            ax2.clear()
+            utils.plt_pc(pc_nearest, ax2, pas, 'c')
+            utils.plt_pc(pc_rec, ax2, pas, 'r')
+            ax2.set_xlim([-1, 1])
+            ax2.set_ylim([-1, 1])
+            ax2.set_zlim([-1, 1])
 
-            fig = plt.figure(2)
-            ax = fig.add_subplot(111, projection='3d')
-            pas = 1
-
-            utils.plt_pc(pc_nearest, ax, pas, 'c')
-            utils.plt_pc(pc_rec, ax, pas, 'r')
-
+            """
             plt.figure(4)
             grid = tvis.utils.make_grid(torch.cat((out_map, er_map)))
             print(dist, dist*2)
 
             plt.imshow(grid.numpy().transpose((1, 2, 0))[:, :, 0], cmap=plt.get_cmap('jet'))
             plt.colorbar()
-
-            plt.show()
-
+            """
+            plt.pause(0.2)
 
     logger.debug('Done in {} it'.format(i))
-
     return T, dist
 
 
@@ -275,7 +284,7 @@ if __name__ == '__main__':
 
     print('Before alignement')
 
-    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4,4), tolerance=1e-6, iter=100, fact=2)
+    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4,4), tolerance=1e-6, iter=100, fact=2, verbose=True)
     pc_aligned = utils.mat_proj(T[:3, :], pc_to_align, homo=True)
 
     fig = plt.figure(2)
