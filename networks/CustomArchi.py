@@ -179,8 +179,8 @@ class PixDecoder(nn.Module):
         ]
 
         end_div_4 = [
-            ('conv2', nn.Conv2d(int(256 / d_fact * 2), int(out_channel), kernel_size=3, stride=1,
-                                padding=3 // 2)),
+            ('conv2', nn.Conv2d(int(256 / d_fact * 2), int(out_channel), kernel_size=k_size*2+1, stride=1,
+                                padding=(k_size*2+1) // 2)),
         ]
 
         layer_21 = [
@@ -195,13 +195,13 @@ class PixDecoder(nn.Module):
         ]
 
         end_div_2 = layer_21 + [
-            ('conv0', nn.Conv2d(int(64 / d_fact * 2), int(out_channel), kernel_size=3, stride=1,
-                                padding=3 // 2)),
+            ('conv0', nn.Conv2d(int(64 / d_fact * 2), int(out_channel), kernel_size=(k_size*2+1), stride=1,
+                                padding=(k_size*2+1) // 2)),
         ]
 
         end_div_1 = layer_21 + [
-            ('conv0', nn.ConvTranspose2d(int(64 / d_fact * 2), int(out_channel), kernel_size=4, stride=2,
-                                padding=(4 - 1) // 2)),
+            ('conv0', nn.ConvTranspose2d(int(64 / d_fact * 2), int(out_channel), kernel_size=k_size*2, stride=2,
+                                padding=(k_size*2 - 1) // 2)),
         ]
 
         end = [
@@ -241,7 +241,7 @@ class PixDecoder(nn.Module):
 
 
 if __name__ == '__main__':
-    input_size = 304 # 224//2
+    input_size = 224//2
     tensor_input = torch.rand([1, 3, input_size, input_size])
     '''
     net = DeploymentNet()
@@ -258,7 +258,7 @@ if __name__ == '__main__':
     torch.save(net.state_dict(), 'default.pth')
     '''
     enc = PixEncoder(k_size=4, d_fact=4)
-    dec= PixDecoder(k_size=4, d_fact=4, out_channel=1, div_fact=4)
+    dec= PixDecoder(k_size=4, d_fact=4, out_channel=1, div_fact=1)
 
     feat_output = enc(tensor_input)
     output = dec(feat_output)
