@@ -34,12 +34,19 @@ def batched_depth_map_to_pc(variable, **kwargs):
     K = recc_acces(variable, K)
 
     n_batch, _, height, width = batched_depth_maps.size()
-    batched_pc = batched_depth_maps.new_zeros(n_batch, 3, height*width)
+    if remove_zeros:
+        if n_batch != 1:
+            raise ArithmeticError("Can't stack pc when removing zerors values! (batch_size!=1)")
+    else:
+        batched_pc = batched_depth_maps.new_zeros(n_batch, 3, height*width)
 
     for i, depth_maps in enumerate(batched_depth_maps):
         if inverse_depth:
             depth_maps = 1/depth_maps - 1
-        batched_pc[i, :, :] = utils.depth_map_to_pc(depth_maps, K, remove_zeros)
+        if remove_zeros:
+            batched_pc = utils.depth_map_to_pc(depth_maps, K, remove_zeros).unsqueeze(0)
+        else:
+            batched_pc[i, :, :] = utils.depth_map_to_pc(depth_maps, K, remove_zeros)
 
     return batched_pc
 
@@ -91,6 +98,7 @@ def batched_icp(variable, **kwargs):
     poses = {
         'p': batched_pc_to_align.new_zeros(n_batch, 3),
         'q': batched_pc_to_align.new_zeros(n_batch, 4),
+        'T': batched_pc_to_align.new_zeros(n_batch, 4, 4),
     }
 
     for i, pc_to_align in enumerate(batched_pc_to_align):
@@ -107,5 +115,6 @@ def batched_icp(variable, **kwargs):
         dist[i] = d
         poses['p'][i, :] = computed_pose[:3, 3]
         poses['q'][i, :] = utils.rot_to_quat(computed_pose[:3, :3])
+        poses['T'][i, :, :] = computed_pose
 
     return {'dist': dist, 'poses': poses}
