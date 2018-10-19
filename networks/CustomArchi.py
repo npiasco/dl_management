@@ -87,27 +87,27 @@ class PixEncoder(nn.Module):
 
 
         base_archi = [
-            ('conv0', nn.Conv2d(i_channel, int(64 / d_fact), kernel_size=k_size, stride=2)),
+            ('conv0', nn.Conv2d(i_channel, int(64 / d_fact), kernel_size=k_size*4, stride=2, padding=(k_size*4-1)//2)),
             ('relu0', nn.LeakyReLU(0.2, inplace=True)),
-            ('conv1', nn.Conv2d(int(64 / d_fact), int(128 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('conv1', nn.Conv2d(int(64 / d_fact), int(128 / d_fact), kernel_size=k_size+1, stride=1, padding=(k_size+1)//2)),
             ('bn1', norm_layer_func(int(128/d_fact))),
             ('relu1', nn.LeakyReLU(0.2, inplace=True)),
-            ('conv2', nn.Conv2d(int(128 / d_fact), int(256 / d_fact), kernel_size=k_size, stride=2)),
+            ('conv2', nn.Conv2d(int(128 / d_fact), int(256 / d_fact), kernel_size=k_size, stride=2, padding=(k_size-1)//2)),
             ('bn2', norm_layer_func(int(256 / d_fact))),
             ('relu2', nn.LeakyReLU(0.2, inplace=True)),
-            ('conv3', nn.Conv2d(int(256 / d_fact), int(512 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('conv3', nn.Conv2d(int(256 / d_fact), int(512 / d_fact), kernel_size=k_size+1, stride=1, padding=(k_size+1)//2)),
             ('bn3', norm_layer_func(int(512 / d_fact))),
             ('relu3', nn.LeakyReLU(0.2, inplace=True)),
-            ('conv4', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size, stride=2)),
+            ('conv4', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size, stride=2, padding=(k_size-1)//2)),
             ('bn4', norm_layer_func(int(512 / d_fact))),
             ('relu4', nn.LeakyReLU(0.2, inplace=True)),
-            ('conv5', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('conv5', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size+1, stride=1, padding=(k_size+1)//2)),
             ('bn5', norm_layer_func(int(512 / d_fact))),
             ('relu5', nn.LeakyReLU(0.2, inplace=True)),
-            ('conv6', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size, stride=2)),
+            ('conv6', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size, stride=2, padding=(k_size-1)//2)),
             ('bn6', norm_layer_func(int(512 / d_fact))),
             ('relu6', nn.LeakyReLU(0.2, inplace=True)),
-            ('conv7', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('conv7', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size+1, stride=1, padding=(k_size+1)//2)),
             ('bn7', norm_layer_func(int(512 / d_fact))),
             ('relu7', nn.LeakyReLU(0.2, inplace=True)),
         ]
@@ -141,12 +141,14 @@ class PixDecoder(nn.Module):
         out_channel = kwargs.pop('out_channel', 1)
         d_fact = kwargs.pop('d_fact', 1)
         k_size = kwargs.pop('k_size', 2)
-        out_pad = kwargs.pop('out_pad', 0)
-        div_fact = kwargs.pop('div_fact', 1)
         norm_layer = kwargs.pop('norm_layer', 'group')
+        div_fact = kwargs.pop('div_fact', 1)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        if div_fact not in [1, 2, 4]:
+            raise ValueError('Output is not divisible by {}'.format(div_fact))
 
         if norm_layer == 'group':
             norm_layer_func = lambda x: copy.deepcopy(nn.GroupNorm(x//2, x))
@@ -156,30 +158,62 @@ class PixDecoder(nn.Module):
         #TODO: construct various archi depending on the desired scale factor according to the output size
 
         base_archi = [
-            ('conv7', nn.ConvTranspose2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('conv7', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size + 1, stride=1,
+                                         padding=(k_size + 1) // 2)),
             ('bn7', norm_layer_func(int(512 / d_fact))),
             ('relu7', nn.ReLU(inplace=True)),
-            ('conv6', nn.ConvTranspose2d(int(512 / d_fact * 2), int(512 / d_fact), kernel_size=k_size, stride=2, output_padding=0)),
+            ('conv6', nn.ConvTranspose2d(int(512 / d_fact * 2), int(512 / d_fact), kernel_size=k_size, stride=2, padding=(k_size-1)//2)),
             ('bn6', norm_layer_func(int(512 / d_fact))),
             ('relu6', nn.ReLU(inplace=True)),
-            ('conv5', nn.ConvTranspose2d(int(512 / d_fact * 2), int(512 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('conv5', nn.Conv2d(int(512 / d_fact * 2), int(512 / d_fact), kernel_size=k_size + 1, stride=1,
+                                         padding=(k_size + 1) // 2)),
             ('bn5', norm_layer_func(int(512 / d_fact))),
             ('relu5', nn.ReLU(inplace=True)),
-            ('conv4', nn.ConvTranspose2d(int(512 / d_fact * 2), int(512 / d_fact), kernel_size=k_size, stride=2, output_padding=out_pad)),
+            ('conv4', nn.ConvTranspose2d(int(512 / d_fact * 2), int(512 / d_fact), kernel_size=k_size, stride=2, padding=(k_size-1)//2)),
             ('bn4', norm_layer_func(int(512 / d_fact))),
             ('relu4', nn.ReLU(inplace=True)),
-            ('conv3', nn.ConvTranspose2d(int(512 / d_fact * 2), int(256 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('conv3', nn.Conv2d(int(512 / d_fact * 2), int(256 / d_fact), kernel_size=k_size + 1, stride=1,
+                                         padding=(k_size + 1) // 2)),
             ('bn3', norm_layer_func(int(256 / d_fact))),
             ('relu3', nn.ReLU(inplace=True)),
-            ('conv2', nn.ConvTranspose2d(int(256 / d_fact * 2), int(128 / d_fact), kernel_size=k_size, stride=2, output_padding=out_pad)),
+        ]
+
+        end_div_4 = [
+            ('conv2', nn.Conv2d(int(256 / d_fact * 2), int(out_channel), kernel_size=3, stride=1,
+                                padding=3 // 2)),
+        ]
+
+        layer_21 = [
+            ('conv2', nn.ConvTranspose2d(int(256 / d_fact * 2), int(128 / d_fact), kernel_size=k_size, stride=2,
+                                         padding=(k_size - 1) // 2)),
             ('bn2', norm_layer_func(int(128 / d_fact))),
             ('relu2', nn.ReLU(inplace=True)),
-            ('conv1', nn.ConvTranspose2d(int(128 / d_fact * 2), int(64 / d_fact), kernel_size=k_size+1, stride=1, padding=1)),
+            ('conv1', nn.Conv2d(int(128 / d_fact * 2), int(64 / d_fact), kernel_size=k_size + 1, stride=1,
+                                padding=(k_size + 1) // 2)),
             ('bn1', norm_layer_func(int(64 / d_fact))),
             ('relu1', nn.ReLU(inplace=True)),
-            ('conv0', nn.ConvTranspose2d(int(64 / d_fact * 2), int(out_channel), kernel_size=k_size*2, stride=2, padding=k_size//2)),
-            ('sig0', nn.Sigmoid()),
         ]
+
+        end_div_2 = layer_21 + [
+            ('conv0', nn.Conv2d(int(64 / d_fact * 2), int(out_channel), kernel_size=3, stride=1,
+                                padding=3 // 2)),
+        ]
+
+        end_div_1 = layer_21 + [
+            ('conv0', nn.ConvTranspose2d(int(64 / d_fact * 2), int(out_channel), kernel_size=4, stride=2,
+                                padding=(4 - 1) // 2)),
+        ]
+
+        end = [
+            ('sig', nn.Sigmoid()),
+        ]
+
+        if div_fact == 1:
+            base_archi = base_archi + end_div_1 + end
+        elif div_fact == 2:
+            base_archi = base_archi + end_div_2 + end
+        elif div_fact == 4:
+            base_archi = base_archi + end_div_4 + end
 
         self.feature = nn.Sequential(
             coll.OrderedDict(base_archi)
@@ -207,7 +241,7 @@ class PixDecoder(nn.Module):
 
 
 if __name__ == '__main__':
-    input_size = 224//2
+    input_size = 304 # 224//2
     tensor_input = torch.rand([1, 3, input_size, input_size])
     '''
     net = DeploymentNet()
@@ -224,10 +258,11 @@ if __name__ == '__main__':
     torch.save(net.state_dict(), 'default.pth')
     '''
     enc = PixEncoder(k_size=4, d_fact=4)
-    dec= PixDecoder(k_size=4, d_fact=4, out_channel=1, out_pad=1)
+    dec= PixDecoder(k_size=4, d_fact=4, out_channel=1, div_fact=4)
 
     feat_output = enc(tensor_input)
     output = dec(feat_output)
     print(output.size())
     #print([res.size() for res in feat_output.values()])
+
 
