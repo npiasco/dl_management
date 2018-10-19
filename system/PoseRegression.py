@@ -12,6 +12,7 @@ import networks.CustomArchi
 import matplotlib.pyplot as plt
 import torch.utils.data as data
 import torchvision as torchvis
+import pose_utils.utils as pc_utils
 
 
 logger = setlog.get_logger(__name__)
@@ -173,7 +174,7 @@ class MultNet(Default):
         for network in nets_to_test.values():
             network.eval()
 
-        dataset = 'val'
+        dataset = 'test'
         mode = 'queries'
         self.data[dataset][mode].used_mod = [mod, aux_mod]
 
@@ -183,9 +184,11 @@ class MultNet(Default):
         ccmap = plt.get_cmap('jet', lut=1024)
 
         for b in dtload:
+            b = self.trainer.batch_to_device(b)
             _, _, h, w = b[mod].size()
+            _, _, haux, waux = b[aux_mod].size()
             main_mod = b[mod].contiguous().view(batch_size, 3, h, w)
-            modality = b[aux_mod].contiguous().view(batch_size, -1, h, w)
+            modality = b[aux_mod].contiguous().view(batch_size, -1, haux, waux)
 
             variables = {'batch': b}
             for action in self.trainer.eval_forwards['queries']:
@@ -195,13 +198,13 @@ class MultNet(Default):
             inv_mod = 1/(modality + 1)
 
             plt.figure(1)
-            images_batch = torch.cat((modality.cpu(), inv_output.detach().cpu()))
+            images_batch = torch.cat((modality.cpu(), inv_mod.cpu()))
             grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
             plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
             plt.colorbar()
 
             plt.figure(2)
-            images_batch = torch.cat((inv_mod.cpu(), output.detach().cpu()))
+            images_batch = torch.cat((inv_output.detach().cpu(), output.detach().cpu()))
             grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
             plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
             plt.colorbar()
@@ -211,6 +214,54 @@ class MultNet(Default):
             plt.imshow(grid.numpy().transpose(1, 2, 0))
 
             plt.show()
+
+    def view_localization(self, final=False, pas=100):
+        nets_to_test = self.trainer.networks
+        if not final:
+            nets_to_test = dict()
+            for name, network in self.trainer.networks.items():
+                nets_to_test[name] = copy.deepcopy(network)
+                nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
+
+        for network in nets_to_test.values():
+            network.eval()
+
+        dataset = 'val'
+        mode = 'queries'
+
+        dtload = data.DataLoader(self.data[dataset][mode], batch_size=1)
+
+        for b in dtload:
+            with torch.no_grad():
+                b = self.trainer.batch_to_device(b)
+                variables = {'batch': b}
+
+                for action in self.trainer.eval_forwards['queries']:
+                    variables = self.trainer._sequential_forward(action, variables, nets_to_test)
+
+            ref_pc = trainers.minning_function.recc_acces(variables, ['model'])
+            output_pose = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'T'])[0, :3, :]
+            pc = trainers.minning_function.recc_acces(variables, ['pc'])[0]
+            output_pc = pc_utils.mat_proj(output_pose, pc, homo=True)
+            gt_pose = trainers.minning_function.recc_acces(variables, ['batch', 'pose', 'T'])[0, :3, :]
+            gt_pc = pc_utils.mat_proj(gt_pose, pc, homo=True)
+
+            print('Real pose:')
+            print(gt_pose)
+
+            print('Computed pose:')
+            print(output_pose)
+
+            print('Diff distance = {} m'.format(torch.norm(gt_pose[:, 3] - output_pose[:, 3]).item()))
+
+            fig = plt.figure(1)
+            ax = fig.add_subplot(111, projection='3d')
+
+            pc_utils.plt_pc(ref_pc.cpu(), ax, pas, 'b')
+            pc_utils.plt_pc(gt_pc.cpu(), ax, pas, 'c')
+            pc_utils.plt_pc(output_pc.cpu(), ax, pas, 'r')
+            plt.show()
+
 
 if __name__ == '__main__':
     system = Default(root=os.environ['DATA'] + 'PoseReg/')
