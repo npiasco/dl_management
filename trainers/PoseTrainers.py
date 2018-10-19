@@ -254,16 +254,24 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
     def device(self):
         return torch.device('cuda' if self.cuda_on else 'cpu')
 
+    def batch_to_device(self, batch):
+        for name, values in batch.items():
+            if isinstance(values, dict):
+                batch[name] = self.batch_to_device(values)
+            else:
+                batch[name] = values.to(self.device)
+        return batch
+
     def train(self, batch):
         for network in self.networks.values():
-            network = network.train().to(self.device)
+            network.train().to(self.device)
             for params in network.get_training_layers():
                 for param in params['params']:
                     param.requires_grad = True
 
         # Forward pass
         # TODO: .to to move on device
-        variables = {'batch': batch}
+        variables = {'batch': self.batch_to_device(batch)}
         summed_loss = 0
         for action in self.training_pipeline:
 
@@ -380,7 +388,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         logger.info('Computing dataset/queries reconstruction error')
         for dataloader in (dataset_loader, queries_loader):
             for batch in tqdm.tqdm(dataloader):
-                variables = {'batch': batch}
+                variables = {'batch': self.batch_to_device(batch)}
                 for action in self.eval_forwards['data']:
                     variables = self._sequential_forward(action, variables, networks)
 
@@ -404,7 +412,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         logger.info('Computing reference model')
         model = None
         for batch in tqdm.tqdm(dataset_loader):
-            variables = {'batch': batch}
+            variables = {'batch': self.batch_to_device(batch)}
             for action in self.eval_forwards['data']:
                 variables = self._sequential_forward(action, variables, networks)
 
@@ -419,19 +427,17 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         }
         logger.info('Computing position and orientation errors')
         for query in tqdm.tqdm(queries_loader):
-            variables = {'batch': query}
+            variables = {'batch': self.batch_to_device(query)}
             variables['model'] = model
             for action in self.eval_forwards['queries']:
                 variables = self._sequential_forward(action, variables, networks)
 
             pose = recc_acces(variables, self.access_pose)
-
             errors['position'].append(np.linalg.norm(pose['p'].cpu().detach().numpy() -
-                                                     query['pose']['position'].numpy()))
+                                                     query['pose']['position'].cpu().numpy()))
             errors['orientation'].append(self.distance_between_q(pose['q'].cpu().detach().numpy()[0],
-                                                                 query['pose']['orientation'].numpy()[0]))
+                                                                 query['pose']['orientation'].cpu().numpy()[0]))
         return errors
-
 
     @staticmethod
     def distance_between_q(q1, q2):
