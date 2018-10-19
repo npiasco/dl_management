@@ -21,6 +21,18 @@ def add_variable(variable, **kwargs):
     return new_var
 
 
+def inverse(variable, **kwargs):
+    data_to_inv = kwargs.pop('data_to_inv', None)
+    offset = kwargs.pop('offset', -1)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    data_to_inv = recc_acces(variable, data_to_inv)
+
+    return 1/data_to_inv + offset
+
+
 def batched_depth_map_to_pc(variable, **kwargs):
     depth_maps = kwargs.pop('depth_maps', None)
     K = kwargs.pop('K', None)

@@ -142,6 +142,7 @@ def l1_modal_loss(predicted_maps, gt_maps, **kwargs):
     factor = kwargs.pop('factor', 1)
     listed_maps = kwargs.pop('listed_maps', True)
     reg = kwargs.pop('reg', 0)
+    no_zeros = kwargs.pop('no_zeros', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -153,7 +154,14 @@ def l1_modal_loss(predicted_maps, gt_maps, **kwargs):
         predicted = predicted_maps
         gt_w_grad = gt_maps
 
-    gt = gt_w_grad.detach()
+    if no_zeros:
+        gt_w_grad = gt_w_grad.view(1, -1).transpose(0, 1)
+        predicted = predicted.view(1, -1).transpose(0, 1)
+        non_zeros_idx = gt_w_grad.nonzero()
+        gt = gt_w_grad[non_zeros_idx][:, 0]
+        predicted = predicted[non_zeros_idx][:, 0]
+
+    #gt = gt_w_grad.detach()
 
     if p == 1:
         loss = factor * func.l1_loss(predicted, gt)
