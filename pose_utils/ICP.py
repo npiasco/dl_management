@@ -78,18 +78,27 @@ def weighted_knn(pc_ref, pc_to_align, fact=10):
 
 
 def soft_1nn(pc_ref, pc_to_align, fact=10):
-    pc_nearest = pc_to_align.clone()
+    pc_nearest = pc_to_align.new_zeros(pc_to_align.size())
     pc_ref_t = pc_ref.transpose(0, 1)
     dist_matrix = pc_ref.new_zeros(pc_to_align.size(1), pc_ref.size(1))
     mean_distance = 0
     for i, pt in enumerate(pc_to_align.transpose(0, 1)):
         dist_matrix[i, :] = torch.sum((pc_ref_t - pt)**2, 1)
 
-    dist_matrix_all = torch.softmax(fact -dist_matrix, 1)
-    dist_matrix_nearest = torch.softmax(fact -dist_matrix*dist_matrix_all, 0)
-
+    dist_matrix_all = torch.softmax(fact * -dist_matrix, 0)
+    dist_matrix_nearest = torch.softmax(fact * -dist_matrix, 1)
+    #dist_matrix_nearest = torch.softmax(fact - dist_matrix, 0)
     for i, pt in enumerate(pc_to_align.transpose(0, 1)):
-        pc_nearest[:, i] = torch.sum(pc_ref * dist_matrix_nearest[i, :], 1)
+        pc_nearest[:, i] = torch.sum(pc_ref * dist_matrix_nearest[i, :], 1)*0 + \
+                           torch.sum(pc_ref * dist_matrix_all[i, :], 1)
+
+        '''
+        print(pc_nearest[:, i])
+        print(dist_matrix_nearest[i, :])
+        print(dist_matrix_all[i, :])
+        print(torch.sum(dist_matrix_nearest[i, :]))
+        print(torch.sum(dist_matrix_all[i, :]))
+        '''
         mean_distance += torch.norm(pt - pc_nearest[:, i], p=2)
 
     return pc_nearest, mean_distance/(i+1)
@@ -223,7 +232,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
             plt.imshow(grid.numpy().transpose((1, 2, 0))[:, :, 0], cmap=plt.get_cmap('jet'))
             plt.colorbar()
             """
-            plt.pause(0.5)
+            plt.pause(0.2)
 
     logger.debug('Done in {} it'.format(i))
     if verbose:
@@ -239,7 +248,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
 if __name__ == '__main__':
     ids = ['frame-000100','frame-000150', 'frame-000150']
 
-    scale = 1/64
+    scale = 1/32
 
     K = torch.zeros(3, 3)
     K[0, 0] = 585
@@ -313,7 +322,7 @@ if __name__ == '__main__':
     print('Before alignement')
 
     #T, d = soft_icp(pc_to_align, pc_ref, poses[1].inverse(), tolerance=1e-6, iter=100, fact=100, verbose=True, dnorm=False)
-    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=0.1, verbose=True, dnorm=False)
+    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=200, verbose=True, dnorm=False)
     pc_aligned = utils.mat_proj(T[:3, :], pc_to_align, homo=True)
 
     fig = plt.figure(2)
@@ -331,7 +340,6 @@ if __name__ == '__main__':
 
     utils.plt_pc(pc_ref, ax, pas, 'b')
     utils.plt_pc(pcs[1], ax, pas, 'c')
-
     print('GT')
 
     print(torch.matmul(T, poses[1].inverse()))
