@@ -77,6 +77,24 @@ def weighted_knn(pc_ref, pc_to_align, fact=10):
     return pc_nearest, npc_to_align, mean_distance/(i+1)
 
 
+def soft_1nn(pc_ref, pc_to_align, fact=10):
+    pc_nearest = pc_to_align.clone()
+    pc_ref_t = pc_ref.transpose(0, 1)
+    dist_matrix = pc_ref.new_zeros(pc_to_align.size(1), pc_ref.size(1))
+    mean_distance = 0
+    for i, pt in enumerate(pc_to_align.transpose(0, 1)):
+        dist_matrix[i, :] = torch.sum((pc_ref_t - pt)**2, 1)
+
+    dist_matrix_all = torch.softmax(fact -dist_matrix, 1)
+    dist_matrix_nearest = torch.softmax(fact -dist_matrix*dist_matrix_all, 0)
+
+    for i, pt in enumerate(pc_to_align.transpose(0, 1)):
+        pc_nearest[:, i] = torch.sum(pc_ref * dist_matrix_nearest[i, :], 1)
+        mean_distance += torch.norm(pt - pc_nearest[:, i], p=2)
+
+    return pc_nearest, mean_distance/(i+1)
+
+
 def soft_knn(pc_ref, pc_to_align, fact=10, d_norm=True):
     pc_nearest = pc_to_align.clone()
     pc_ref_t = pc_ref.transpose(0, 1)
@@ -139,7 +157,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
         ax2 = fig2.add_subplot(111, projection='3d')
         plt.ion()
         plt.show()
-        pas = 5
+        pas = 1
 
     T = init_T
     # Row data
@@ -149,7 +167,9 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     # First iter
     fact = 1 * unit_fact
     pc_rec = utils.mat_proj(T[:3, :], row_pc_to_align, homo=True)
-    pc_nearest, init_dist = soft_knn(row_pc_ref, pc_rec, fact=fact, d_norm=distance_norm)
+#    pc_nearest, init_dist = soft_knn(row_pc_ref, pc_rec, fact=fact, d_norm=distance_norm)
+    pc_nearest, init_dist = soft_1nn(row_pc_ref, pc_rec, fact=fact)
+
     prev_dist = init_dist
 
     for i in range(iter):
@@ -157,7 +177,9 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
         T = torch.matmul(T, new_T)
 
         pc_rec = utils.mat_proj(T[:3, :], row_pc_to_align, homo=True)
-        pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, fact=fact, d_norm=distance_norm)
+        #pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, fact=fact, d_norm=distance_norm)
+        pc_nearest, dist = soft_1nn(row_pc_ref, pc_rec, fact=fact)
+
 
         entrop = abs(prev_dist - dist.item())
         fact = min(100, max(1, 1/entrop)) * unit_fact
@@ -179,7 +201,6 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
 
         if verbose:
             # Ploting
-            #fig1.clf()
             ax1.clear()
             utils.plt_pc(row_pc_ref, ax1, pas, 'b')
             utils.plt_pc(pc_rec, ax1, pas, 'r')
@@ -202,16 +223,23 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
             plt.imshow(grid.numpy().transpose((1, 2, 0))[:, :, 0], cmap=plt.get_cmap('jet'))
             plt.colorbar()
             """
-            plt.pause(0.2)
+            plt.pause(0.5)
 
     logger.debug('Done in {} it'.format(i))
+    if verbose:
+        plt.ioff()
+        ax1.clear()
+        plt.close()
+        ax2.clear()
+        plt.close()
+
     return T, dist
 
 
 if __name__ == '__main__':
     ids = ['frame-000100','frame-000150', 'frame-000150']
 
-    scale = 1/16
+    scale = 1/64
 
     K = torch.zeros(3, 3)
     K[0, 0] = 585
@@ -223,8 +251,8 @@ if __name__ == '__main__':
 
     K[2, 2] = 1
 
-    root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
-    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    #root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
+    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
     depths = list()
@@ -284,7 +312,8 @@ if __name__ == '__main__':
 
     print('Before alignement')
 
-    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4,4), tolerance=1e-6, iter=100, fact=2, verbose=True)
+    #T, d = soft_icp(pc_to_align, pc_ref, poses[1].inverse(), tolerance=1e-6, iter=100, fact=100, verbose=True, dnorm=False)
+    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=0.1, verbose=True, dnorm=False)
     pc_aligned = utils.mat_proj(T[:3, :], pc_to_align, homo=True)
 
     fig = plt.figure(2)
