@@ -76,9 +76,8 @@ def weighted_knn(pc_ref, pc_to_align, fact=10):
 
     return pc_nearest, npc_to_align, mean_distance/(i+1)
 
-
-def soft_1nn(pc_ref, pc_to_align, fact=10):
-    pc_nearest = pc_to_align.new_zeros(pc_to_align.size())
+def hard_knn(pc_ref, pc_to_align, fact=10, ref_to_targ=False):
+    pc_nearest = new_pc_to_align = None
     pc_ref_t = pc_ref.transpose(0, 1)
     dist_matrix = pc_ref.new_zeros(pc_to_align.size(1), pc_ref.size(1))
     mean_distance = 0
@@ -87,22 +86,62 @@ def soft_1nn(pc_ref, pc_to_align, fact=10):
 
     dist_matrix_all = torch.softmax(fact * -dist_matrix, 0)
     dist_matrix_nearest = torch.softmax(fact * -dist_matrix, 1)
-    #dist_matrix_nearest = torch.softmax(fact - dist_matrix, 0)
+
     for i, pt in enumerate(pc_to_align.transpose(0, 1)):
-        pc_nearest[:, i] = torch.sum(pc_ref * dist_matrix_nearest[i, :], 1)*0 + \
-                           torch.sum(pc_ref * dist_matrix_all[i, :], 1)
+        val, idx_1 = torch.max(dist_matrix_nearest[i, :], 0)
+        val, idx_2 = torch.max(dist_matrix_all[:, idx_1], 0)
+        if i == idx_2.item():
+            #if torch.abs(dist_matrix[i, idx_1] - dist_matrix[idx_2, idx_1]).item() < 1/fact:
+            if pc_nearest is None:
+                pc_nearest = torch.sum(pc_ref * dist_matrix_nearest[i, :], 1).unsqueeze(1)
+                new_pc_to_align = torch.sum(pc_to_align * dist_matrix_all[:, idx_1], 1).unsqueeze(1)
+            else:
+                pc_nearest = torch.cat((pc_nearest, torch.sum(pc_ref * dist_matrix_nearest[i, :], 1).unsqueeze(1)), 1)
+                new_pc_to_align = torch.cat((new_pc_to_align, torch.sum(pc_to_align * dist_matrix_all[:, idx_1], 1).unsqueeze(1)), 1)
+            mean_distance += torch.norm(new_pc_to_align[:, -1] - pc_nearest[:, -1], p=2)
+    if ref_to_targ:
+        for j, pt in enumerate(pc_ref_t):
+            val, idx_1 = torch.max(dist_matrix_all[:, j], 0)
+            val, idx_2 = torch.max(dist_matrix_nearest[idx_1, :], 0)
+            if j == idx_2.item():
+                if pc_nearest is None:
+                    pc_nearest = torch.sum(pc_ref * dist_matrix_nearest[idx_1, :], 1).unsqueeze(1)
+                    new_pc_to_align = torch.sum(pc_to_align * dist_matrix_all[:, j], 1).unsqueeze(1)
+                else:
+                    pc_nearest = torch.cat((pc_nearest, torch.sum(pc_ref * dist_matrix_nearest[idx_1, :], 1).unsqueeze(1)), 1)
+                    new_pc_to_align = torch.cat((new_pc_to_align, torch.sum(pc_to_align * dist_matrix_all[:, j], 1).unsqueeze(1)), 1)
+                mean_distance += torch.norm(new_pc_to_align[:, -1] - pc_nearest[:, -1], p=2)
 
-        '''
-        print(pc_nearest[:, i])
-        print(dist_matrix_nearest[i, :])
-        print(dist_matrix_all[i, :])
-        print(torch.sum(dist_matrix_nearest[i, :]))
-        print(torch.sum(dist_matrix_all[i, :]))
-        '''
-        mean_distance += torch.norm(pt - pc_nearest[:, i], p=2)
+    return new_pc_to_align, pc_nearest, mean_distance/pc_nearest.size(1)
+'''
 
-    return pc_nearest, mean_distance/(i+1)
+def hard_knn(pc_ref, pc_to_align, fact=10):
+    pc_nearest = new_pc_to_align = None
+    pc_ref_t = pc_ref.transpose(0, 1)
+    dist_matrix = pc_ref.new_zeros(pc_to_align.size(1), pc_ref.size(1))
+    mean_distance = 0
+    for i, pt in enumerate(pc_to_align.transpose(0, 1)):
+        dist_matrix[i, :] = torch.sum((pc_ref_t - pt) ** 2, 1)
 
+    dist_matrix_all = torch.softmax(fact * -dist_matrix, 0)
+    dist_matrix_nearest = torch.softmax(fact * -dist_matrix, 1)
+
+    for i, pt in enumerate(pc_to_align.transpose(0, 1)):
+        val, idx_1 = torch.max(dist_matrix_nearest[i, :], 0)
+        val, idx_2 = torch.max(dist_matrix_all[:, idx_1], 0)
+        if i == idx_2.item():
+            # if torch.abs(dist_matrix[i, idx_1] - dist_matrix[idx_2, idx_1]).item() < 1/fact:
+            if pc_nearest is None:
+                pc_nearest = pc_ref[:,idx_1].unsqueeze(1)
+                new_pc_to_align = pc_to_align[:, i].unsqueeze(1)
+            else:
+                pc_nearest = torch.cat((pc_nearest, pc_ref[:,idx_1].unsqueeze(1)), 1)
+                new_pc_to_align = torch.cat(
+                    (new_pc_to_align, pc_to_align[:, i].unsqueeze(1)), 1)
+            mean_distance += torch.norm(new_pc_to_align[:, -1] - pc_nearest[:, -1], p=2)
+
+    return new_pc_to_align, pc_nearest, mean_distance / pc_nearest.size(1)
+'''
 
 def soft_knn(pc_ref, pc_to_align, fact=10, d_norm=True):
     pc_nearest = pc_to_align.clone()
@@ -155,6 +194,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     outlier_rejection = kwargs.pop('outlier', False)
     distance_norm = kwargs.pop('dnorm', True)
     verbose = kwargs.pop('verbose', False)
+    use_hard_nn= kwargs.pop('use_hard_nn', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -176,8 +216,10 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     # First iter
     fact = 1 * unit_fact
     pc_rec = utils.mat_proj(T[:3, :], row_pc_to_align, homo=True)
-#    pc_nearest, init_dist = soft_knn(row_pc_ref, pc_rec, fact=fact, d_norm=distance_norm)
-    pc_nearest, init_dist = soft_1nn(row_pc_ref, pc_rec, fact=fact)
+    if use_hard_nn:
+        pc_rec, pc_nearest, init_dist = hard_knn(row_pc_ref, pc_rec, fact=fact)
+    else:
+        pc_nearest, init_dist = soft_knn(row_pc_ref, pc_rec, fact=fact, d_norm=distance_norm)
 
     prev_dist = init_dist
 
@@ -186,9 +228,11 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
         T = torch.matmul(T, new_T)
 
         pc_rec = utils.mat_proj(T[:3, :], row_pc_to_align, homo=True)
-        #pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, fact=fact, d_norm=distance_norm)
-        pc_nearest, dist = soft_1nn(row_pc_ref, pc_rec, fact=fact)
 
+        if use_hard_nn:
+            pc_rec, pc_nearest, dist = hard_knn(row_pc_ref, pc_rec, fact=fact)
+        else:
+            pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, fact=fact, d_norm=distance_norm)
 
         entrop = abs(prev_dist - dist.item())
         fact = min(100, max(1, 1/entrop)) * unit_fact
@@ -232,7 +276,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
             plt.imshow(grid.numpy().transpose((1, 2, 0))[:, :, 0], cmap=plt.get_cmap('jet'))
             plt.colorbar()
             """
-            plt.pause(0.2)
+            plt.pause(0.1)
 
     logger.debug('Done in {} it'.format(i))
     if verbose:
@@ -260,8 +304,8 @@ if __name__ == '__main__':
 
     K[2, 2] = 1
 
-    #root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
-    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
+    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
     depths = list()
@@ -322,7 +366,7 @@ if __name__ == '__main__':
     print('Before alignement')
 
     #T, d = soft_icp(pc_to_align, pc_ref, poses[1].inverse(), tolerance=1e-6, iter=100, fact=100, verbose=True, dnorm=False)
-    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=200, verbose=True, dnorm=False)
+    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=2, verbose=True, dnorm=False, use_hard_nn=True)
     pc_aligned = utils.mat_proj(T[:3, :], pc_to_align, homo=True)
 
     fig = plt.figure(2)
