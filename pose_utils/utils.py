@@ -48,11 +48,11 @@ def toSceneCoord(depth, pose, K, remove_zeros=False):
 
 
 def plt_pc(pc, ax, pas = 50, color='b'):
-    x = pc[0, :].view(1, -1).numpy()[0]
+    x = pc[0, :].view(1, -1).cpu().numpy()[0]
     x = [x[i] for i in range(0, len(x), pas)]
-    y = pc[1, :].view(1, -1).numpy()[0]
+    y = pc[1, :].view(1, -1).cpu().numpy()[0]
     y = [y[i] for i in range(0, len(y), pas)]
-    z = pc[2, :].view(1, -1).numpy()[0]
+    z = pc[2, :].view(1, -1).cpu().numpy()[0]
     z = [z[i] for i in range(0, len(z), pas)]
 
     ax.scatter(x, y, z, c=color, depthshade=True)
@@ -146,3 +146,5 @@ if __name__ == '__main__':
     print(rot.matmul(rot_mat.t()))
     print(rot_mat.matmul(rot.t()))
     print(2*torch.acos(torch.abs(torch.dot(q, quat))) * 180/3.14156092)
+    print(rot_to_quat(rot))
+    print(rot_to_quat(rot.t()))

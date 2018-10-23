@@ -166,7 +166,8 @@ def best_fit_transform(pc_ref, pc_to_align):
     pc_to_align_centred = (pc_to_align.transpose(0, 1) - pc_to_align_centroid)
 
     H = torch.matmul(pc_ref_centred.t(), pc_to_align_centred)
-
+    logger.debug('SVD on:')
+    logger.debug(H)
     U, S, V = torch.svd(H)
     R = torch.matmul(U, V.t())
 
@@ -221,8 +222,8 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     else:
         pc_nearest, init_dist = soft_knn(row_pc_ref, pc_rec, fact=fact, d_norm=distance_norm)
 
-    prev_dist = init_dist
-
+    dist = prev_dist = init_dist
+    i = 0
     for i in range(iter):
         new_T = best_fit_transform(pc_nearest, pc_rec)
         T = torch.matmul(T, new_T)

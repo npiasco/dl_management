@@ -200,6 +200,7 @@ def custom_forward(net, outputs, **kwargs):
     input_targets = kwargs.pop('input_targets', list())
     multiples_instance = kwargs.pop('multiples_instance', False)
     detach_inputs = kwargs.pop('detach_inputs', False)
+    is_dict = kwargs.pop('dict', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -226,7 +227,14 @@ def custom_forward(net, outputs, **kwargs):
 
     else:
         if detach_inputs:
-            inputs = [inp.detach() for inp in inputs]
+            if is_dict:
+                new_inputs = list()
+                for inp in inputs:
+                    for name, value in inp.items():
+                        inp[name] = value.detach()
+                    new_inputs.append(inp)
+                inputs = new_inputs
+
         forward = net(*inputs)
 
     return forward
@@ -367,4 +375,5 @@ def examples_selection(outputs, **kwargs):
                 selected_exemples[batch_num] = examples[j][i].unsqueeze(0)
             else:
                 selected_exemples[batch_num] = torch.cat((selected_exemples[batch_num], examples[j][i].unsqueeze(0)), dim=0)
+
     return selected_exemples
