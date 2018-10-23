@@ -1,12 +1,14 @@
 import setlog
 import torch.utils.data as utils
 import datasets.custom_quaternion as custom_q
+import pose_utils.utils as putils
 import numpy as np
 import PIL.Image
 import PIL.PngImagePlugin
 import re
 import pathlib as path
 import torchvision as torchvis
+import torch
 import datasets.multmodtf as tf
 import matplotlib.pyplot as plt
 import torch.utils.data as data
@@ -17,25 +19,9 @@ PIL.PngImagePlugin.logger.setLevel('INFO')
 
 logger = setlog.get_logger(__name__)
 
+
 def rot_to_quat(m):
-    if m[2, 2] < 0:
-        if m[0, 0] > m[1, 1]:
-            t = 1 + m[0, 0] - m[1, 1] - m[2, 2]
-            q = np.array([m[1, 2] - m[2, 1], t, m[0, 1] + m[1, 0], m[2, 0] + m[0, 2]], dtype=np.float32)
-        else:
-            t = 1 - m[0, 0] + m[1, 1] - m[2, 2]
-            q = np.array([m[2, 0] - m[0, 2], m[0, 1] + m[1, 0], t, m[1, 2] + m[2, 1]], dtype=np.float32)
-    else:
-        if m[0, 0].item() < -m[1, 1].item():
-            t = 1 - m[0, 0] - m[1, 1] + m[2, 2]
-            q = np.array([m[0, 1] - m[1, 0], m[2, 0] + m[0, 2], m[1, 2] + m[2, 1], t], dtype=np.float32)
-        else:
-            t = 1 + m[0, 0] + m[1, 1] + m[2, 2]
-            q = np.array([t, m[1, 2] - m[2, 1], m[2, 0] - m[0, 2], m[0, 1] - m[1, 0]], dtype=np.float32)
-
-    q = q * 0.5 / np.sqrt(t)
-    return q
-
+    return putils.rot_to_quat(torch.tensor(m)).numpy()
 
 def matrix_2_quaternion(mat):
     pos = np.array(mat[0:3, 3], dtype=np.float32)
@@ -46,6 +32,7 @@ def matrix_2_quaternion(mat):
     quat = np.array(quat, dtype=np.float32)
     '''
     quat = rot_to_quat(rot)
+
     return {'position': pos, 'orientation': quat, 'T': mat}
 
 
