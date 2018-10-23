@@ -257,12 +257,13 @@ if __name__ == '__main__':
 
     torch.save(net.state_dict(), 'default.pth')
     '''
-    enc = PixEncoder(k_size=4, d_fact=4)
-    dec= PixDecoder(k_size=4, d_fact=4, out_channel=1, div_fact=1)
+    enc = PixEncoder(k_size=4, d_fact=2)
+    dec= PixDecoder(k_size=4, d_fact=2, out_channel=1, div_fact=2)
 
     feat_output = enc(tensor_input)
     output = dec(feat_output)
     print(output.size())
+    print(feat_output['conv7'].size())
     #print([res.size() for res in feat_output.values()])
 
 
