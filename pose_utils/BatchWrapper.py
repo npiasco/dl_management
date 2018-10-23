@@ -96,6 +96,7 @@ def batched_icp(variable, **kwargs):
     batched_ref = kwargs.pop('batched_ref', False)
     batched_init_T = kwargs.pop('init_T', None)
     param_icp = kwargs.pop('param_icp', dict())
+    detach_init_pose = kwargs.pop('detach_init_pose', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -104,6 +105,8 @@ def batched_icp(variable, **kwargs):
     batched_pc_to_align = recc_acces(variable, batched_pc_to_align)
     if batched_init_T is not None:
         batched_init_T = recc_acces(variable, batched_init_T)
+        if detach_init_pose:
+            batched_init_T = batched_init_T.detach()
 
     n_batch = batched_pc_to_align.size(0)
     dist = batched_pc_to_align.new_zeros(n_batch, 1)
@@ -115,7 +118,7 @@ def batched_icp(variable, **kwargs):
 
     for i, pc_to_align in enumerate(batched_pc_to_align):
         if batched_init_T is not None:
-            init_T = batched_init_T[i, :]
+            init_T = batched_init_T[i]
         else:
             init_T = pc_to_align.new_zeros(4, 4)
             init_T[0,0] = init_T[1,1] = init_T[2,2] = init_T[3,3] = 1
