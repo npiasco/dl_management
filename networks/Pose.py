@@ -6,6 +6,7 @@ import networks.Alexnet as Alexnet
 import copy
 import collections as coll
 import torch.nn.functional as func
+import pose_utils.utils as putils
 
 
 logger = setlog.get_logger(__name__)
@@ -19,6 +20,7 @@ class PoseRegressor(nn.Module):
         num_inter_layers = kwargs.pop('num_inter_layers', 0)
         self.custom_input_size = kwargs.pop('custom_input_size', None)
         self.late_fusion = kwargs.pop('late_fusion', False)
+        self.layers_to_train = kwargs.pop('layers_to_train', 'all')
 
         if kwargs:
             logger.error('Unexpected **kwargs: %r' % kwargs)
@@ -74,13 +76,27 @@ class PoseRegressor(nn.Module):
 
         p = x[:, 0:3]
         q = x[:, 3:]
+        T = x.new_zeros(x.size(0), 4, 4)
+        T[:, :3, :3] = torch.cat([putils.quat_to_rot(sing_q).unsqueeze(0) for sing_q in func.normalize(q)], 0)
+        T[:, :3, 3] = p
+        T[:, 3, 3] = 1
 
         if not self.training:
             q = func.normalize(q)
         if self.late_fusion:
             return {'p': p, 'q': q, 'feats': feats}
         else:
-            return {'p': p, 'q': q}
+            return {'p': p, 'q': q, 'T': T}
+
+    def get_training_layers(self, layers_to_train=None):
+        def sub_layers(name):
+            return {
+                'all': [{'params': self.regressor.parameters()}]
+            }.get(name)
+
+        if not layers_to_train:
+            layers_to_train = self.layers_to_train
+        return sub_layers(layers_to_train)
 
 
 # Poses fusion layers
@@ -331,7 +347,7 @@ if __name__ == '__main__':
                regressor_param={'custom_input_size': 3, 'num_inter_layers': 4}
                )
     print(net(tensor_input)['q'])
-    '''
+
     net = Deconv(
         archi_param={
             'load_imagenet': True,
@@ -368,3 +384,9 @@ if __name__ == '__main__':
     ).cuda().eval()
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output)
+    '''
+
+    input_t = torch.rand(3, 12544)
+    net = PoseRegressor(input_size=12544, size_layer=512, num_inter_layers=1)
+    poses = net(input_t)
+    print(poses)
