@@ -71,21 +71,78 @@ def rotation_matrix(axis, theta):
                               [2*(b*d-a*c), 2*(c*d+a*b), a*a+d*d-b*b-c*c]])
 
 
-def rot_to_quat(m):
-    if m[2, 2].item() < 0:
-        if m[0, 0].item() > m[1, 1].item():
-            t = 1 + m[0, 0] - m[1, 1] - m[2, 2]
-            q = torch.stack([m[1, 2] - m[2, 1], t, m[0, 1] + m[1, 0], m[2, 0] + m[0, 2]], 0)
-        else:
-            t = 1 - m[0, 0] + m[1, 1] - m[2, 2]
-            q = torch.stack([m[2, 0] - m[0, 2], m[0, 1] + m[1, 0], t, m[1, 2] + m[2, 1]], 0)
-    else:
-        if m[0, 0].item() < -m[1, 1].item():
-            t = 1 - m[0, 0] - m[1, 1] + m[2, 2]
-            q = torch.stack([m[0, 1] - m[1, 0], m[2, 0] + m[0, 2], m[1, 2] + m[2, 1], t], 0)
-        else:
-            t = 1 + m[0, 0] + m[1, 1] + m[2, 2]
-            q = torch.stack([t, m[1, 2] - m[2, 1], m[2, 0] - m[0, 2], m[0, 1] - m[1, 0]], 0)
+def quat_to_rot(q):
+    '''
 
-    q = q * 0.5 / torch.sqrt(t)
+    :param q: [w, x, y, z]
+    :return:
+    '''
+    sq = q**2
+    mat = q.new_zeros(3, 3)
+    # invs (inverse square length) is only required if quaternion is not already normalised
+    invs = 1 / torch.sum(sq)
+    mat[0, 0] = ( sq[1] - sq[2] - sq[3] + sq[0])*invs # since sq[0] + sq[1] + sq[2] + sq[3] =1/invs*invs
+    mat[1, 1] = (-sq[1] + sq[2] - sq[3] + sq[0])*invs
+    mat[2, 2] = (-sq[1] - sq[2] + sq[3] + sq[0])*invs
+
+    tmp1 = q[1]*q[2]
+    tmp2 = q[3]*q[0]
+    mat[1, 0] = 2.0 * (tmp1 + tmp2)*invs
+    mat[0, 1] = 2.0 * (tmp1 - tmp2)*invs
+
+    tmp1 = q[1]*q[3]
+    tmp2 = q[2]*q[0]
+    mat[2, 0] = 2.0 * (tmp1 - tmp2)*invs
+    mat[0, 2] = 2.0 * (tmp1 + tmp2)*invs
+    tmp1 = q[2]*q[3]
+    tmp2 = q[1]*q[0]
+    mat[2, 1] = 2.0 * (tmp1 + tmp2)*invs
+    mat[1, 2] = 2.0 * (tmp1 - tmp2)*invs
+
+    return mat
+
+
+def rot_to_quat(m):
+    q = m.new_zeros(4)
+    tr = m.trace()
+    if tr > 0:
+        S = torch.torch.sqrt(tr + 1.0) * 2 # S = 4 * q[0]
+        q[0] = 0.25 * S
+        q[1] = (m[2, 1] - m[1, 2]) / S
+        q[2] = (m[0, 2] - m[2, 0]) / S
+        q[3] = (m[1, 0] - m[0, 1]) / S
+    elif (m[0, 0] > m[1, 1]) and (m[0, 0] > m[2, 2]):
+        S = torch.sqrt(1.0 + m[0, 0] - m[1, 1] - m[2, 2]) * 2 # S = 4 * q[1]
+        q[0] = (m[2, 1] - m[1, 2]) / S
+        q[1] = 0.25 * S
+        q[2] = (m[0, 1] + m[1, 0]) / S
+        q[3] = (m[0, 2] + m[2, 0]) / S
+    elif m[1, 1] > m[2, 2]:
+        S = torch.sqrt(1.0 + m[1, 1] - m[0, 0] - m[2, 2]) * 2 # S = 4 * q[2]
+        q[0] = (m[0, 2] - m[2, 0]) / S
+        q[1] = (m[0, 1] + m[1, 0]) / S
+        q[2] = 0.25 * S
+        q[3] = (m[1, 2] + m[2, 1]) / S
+    else:
+        S = torch.sqrt(1.0 + m[2, 2] - m[0, 0] - m[1, 1]) * 2 # S = 4 * q[3]
+        q[0] = (m[1, 0] - m[0, 1]) / S
+        q[1] = (m[0, 2] + m[2, 0]) / S
+        q[2] = (m[1, 2] + m[2, 1]) / S
+        q[3] = 0.25 * S
     return q
+
+
+if __name__ == '__main__':
+    axe = torch.tensor([0.33, 0.33, 0.33])
+    angle = torch.tensor([3.14159260 / 8])
+    rot_mat = rotation_matrix(axe, angle)
+    print(rot_mat)
+    quat = rot_to_quat(rot_mat)
+    print(quat)
+    rot = quat_to_rot(quat)
+    print(rot)
+    q = rot_to_quat(rot)
+    print(q)
+    print(rot.matmul(rot_mat.t()))
+    print(rot_mat.matmul(rot.t()))
+    print(2*torch.acos(torch.abs(torch.dot(q, quat))) * 180/3.14156092)
