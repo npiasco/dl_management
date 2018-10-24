@@ -281,8 +281,8 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 input_args = [recc_acces(variables, name) for name in action['args']]
                 val = action['func'](*input_args, **action['param'])
                 summed_loss += val
-                self.loss_log[action['name']].append(val.item())
-                logger.debug(action['name'] + ' loss is {}'.format(val.item()))
+                self.loss_log[action['name']].append(val.detach().item())
+                logger.debug(action['name'] + ' loss is {}'.format(val.detach().item()))
             elif action['mode'] == 'backprop':
                 self.optimizers[action['trainer']].zero_grad()
 
@@ -358,13 +358,20 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         with torch.no_grad():
             dataset = kwargs.pop('dataset', None)
             score_functions = kwargs.pop('score_functions', None)
+            final = kwargs.pop('final', False)
+
             if kwargs:
                 logger.error('Unexpected **kwargs: %r' % kwargs)
                 raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
             nets_to_test = dict()
-            for name, network in self.networks.items():
-                nets_to_test[name] = copy.deepcopy(network)
-                nets_to_test[name].load_state_dict(self.best_net[1][name])
+
+            if not final:
+                for name, network in self.networks.items():
+                    nets_to_test[name] = copy.deepcopy(network)
+                    nets_to_test[name].load_state_dict(self.best_net[1][name])
+            else:
+                nets_to_test = self.networks
 
             if True in [isinstance(score_function, ScoreFunc.Reconstruction_Error)
                         for score_function in score_functions.values()]:

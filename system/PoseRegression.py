@@ -184,18 +184,19 @@ class MultNet(Default):
         ccmap = plt.get_cmap('jet', lut=1024)
 
         for b in dtload:
-            b = self.trainer.batch_to_device(b)
-            _, _, h, w = b[mod].size()
-            _, _, haux, waux = b[aux_mod].size()
-            main_mod = b[mod].contiguous().view(batch_size, 3, h, w)
-            modality = b[aux_mod].contiguous().view(batch_size, -1, haux, waux)
+            with torch.no_grad():
+                b = self.trainer.batch_to_device(b)
+                _, _, h, w = b[mod].size()
+                _, _, haux, waux = b[aux_mod].size()
+                main_mod = b[mod].contiguous().view(batch_size, 3, h, w)
+                modality = b[aux_mod].contiguous().view(batch_size, -1, haux, waux)
 
-            variables = {'batch': b}
-            for action in self.trainer.eval_forwards['queries']:
-                variables = self.trainer._sequential_forward(action, variables, nets_to_test)
-            output = trainers.minning_function.recc_acces(variables, ['maps'])
-            inv_output = 1/output - 1
-            inv_mod = 1/(modality + 1)
+                variables = {'batch': b}
+                for action in self.trainer.eval_forwards['queries']:
+                    variables = self.trainer._sequential_forward(action, variables, nets_to_test)
+                output = trainers.minning_function.recc_acces(variables, ['maps'])
+                inv_output = 1/output - 1
+                inv_mod = 1/(modality + 1)
 
             plt.figure(1)
             images_batch = torch.cat((modality.cpu(), inv_mod.cpu()))
@@ -226,7 +227,7 @@ class MultNet(Default):
         for network in nets_to_test.values():
             network.eval()
 
-        dataset = 'val'
+        dataset = 'test'
         mode = 'queries'
 
         dtload = data.DataLoader(self.data[dataset][mode], batch_size=1)
@@ -245,6 +246,9 @@ class MultNet(Default):
             output_pc = pc_utils.mat_proj(output_pose, pc, homo=True)
             gt_pose = trainers.minning_function.recc_acces(variables, ['batch', 'pose', 'T'])[0, :3, :]
             gt_pc = pc_utils.mat_proj(gt_pose, pc, homo=True)
+            if 'posenet_pose' in variables.keys():
+                posenet_pose = trainers.minning_function.recc_acces(variables, ['posenet_pose', 'T'])[0, :3, :]
+                posenet_pc = pc_utils.mat_proj(posenet_pose, pc, homo=True)
 
             print('Real pose:')
             print(gt_pose)
@@ -252,7 +256,13 @@ class MultNet(Default):
             print('Computed pose:')
             print(output_pose)
 
+            if 'posenet_pose' in variables.keys():
+                print('Posenet pose:')
+                print(posenet_pose)
+
             print('Diff distance = {} m'.format(torch.norm(gt_pose[:, 3] - output_pose[:, 3]).item()))
+            if 'posenet_pose' in variables.keys():
+                print('Diff distance = {} m (posenet)'.format(torch.norm(gt_pose[:, 3] - posenet_pose[:, 3]).item()))
 
             fig = plt.figure(1)
             ax = fig.add_subplot(111, projection='3d')
@@ -261,6 +271,12 @@ class MultNet(Default):
             pc_utils.plt_pc(gt_pc.cpu(), ax, pas, 'c')
             pc_utils.plt_pc(output_pc.cpu(), ax, pas, 'r')
             plt.show()
+
+    def test_on_final(self):
+        self.results = self.trainer.test(dataset=self.data['test'],
+                                         score_functions=self.test_func,
+                                         final=True)
+        return self.results
 
 
 if __name__ == '__main__':
