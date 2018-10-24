@@ -234,6 +234,8 @@ def custom_forward(net, outputs, **kwargs):
                         inp[name] = value.detach()
                     new_inputs.append(inp)
                 inputs = new_inputs
+            else:
+                inputs = [inp.detach() for inp in inputs]
 
         forward = net(*inputs)
 
