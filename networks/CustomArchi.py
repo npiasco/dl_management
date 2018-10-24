@@ -239,6 +239,68 @@ class PixDecoder(nn.Module):
             return [{'params': self.feature.parameters()}]
 
 
+class Softlier(nn.Module):
+    def __init__(self, **kwargs):
+        nn.Module.__init__(self)
+        input_size = kwargs.pop('input_size', 256)
+        size_layer = kwargs.pop('size_layer', 256)
+        num_inter_layers = kwargs.pop('num_inter_layers', 1)
+        self.layers_to_train = kwargs.pop('layers_to_train', 'all')
+
+        if kwargs:
+            logger.error('Unexpected **kwargs: %r' % kwargs)
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        base_archi = list()
+
+        if num_inter_layers:
+            base_archi += [
+                ('fc0', nn.Linear(input_size, size_layer)),
+                ('relu0',  nn.ReLU(inplace=True)),
+            ]
+            for layers in self.intermediate_layers(num_inter_layers - 1, size_layer):
+                base_archi.append(layers)
+            base_archi+= [
+                ('thresh', nn.Linear(size_layer, 1)),
+            ]
+        else:
+            base_archi += [
+                ('thresh', nn.Linear(size_layer, 1)),
+            ]
+
+        self.base_archi = coll.OrderedDict(base_archi)
+        self.thresholder = nn.Sequential(self.base_archi)
+        logger.info('Final thresholder architecture:')
+        logger.info(self.thresholder)
+
+    @staticmethod
+    def intermediate_layers(num_layer, size_layer):
+        lays = (
+            ('fc', nn.Linear(size_layer, size_layer)),
+            ('relu', nn.ReLU(inplace=True)),
+        )
+        for i in range(1, num_layer+1):
+            for lay in lays:
+                yield (lay[0] + str(i), copy.deepcopy(lay[1]))
+
+    def forward(self, x):
+        x = x.view(x.size(0), -1)
+        x = torch.sigmoid(self.thresholder(x))
+        mean_dist = torch.mean(x, 0)
+        eps = 1e-5
+        x = torch.sigmoid((x - mean_dist + eps)*1e10)
+        return x
+
+    def get_training_layers(self, layers_to_train=None):
+        def sub_layers(name):
+            return {
+                'all': [{'params': self.thresholder.parameters()}]
+            }.get(name)
+
+        if not layers_to_train:
+            layers_to_train = self.layers_to_train
+        return sub_layers(layers_to_train)
+
 
 if __name__ == '__main__':
     input_size = 224//2
@@ -263,7 +325,9 @@ if __name__ == '__main__':
     feat_output = enc(tensor_input)
     output = dec(feat_output)
     print(output.size())
-    print(feat_output['conv7'].size())
+    print(feat_output['conv1'].size())
     #print([res.size() for res in feat_output.values()])
 
-
+    desc_feat = torch.rand(50, 64)
+    softlier = Softlier(input_size=64, num_inter_layers=1)
+    print(softlier(desc_feat))

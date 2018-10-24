@@ -3,6 +3,10 @@ import torch
 import pose_utils.utils as utils
 from trainers.minning_function import recc_acces
 import numpy as np
+import setlog
+
+
+logger = setlog.get_logger(__name__)
 
 
 def add_variable(variable, **kwargs):
@@ -65,6 +69,7 @@ def batched_depth_map_to_pc(variable, **kwargs):
 
 def batched_pc_pruning(variable, **kwargs):
     pc = kwargs.pop('pc', None)
+    pc_desc = kwargs.pop('pc_desc', None)
     mode = kwargs.pop('mode', 'random')
     pruning_fact = kwargs.pop('pruning_fact', 0.1)
 
@@ -72,6 +77,7 @@ def batched_pc_pruning(variable, **kwargs):
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     batched_pc = recc_acces(variable, pc)
+
     n_batch, _, n_pt = batched_pc.size()
 
     new_n_pt = int(pruning_fact * n_pt)
@@ -79,15 +85,48 @@ def batched_pc_pruning(variable, **kwargs):
     new_n_pt = (len(range(0, n_pt, step)))
 
     batched_pruned_pc = batched_pc.new_zeros(n_batch, 3, new_n_pt)
+    if pc_desc is not None:
+        batched_pc_desc = recc_acces(variable, pc_desc)
+        size_desc = batched_pc_desc.size(1)
+        batched_pc_desc = batched_pc_desc.view(n_batch, size_desc, -1)
+        batched_pruned_pc_desc =  batched_pc_desc.new_zeros(n_batch, size_desc, new_n_pt)
 
     for i, pc in enumerate(batched_pc):
+
         if mode == 'random':
-            batched_pruned_pc[i, :, :] = pc[:, np.random.choice(n_pt, new_n_pt, replace = False)]
+            indexor = np.random.choice(n_pt, new_n_pt, replace = False)
         elif mode == 'regular':
-            batched_pruned_pc[i, :, :] = pc[:, range(0, n_pt, step)]
+            indexor = range(0, n_pt, step)
+
+        batched_pruned_pc[i, :, :] = pc[:, indexor]
+        if pc_desc is not None:
+            batched_pruned_pc_desc[i, :, :] = batched_pc_desc[i, :, indexor]
+
+    if pc_desc is not None:
+        pruned_data = {'pc': batched_pruned_pc, 'desc': batched_pruned_pc_desc}
+    else:
+        pruned_data = batched_pruned_pc
+
+    return pruned_data
 
 
-    return batched_pruned_pc
+def batched_outlier_filter(net, variables, **kwargs):
+    input_target = kwargs.pop('input_target', list())
+    detach_input = kwargs.pop('detach_input', False)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    input = recc_acces(variables, input_target).detach() if detach_input else recc_acces(variables, input_target)
+
+    input = input.view(input.size(0), input.size(1), -1)
+
+    filters = input.new_zeros(input.size(0), input.size(2))
+
+    for i, features_maps in enumerate(input):
+        filters[i, :] =  net(features_maps.view(-1, features_maps.size(0))).squeeze()
+
+    return filters
 
 
 def batched_icp(variable, **kwargs):
@@ -97,6 +136,7 @@ def batched_icp(variable, **kwargs):
     batched_init_T = kwargs.pop('init_T', None)
     param_icp = kwargs.pop('param_icp', dict())
     detach_init_pose = kwargs.pop('detach_init_pose', False)
+    custom_filter = kwargs.pop('custom_filter', None)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -107,6 +147,9 @@ def batched_icp(variable, **kwargs):
         batched_init_T = recc_acces(variable, batched_init_T)
         if detach_init_pose:
             batched_init_T = batched_init_T.detach()
+            logger.debug('Detatching init pose')
+    if custom_filter is not None:
+        custom_filter = recc_acces(variable, custom_filter)
 
     n_batch = batched_pc_to_align.size(0)
     dist = batched_pc_to_align.new_zeros(n_batch, 1)
@@ -123,10 +166,11 @@ def batched_icp(variable, **kwargs):
             init_T = pc_to_align.new_zeros(4, 4)
             init_T[0,0] = init_T[1,1] = init_T[2,2] = init_T[3,3] = 1
 
+        current_filter = custom_filter[i, :] if custom_filter is not None else None
         if batched_ref:
-            computed_pose, d = ICP.soft_icp(batched_pc_ref[i, :, :], pc_to_align, init_T, **param_icp)
+            computed_pose, d = ICP.soft_icp(batched_pc_ref[i, :, :], pc_to_align, init_T, **param_icp, custom_filter=current_filter)
         else:
-            computed_pose, d = ICP.soft_icp(batched_pc_ref, pc_to_align, init_T, **param_icp)
+            computed_pose, d = ICP.soft_icp(batched_pc_ref, pc_to_align, init_T, **param_icp, custom_filter=current_filter)
         dist[i] = d
         poses['p'][i, :] = computed_pose[:3, 3]
         poses['q'][i, :] = utils.rot_to_quat(computed_pose[:3, :3])
