@@ -110,6 +110,7 @@ class Train(Base):
             'rgb': (tf.ColorJitter(), tf.ToTensor()),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
+        pruning = kwargs.pop('pruning', 0.9)
         Base.__init__(self,
                       transform=kwargs.pop('transform', default_tf),
                       **kwargs)
@@ -121,6 +122,10 @@ class Train(Base):
                 self.folders.append(self.root_path + fold)
 
         self.load_data()
+
+        step = round(1 / (1-pruning))
+        logger.info('Computed step for pruning: {}'.format(step))
+        self.data = [dat for i, dat in enumerate(self.data) if i % step != 0]
 
 
 class Test(Base):
@@ -184,8 +189,8 @@ if __name__ == '__main__':
 
     logger.setLevel('INFO')
     test_tf = {
-            'first': (tf.Resize(56), tf.CenterCrop(56)),
-            'rgb': (tf.Equalize(), tf.ToTensor()),
+            'first': (tf.Resize(256), tf.CenterCrop(224)),
+            'rgb': (tf.ToTensor(), ),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
     test_tf_wo_tf = {
@@ -197,7 +202,7 @@ if __name__ == '__main__':
     train_dataset = Train(root=root,
                           transform=test_tf,
                           depth_factor=1e-3)
-    """
+
     train_dataset_wo_tf = Train(root=root,
                                 transform=test_tf_wo_tf,
                                 used_mod=('rgb',))
@@ -207,8 +212,8 @@ if __name__ == '__main__':
     print(len(train_dataset))
     print(len(test_dataset))
     print(len(val_dataset))
-    """
-    dataloader = data.DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2)
+
+    dataloader = data.DataLoader(train_dataset, batch_size=4, shuffle=False, num_workers=8)
     '''
     dataloader_wo_tf = data.DataLoader(train_dataset_wo_tf, batch_size=8, shuffle=False, num_workers=2)
     plt.figure(1)
@@ -219,10 +224,13 @@ if __name__ == '__main__':
     show_batch(tmp_batch)
     plt.show()
     '''
-    for b in dataloader:
-        plt.figure(1)
+    print(train_dataset.data)
+    print(val_dataset.data)
+    plt.ion()
+    plt.show()
+    plt.figure(1)
+    for i, b in enumerate(dataloader):
         show_batch(b)
-        plt.figure(2)
-        show_batch_mono(b)
-        print(b['K'])
-        plt.show()
+        print(i)
+        plt.pause(0.02)
+        del b
