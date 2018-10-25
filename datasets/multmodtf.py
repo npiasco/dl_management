@@ -20,11 +20,15 @@ class RandomCrop(tf.RandomCrop):
             if self.padding > 0:
                 sample[name] = func.pad(mod, self.padding)
 
-        first_mod = list(sample.values())[0]
+        first_mod = [mod for name, mod in sample.items() if name is not 'K'][0]
         i, j, h, w = self.get_params(first_mod, self.size)
 
         for name, mod in sample.items():
-            sample[name] = func.crop(mod, i, j, h, w)
+            if name is 'K':
+                sample['K'][0, 2] -= j
+                sample['K'][1, 2] -= i
+            else:
+                sample[name] = func.crop(mod, i, j, h, w)
         return sample
 
 
@@ -33,8 +37,17 @@ class CenterCrop(tf.CenterCrop):
         tf.CenterCrop.__init__(self, size=size)
 
     def __call__(self, sample):
+        w, h = self.size
+        th, tw = [mod for name, mod in sample.items() if name is not 'K'][0].size
+        j = round(th - h) / 2.
+        i = round(tw - w) / 2.
+
         for name, mod in sample.items():
-            sample[name] = func.center_crop(mod, self.size)
+            if name is 'K':
+                sample['K'][0, 2] -= j
+                sample['K'][1, 2] -= i
+            else:
+                sample[name] = func.center_crop(mod, self.size)
         return sample
 
 
@@ -44,7 +57,8 @@ class ToTensor(tf.ToTensor):
 
     def __call__(self, sample):
         for name, mod in sample.items():
-            sample[name] = func.to_tensor(mod).float()
+            if name is not 'K':
+                sample[name] = func.to_tensor(mod).float()
 
         return sample
 
@@ -59,7 +73,8 @@ class ColorJitter(tf.ColorJitter):
         transform = self.get_params(self.brightness, self.contrast,
                                     self.saturation, self.hue)
         for name, mod in sample.items():
-            sample[name] = transform(mod)
+            if name is not 'K':
+                sample[name] = transform(mod)
 
         return sample
 
@@ -69,9 +84,22 @@ class Resize(tf.Resize):
         tf.Resize.__init__(self, size, interpolation=interpolation)
 
     def __call__(self, sample):
+        w, h = [mod for name, mod in sample.items() if name is not 'K'][0].size
         for name, mod in sample.items():
             if name in ['rgb']:
                 sample[name] = func.resize(mod, self.size, self.interpolation)
+            elif name is 'K':
+                if isinstance(self.size, int):
+                    if w < h:
+                        ratiow = ratioh = self.size / w
+
+                    else:
+                        ratiow = ratioh = self.size / h
+                else:
+                    ratiow = self.size[0] / w
+                    ratioh = self.size[1] / h
+                sample['K'][0, :] *= ratiow
+                sample['K'][1, :] *= ratioh
             else:
                 sample[name] = func.resize(mod, self.size, PIL.Image.NEAREST)
 
@@ -104,8 +132,9 @@ class DepthTransform:
 
     def __call__(self, sample):
         for name, mod in sample.items():
-            sample[name][sample[name] == self.error_value] = self.replacing_value
-            sample[name] *= self.depth_factor
+            if name is not 'K':
+                sample[name][sample[name] == self.error_value] = self.replacing_value
+                sample[name] *= self.depth_factor
 
         return sample
 

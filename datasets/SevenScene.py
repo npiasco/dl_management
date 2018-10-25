@@ -46,6 +46,7 @@ class Base(utils.Dataset):
         self.pose_tf = kwargs.pop('pose_tf', matrix_2_quaternion)
         self.transform = kwargs.pop('transform', None)
         self.used_mod = kwargs.pop('used_mod', ('rgb', 'depth'))
+        self.K = kwargs.pop('K', [[585, 0, 320], [0.0, 585, 240], [0.0, 0.0, 1.0]])
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -74,12 +75,15 @@ class Base(utils.Dataset):
             img_name = self.folders[fold] + 'frame-' + num + '.depth.png'
             sample['depth'] = PIL.Image.open(img_name)
 
+        sample['K'] = np.array(self.K, dtype=np.float32)
+
         if self.transform:
             if 'first' in self.transform:
                 sample = torchvis.transforms.Compose(self.transform['first'])(sample)
             for mod in self.transform:
                 if mod not in ('first',) and mod in self.used_mod:
-                    sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod: sample[mod]})[mod]
+                    sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod: sample[mod],
+                                                                                    'K': sample['K']})[mod]
 
         pose_file = self.folders[fold] + 'frame-' + num + '.pose.txt'
         pose = np.ndarray((4, 4), dtype=np.float32)
@@ -180,7 +184,7 @@ if __name__ == '__main__':
 
     logger.setLevel('INFO')
     test_tf = {
-            'first': (tf.Resize(240),),
+            'first': (tf.Resize(56), tf.CenterCrop(56)),
             'rgb': (tf.Equalize(), tf.ToTensor()),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
@@ -193,7 +197,7 @@ if __name__ == '__main__':
     train_dataset = Train(root=root,
                           transform=test_tf,
                           depth_factor=1e-3)
-
+    """
     train_dataset_wo_tf = Train(root=root,
                                 transform=test_tf_wo_tf,
                                 used_mod=('rgb',))
@@ -203,8 +207,9 @@ if __name__ == '__main__':
     print(len(train_dataset))
     print(len(test_dataset))
     print(len(val_dataset))
-
+    """
     dataloader = data.DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2)
+    '''
     dataloader_wo_tf = data.DataLoader(train_dataset_wo_tf, batch_size=8, shuffle=False, num_workers=2)
     plt.figure(1)
     tmp_batch = dataloader.__iter__().__next__()
@@ -213,11 +218,11 @@ if __name__ == '__main__':
     tmp_batch = dataloader_wo_tf.__iter__().__next__()
     show_batch(tmp_batch)
     plt.show()
-
+    '''
     for b in dataloader:
         plt.figure(1)
         show_batch(b)
         plt.figure(2)
         show_batch_mono(b)
-        print(b['pose'])
+        print(b['K'])
         plt.show()
