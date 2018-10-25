@@ -64,11 +64,8 @@ def soft_outlier_filter(pc_nearest, pc_to_align, reject_ratio=1):
     return filter
 
 
-def hard_outlier_filter(pc_nearest, pc_to_align, prod_m=2):
-    dist = torch.norm(pc_nearest - pc_to_align, dim=0)
-    mean_dist = torch.mean(dist, 0)
-    eps = 1e-5
-    filter = torch.sigmoid((dist - mean_dist + eps)*-1e10).long()
+def hard_outlier_filter(pc_nearest, pc_to_align, reject_ratio=1):
+    filter = soft_outlier_filter(pc_nearest, pc_to_align, reject_ratio=reject_ratio).long()
     pc_nearest = torch.cat([pt.unsqueeze(1) for i, pt in enumerate(pc_nearest.t()) if filter[i]], 1)
     pc_to_align = torch.cat([pt.unsqueeze(1) for i, pt in enumerate(pc_to_align.t()) if filter[i]], 1)
     return pc_nearest, pc_to_align
@@ -173,7 +170,7 @@ def soft_knn(pc_ref, pc_to_align, fact=10, d_norm=True):
             d_to_pt = d_to_pt / torch.mean(d_to_pt)
         prob = torch.softmax(fact * -d_to_pt, 0)
         pc_nearest[:, i] = torch.sum(pc_ref * prob, 1)
-        mean_distance += torch.norm(pt - pc_nearest[:, i], p=2)
+        mean_distance += torch.sum((pt - pc_nearest[:, i])**2)
 
     return pc_nearest, mean_distance/(i+1)
 
@@ -216,10 +213,12 @@ def best_fit_transform(pc_ref, pc_to_align, indexor):
 
 
 def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
+    #TODO: change possible torch. function to torch.nn equivalent
     iter = kwargs.pop('iter', 100)
     tolerance = kwargs.pop('tolerance', 1e-3)
     unit_fact = kwargs.pop('fact', 1)
     outlier_rejection = kwargs.pop('outlier', False)
+    hard_rejection = kwargs.pop('hard_rejection', False)
     distance_norm = kwargs.pop('dnorm', True)
     verbose = kwargs.pop('verbose', False)
     use_hard_nn = kwargs.pop('use_hard_nn', False)
@@ -243,40 +242,35 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     # Row data
     row_pc_ref = pc_ref.view(3, -1)
     row_pc_to_align = pc_to_align.view(3, -1)
-    indexor = pc_to_align.new_ones(row_pc_to_align.size())
+    indexor = pc_to_align.new_ones(row_pc_to_align.size(-1))
 
     # First iter
     fact = 1 * unit_fact
-    pc_rec = utils.mat_proj(T[:3, :], row_pc_to_align, homo=True)
-    if use_hard_nn:
-        pc_rec, pc_nearest, init_dist = hard_knn(row_pc_ref, pc_rec, fact=fact)
-    else:
-        pc_nearest, init_dist = soft_knn(row_pc_ref, pc_rec, fact=fact, d_norm=distance_norm)
+    prev_dist = 0
 
-    dist = prev_dist = init_dist
-    i = 0
     for i in range(iter):
+        pc_rec = utils.mat_proj(T[:3, :], row_pc_to_align, homo=True)
+        if use_hard_nn:
+            pc_rec, pc_nearest, dist = hard_knn(row_pc_ref, pc_rec, fact=fact)
+        else:
+            pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, fact=fact, d_norm=distance_norm)
+
         if outlier_rejection:
             indexor = soft_outlier_filter(pc_nearest, pc_rec, reject_ratio)
-            #pc_nearest, pc_rec= hard_outlier_filter(pc_nearest, pc_rec, 1)
+        if hard_rejection:
+            pc_nearest, pc_rec = hard_outlier_filter(pc_nearest, pc_rec, reject_ratio)
+            indexor = pc_to_align.new_ones(pc_nearest.size(-1))
         if custom_filter is not None:
             indexor = indexor*custom_filter
 
         new_T = best_fit_transform(pc_nearest, pc_rec, indexor)
         T = torch.matmul(T, new_T)
 
-        pc_rec = utils.mat_proj(T[:3, :], row_pc_to_align, homo=True)
-        #error = torch.mean(torch.mean(torch.abs(pc_rec - row_pc_ref), 1), 0)
-
-        if use_hard_nn:
-            pc_rec, pc_nearest, dist = hard_knn(row_pc_ref, pc_rec, fact=fact)
-        else:
-            pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, fact=fact, d_norm=distance_norm)
-
         entrop = abs(prev_dist - dist.item())
         fact = unit_fact if fixed_fact else min(1000, max(1, 1/entrop)) * unit_fact
 
         if entrop < tolerance:
+            logger.debug('Done in {} it'.format(i))
             break
         else:
             prev_dist = dist.item()
@@ -299,7 +293,6 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
 
             plt.pause(0.1)
 
-    logger.debug('Done in {} it'.format(i))
     if verbose:
         plt.ioff()
         ax1.clear()
@@ -307,7 +300,15 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
         ax2.clear()
         plt.close()
 
-    return T, dist
+    pc_rec = utils.mat_proj(T[:3, :], row_pc_to_align, homo=True)
+    pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, fact=1e5, d_norm=False) # hard assigment
+    if hard_rejection:
+        pc_nearest, pc_rec = hard_outlier_filter(pc_nearest, pc_rec, reject_ratio)
+        indexor = pc_to_align.new_ones(pc_nearest.size(-1))
+    elif outlier_rejection:
+        indexor = soft_outlier_filter(pc_nearest, pc_rec, reject_ratio)
+    real_error = torch.mean(torch.sum(((pc_rec - pc_nearest)*indexor)**2, 0))
+    return T, real_error
 
 
 if __name__ == '__main__':
@@ -389,7 +390,7 @@ if __name__ == '__main__':
     #T, d = soft_icp(pc_to_align, pc_ref, poses[1].inverse(), tolerance=1e-6, iter=100, fact=100, verbose=True, dnorm=False)
     #T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-5, iter=50, fact=2, verbose=True, dnorm=False, use_hard_nn=True, outlier=True)
     T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=2, verbose=True, dnorm=False,
-                    outlier=True)
+                    outlier=False, reject_ratio=1.5)
     pc_aligned = utils.mat_proj(T[:3, :], pc_to_align, homo=True)
 
     fig = plt.figure(2)

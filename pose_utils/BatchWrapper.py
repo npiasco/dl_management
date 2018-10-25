@@ -60,9 +60,9 @@ def batched_depth_map_to_pc(variable, **kwargs):
         if inverse_depth:
             depth_maps = 1/depth_maps - 1
         if remove_zeros:
-            batched_pc = utils.depth_map_to_pc(depth_maps, K, remove_zeros).unsqueeze(0)
+            batched_pc = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros).unsqueeze(0)
         else:
-            batched_pc[i, :, :] = utils.depth_map_to_pc(depth_maps, K, remove_zeros)
+            batched_pc[i, :, :] = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros)
 
     return batched_pc
 
@@ -176,4 +176,4 @@ def batched_icp(variable, **kwargs):
         poses['q'][i, :] = utils.rot_to_quat(computed_pose[:3, :3])
         poses['T'][i, :, :] = computed_pose
 
-    return {'dist': dist, 'poses': poses}
+    return {'errors': dist, 'poses': poses}
