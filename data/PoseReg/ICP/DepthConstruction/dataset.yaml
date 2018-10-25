@@ -12,6 +12,7 @@ train:
                 - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                 - {class: 'datasets.multmodtf.ToTensor', param_class:}
                 - {class: 'datasets.multmodtf.DepthTransform', param_class:}
+
 test:
     queries:
         class: datasets.SevenScene.Test
@@ -19,7 +20,7 @@ test:
             root: 'minimal_heads/'
             transform:
                 first:
-                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 112}}
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 224}}
                     - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 112}}
 
                 rgb:

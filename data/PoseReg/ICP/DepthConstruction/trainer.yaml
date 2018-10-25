@@ -11,13 +11,6 @@ param_class:
                 weight_decay: 0.001
     training_pipeline:
         [
-            #----------------- Set Variables  ----------------#
-             # Original 640x480: [[585, 0, 320],   [0.0, 585, 240],   [0.0, 0.0, 1.0]]
-             # Square 224x224:   [[273, 0, 112],   [0.0, 273, 112],   [0.0, 0.0, 1.0]]
-             # Square 112x112:   [[136.5, 0, 56],  [0.0, 136.5, 56],  [0.0, 0.0, 1.0]]
-             # Square 56x56:     [[68.25, 0, 28],  [0.0, 68.25, 28],  [0.0, 0.0, 1.0]]
-             # Square 56x56:     [[34.125, 0, 14], [0.0, 34.125, 14], [0.0, 0.0, 1.0]]
-
             #------------------ Main Forward -----------------#
             {
                 mode: forward,
@@ -40,7 +33,6 @@ param_class:
              param: {data_to_inv: [maps], offset: -1},
              out_name: 'depth_maps'
             },
-
             {
              mode: 'loss',
              name: 'depth_loss',
@@ -70,12 +62,6 @@ param_class:
                 {
                  mode: 'minning',
                  func: 'b_wrapper.add_variable',
-                 param: {value: [[68.25, 0, 28],  [0.0, 68.25, 28],  [0.0, 0.0, 1.0]], load: false, source: ['batch', 'rgb' ]},
-                 out_name: 'K'
-                },
-                {
-                 mode: 'minning',
-                 func: 'b_wrapper.add_variable',
                  param: {value: full_model.pth, load: true, source: ['batch', 'rgb' ]},
                  out_name: 'model'
                 },
@@ -97,20 +83,20 @@ param_class:
                 {
                  mode: 'minning',
                  func: 'b_wrapper.batched_depth_map_to_pc',
-                 #param: {depth_maps: ['batch', 'depth'], K: [K], remove_zeros: true, inverse_depth: false},
-                 param: {depth_maps: ['maps'], K: [K], remove_zeros: false, inverse_depth: true},
+                 param: {depth_maps: ['batch', 'depth'], K: ['batch', K], remove_zeros: true, inverse_depth: false},
+                 #param: {depth_maps: ['maps'], K: [batch, K], remove_zeros: false, inverse_depth: true},
                  out_name: 'pc'
                 },
                 {
                  mode: 'minning',
                  func: 'b_wrapper.batched_pc_pruning',
-                 param: {pc: [pc], mode: 'regular', pruning_fact: 0.25},
+                 param: {pc: [pc], mode: 'regular', pruning_fact: 0.05},
                  out_name: 'pc'
                 },
                 {
                  mode: 'minning',
                  func: 'b_wrapper.batched_icp',
-                 param: {pc_ref: [model], pc_to_align: [pc], init_T: [batch, pose, T], param_icp: {iter: 25, tolerance: 0.0001, fact: 2, dnorm: False, verbose: true}},
+                 param: {pc_ref: [model], pc_to_align: [pc], init_T: [batch, pose, T], param_icp: {iter: 0, tolerance: 0.001, fact: 2000, dnorm: False, verbose: false, fixed_fact: true}},
                  out_name: 'icp'
                 },
             ]
