@@ -60,10 +60,9 @@ def variable_hook(grad):
 if __name__ == '__main__':
     ids = ['frame-000019','frame-000119', 'frame-000219', 'frame-000319', 'frame-000419', 'frame-000519',
            'frame-000619', 'frame-000719', 'frame-000819', 'frame-000919']
-    scale_net = 1 / 4
+    scale_net = 1 / 2
 
-    scale = 1/4.285714285714286 / 8
-
+    scale = 1/4.285714285714286
 
     K = torch.zeros(3, 3)
     K[0, 0] = 585
@@ -77,7 +76,7 @@ if __name__ == '__main__':
     K[2, 2] = 1
 
     root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
-    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
     ims_nn = list()
@@ -127,29 +126,33 @@ if __name__ == '__main__':
                     except ValueError:
                         pass
         #pose[:3, 3] = pose[:3, 3] * 1e1
+        '''
         rot = pose[0:3, 0:3].numpy()
         quat = custom_q.Quaternion(matrix=rot)
         quat._normalise()
         rot = torch.FloatTensor(quat.rotation_matrix)
         pose[:3, :3] = rot
+        '''
 
         poses.append(pose)
 
         pcs.append(utils.toSceneCoord(depth, pose, K, remove_zeros=True))
 
+    idx = 0
     pc_ref = torch.cat((pcs[0], pcs[1], pcs[2]), 1)
-    pc_ref = torch.load('base_model.pth')
+    pc_ref = utils.get_local_map(T=poses[idx], sequences='TestSplit.txt')
+    #pc_ref = torch.load('base_model.pth')
 
-    pc_ref = torch.cat(pcs, 1)
+    #pc_ref = torch.cat(pcs, 1)
 
-    torch.save(pc_ref.detach(), 'full_model.pth')
+    #torch.save(pc_ref.detach(), 'full_model.pth')
 
     fig = plt.figure(3)
     ax = fig.add_subplot(111, projection='3d')
 
-    pas = 1
-    print(pc_ref.size())
+    pas = 10
     utils.plt_pc(pc_ref, ax, pas, 'b')
+    utils.plt_pc(pcs[idx], ax, pas, 'r')
 
     plt.show()
 
@@ -162,7 +165,7 @@ if __name__ == '__main__':
     #net = small_init_net()
     net = nn.Sequential(
             CA.PixEncoder(k_size=4, d_fact=4),
-            CA.PixDecoder(k_size=4, d_fact=4, out_channel=1, div_fact=4)
+            CA.PixDecoder(k_size=4, d_fact=4, out_channel=1, div_fact=2)
     )
     q = utils.rot_to_quat(pose[:3, :3])
     t = pose[:3, 3]
@@ -181,8 +184,6 @@ if __name__ == '__main__':
         'outlier': False
     }
     n_pt = int(0.05 * nb_pt_total)
-
-
 
     init_pose = torch.eye(4,4)
     for i in tqdm.tqdm(range(it)):
