@@ -62,7 +62,7 @@ if __name__ == '__main__':
            'frame-000619', 'frame-000719', 'frame-000819', 'frame-000919']
     scale_net = 1 / 2
 
-    scale = 1/4.285714285714286
+    scale = 1/4.285714285714286 / 2
 
     K = torch.zeros(3, 3)
     K[0, 0] = 585
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     K[2, 2] = 1
 
     root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
-    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
     ims_nn = list()
@@ -140,7 +140,7 @@ if __name__ == '__main__':
 
     idx = 0
     pc_ref = torch.cat((pcs[0], pcs[1], pcs[2]), 1)
-    pc_ref = utils.get_local_map(T=poses[idx], sequences='TestSplit.txt')
+    pc_ref = utils.get_local_map(T=poses[idx], output_size=5000)
     #pc_ref = torch.load('base_model.pth')
 
     #pc_ref = torch.cat(pcs, 1)

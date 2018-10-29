@@ -37,15 +37,22 @@ def inverse(variable, **kwargs):
     return 1/data_to_inv + offset
 
 
-def batched_local_map_getter(variable, **kwargs)
+def batched_local_map_getter(variable, **kwargs):
     Ts = kwargs.pop('T', False)
+    map_args = kwargs.pop('map_args', dict())
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
     Ts = recc_acces(variable, Ts)
+    size_pc = map_args.get('output_size', 2000)
+
+    batched_local_maps = Ts.new_zeros(Ts.size(0), 3, size_pc)
 
     for i, T in enumerate(Ts):
-    get_local_map
+        batched_local_maps[i] = utils.get_local_map(T=T, **map_args)
+
+    return batched_local_maps
 
 
 def batched_depth_map_to_pc(variable, **kwargs):

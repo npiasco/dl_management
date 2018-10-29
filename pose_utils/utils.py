@@ -146,7 +146,7 @@ def get_local_map(**kwargs):
     resize_fact = kwargs.pop('resize',  1/16)
     K = kwargs.pop('K', [[585, 0, 320], [0.0, 585, 240], [0.0, 0.0, 1.0]])
     frame_spacing = kwargs.pop('frame_spacing', 20)
-    output_size = kwargs.pop('output_size', 2000)
+    output_size = kwargs.pop('output_size', 5000)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -205,8 +205,7 @@ def get_local_map(**kwargs):
     # Pruning step
     final_pc = torch.cat(pcs, 1)
     logger.debug('Final points before pruning cloud has {} points'.format(final_pc.size(1)))
-    step = final_pc.size(1)//output_size
-    indexor = range(0, final_pc.size(1), step)
+    indexor = torch.randperm(final_pc.size(1))
     final_pc = final_pc[:, indexor]
     final_pc = final_pc[:, :output_size] # TODO: had a shuffle
     return final_pc
