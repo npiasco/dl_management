@@ -8,6 +8,11 @@ import random as rand
 logger = setlog.get_logger(__name__)
 
 
+def simple_fact_loss(value, fact=1):
+
+    return torch.mean(value)*fact
+
+
 def mean_dist(predicted, gt):
     return torch.mean(func.pairwise_distance(
         predicted.view(-1, 1),
@@ -19,6 +24,17 @@ def full_pose_loss(predicted, gt, key='full', combine_func=None):
 
     return combine_func.combine(mean_dist(predicted[key]['p'], gt['p']),
                                 mean_dist(predicted[key]['q'], gt['q']))
+
+
+def T_loss(predicted, gt, fact=1):
+    eye_mat = predicted.new_zeros(4, 4)
+    eye_mat[0, 0] = eye_mat[1, 1] = eye_mat[2, 2] = eye_mat[3, 3] = 1
+
+    loss = 0
+    for i, T in enumerate(gt):
+        loss += torch.norm(eye_mat - predicted[i]*T.inverse())
+
+    return fact*loss/(i+1)
 
 
 def minmax_pose_loss(p_ps, p_qs, gt_ps, gt_qs, **kwargs):
