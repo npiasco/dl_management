@@ -179,8 +179,6 @@ class MultNet(Default):
         self.data[dataset][mode].used_mod = [mod, aux_mod]
 
         dtload = data.DataLoader(self.data[dataset][mode], batch_size=batch_size)
-        plt.figure(1)
-        plt.figure(2)
         ccmap = plt.get_cmap('jet', lut=1024)
 
         for b in dtload:
@@ -195,24 +193,36 @@ class MultNet(Default):
                 for action in self.trainer.eval_forwards['queries']:
                     variables = self.trainer._sequential_forward(action, variables, nets_to_test)
                 output = trainers.minning_function.recc_acces(variables, ['maps'])
+
                 inv_output = 1/output - 1
+                mean = torch.mean(inv_output.view(inv_output.size(0), -1), 1)
+                for nb, im in enumerate(inv_output):
+                    inv_output[nb, im>mean[nb]*2] = 0
+
                 inv_mod = 1/(modality + 1)
+                if 'filters' in  variables.keys():
+                    filted_im = output.new_zeros(output.size())
+                    for nb, im in enumerate(trainers.minning_function.recc_acces(variables, ['fw_main', 'conv1'])):
+                        ch, h, w = im.size()
+                        filted_im[nb] = nets_to_test['Filter'](im.view(ch, -1).t()).t().view(1, h, w)
 
             plt.figure(1)
-            images_batch = torch.cat((modality.cpu(), inv_mod.cpu()))
-            grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
-            plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
-            plt.colorbar()
-
-            plt.figure(2)
-            images_batch = torch.cat((inv_output.detach().cpu(), output.detach().cpu()))
-            grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
+            images_batch = torch.cat((modality.cpu(), inv_mod.cpu(), inv_output.detach().cpu(), output.detach().cpu()))
+            grid = torchvis.utils.make_grid(images_batch, nrow=batch_size*2)
             plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
             plt.colorbar()
 
             plt.figure(3)
             grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=batch_size)
             plt.imshow(grid.numpy().transpose(1, 2, 0))
+
+            if 'filters' in variables.keys():
+                plt.figure(4)
+                inv_output = inv_output*filted_im
+                images_batch = torch.cat((filted_im.cpu(), inv_output.cpu()))
+                grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
+                plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
+                plt.colorbar()
 
             plt.show()
 
@@ -240,15 +250,15 @@ class MultNet(Default):
                 for action in self.trainer.eval_forwards['queries']:
                     variables = self.trainer._sequential_forward(action, variables, nets_to_test)
 
-            ref_pc = trainers.minning_function.recc_acces(variables, ['model'])
-            output_pose = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'T'])[0, :3, :]
-            pc = trainers.minning_function.recc_acces(variables, ['pc'])[0]
-            output_pc = pc_utils.mat_proj(output_pose, pc, homo=True)
-            gt_pose = trainers.minning_function.recc_acces(variables, ['batch', 'pose', 'T'])[0, :3, :]
-            gt_pc = pc_utils.mat_proj(gt_pose, pc, homo=True)
+            ref_pc = trainers.minning_function.recc_acces(variables, ['model']).squeeze()
+            output_pose = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'T'])[0]
+            pc = trainers.minning_function.recc_acces(variables, ['pc']).squeeze()
+            output_pc = output_pose.matmul(pc)
+            gt_pose = trainers.minning_function.recc_acces(variables, ['batch', 'pose', 'T'])[0]
+            gt_pc = gt_pose.matmul(pc)
             if 'posenet_pose' in variables.keys():
-                posenet_pose = trainers.minning_function.recc_acces(variables, ['posenet_pose', 'T'])[0, :3, :]
-                posenet_pc = pc_utils.mat_proj(posenet_pose, pc, homo=True)
+                posenet_pose = trainers.minning_function.recc_acces(variables, ['posenet_pose', 'T'])[0]
+                posenet_pc = posenet_pose.matmul(pc)
 
             print('Real pose:')
             print(gt_pose)

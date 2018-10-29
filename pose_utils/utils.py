@@ -18,37 +18,39 @@ def mat_proj(T, bVec, homo=False):
             d_size *= s
         homo_bVec = T.new_ones(4, d_size)
         homo_bVec[:3, :] = bVec.view(3, -1)
-        tbVec = homo_bVec.view(homo_bVec.size(0), -1).transpose(0, 1).contiguous().unsqueeze(-1)
+        '''
+        tbVec = homo_bVec.view(homo_bVec.size(0), -1).transpose(0, 1).unsqueeze(-1)
         tproj = torch.matmul(T, tbVec)
-        proj = tproj.transpose(0, 1).contiguous().view(bVec.size())
+        proj = tproj.transpose(0, 1).view(bVec.size())
+        '''
+        tproj = torch.matmul(T, homo_bVec)
+        proj = tproj[:3, :].view(bVec.size())
     else:
-        tbVec = bVec.view(bVec.size(0), -1).transpose(0, 1).contiguous().unsqueeze(-1)
-        tproj = torch.matmul(T, tbVec)
-        proj = tproj.transpose(0, 1).contiguous().view(bVec.size())
+        proj = torch.matmul(T, bVec)
 
     return proj
 
 
 def depth_map_to_pc(depth_map, K, remove_zeros=False):
     p = [[[i, j, 1] for j in range(depth_map.size(1))] for i in range(depth_map.size(2))]
-    p = depth_map.new_tensor(p).transpose(0, 2).contiguous()
+    p = depth_map.new_tensor(p).transpose(0, 2)
 
     inv_K = K.inverse()
-    p_d = (p * depth_map).view(3, -1).transpose(0, 1)
+    p_d = (p * depth_map).view(3, -1)
 
     if remove_zeros:
-        p_d = p_d[p_d.nonzero()][:, 0]
-    p_d = p_d.transpose(0, 1).contiguous()
+        p_d = p_d[:, depth_map.view(1, -1).squeeze() != 0]
 
-    x = mat_proj(inv_K, p_d)
-
-    return x
+    x = inv_K.matmul(p_d)
+    x_homo = x.new_ones(4, x.nelement()//3)
+    x_homo[:3, :] = x
+    return x_homo
 
 
 def toSceneCoord(depth, pose, K, remove_zeros=False):
     x = depth_map_to_pc(depth, K, remove_zeros=remove_zeros)
 
-    X = mat_proj(pose[:3, :], x, homo=True)
+    X = pose.matmul(x)
     return X
 
 
@@ -178,7 +180,9 @@ def get_local_map(**kwargs):
         poses.append(pose)
 
     # Nearest pose search
-    d_poses = [torch.norm(torch.eye(4, 4) - pose.matmul(T.inverse())).item() for pose in poses]
+    eye_mat = T.new_zeros(4, 4)
+    eye_mat[0, 0] = eye_mat[1, 1] = eye_mat[2, 2] = eye_mat[3, 3] = 1
+    d_poses = [torch.norm(eye_mat - pose.matmul(T.inverse())).item() for pose in poses]
     nearest_idx = sorted(range(len(d_poses)), key=lambda k: d_poses[k])
 
     # Computing local pc
@@ -198,7 +202,7 @@ def get_local_map(**kwargs):
         ).float()
         depth[depth == 65535] = 0
         depth *= 1e-3
-        depth.to(T.device) # move on GPU if necessary
+        depth = depth.to(T.device) # move on GPU if necessary
 
         pcs.append(toSceneCoord(depth, poses[nearest_idx[i]], K, remove_zeros=True))
 
@@ -207,7 +211,7 @@ def get_local_map(**kwargs):
     logger.debug('Final points before pruning cloud has {} points'.format(final_pc.size(1)))
     indexor = torch.randperm(final_pc.size(1))
     final_pc = final_pc[:, indexor]
-    final_pc = final_pc[:, :output_size] # TODO: had a shuffle
+    final_pc = final_pc[:, :output_size]
     return final_pc
 
 

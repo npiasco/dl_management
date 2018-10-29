@@ -47,7 +47,7 @@ def batched_local_map_getter(variable, **kwargs):
     Ts = recc_acces(variable, Ts)
     size_pc = map_args.get('output_size', 2000)
 
-    batched_local_maps = Ts.new_zeros(Ts.size(0), 3, size_pc)
+    batched_local_maps = Ts.new_zeros(Ts.size(0), 4, size_pc)
 
     for i, T in enumerate(Ts):
         batched_local_maps[i] = utils.get_local_map(T=T, **map_args)
@@ -72,7 +72,7 @@ def batched_depth_map_to_pc(variable, **kwargs):
         if n_batch != 1:
             raise ArithmeticError("Can't stack pc when removing zerors values! (batch_size!=1)")
     else:
-        batched_pc = batched_depth_maps.new_zeros(n_batch, 3, height*width)
+        batched_pc = batched_depth_maps.new_zeros(n_batch, 4, height*width)
 
     for i, depth_maps in enumerate(batched_depth_maps):
         if inverse_depth:
@@ -102,7 +102,7 @@ def batched_pc_pruning(variable, **kwargs):
     step = n_pt//new_n_pt
     new_n_pt = (len(range(0, n_pt, step)))
 
-    batched_pruned_pc = batched_pc.new_zeros(n_batch, 3, new_n_pt)
+    batched_pruned_pc = batched_pc.new_zeros(n_batch, 4, new_n_pt)
     if pc_desc is not None:
         batched_pc_desc = recc_acces(variable, pc_desc)
         size_desc = batched_pc_desc.size(1)
@@ -150,7 +150,7 @@ def batched_outlier_filter(net, variables, **kwargs):
 def batched_icp(variable, **kwargs):
     batched_pc_ref = kwargs.pop('pc_ref', None)
     batched_pc_to_align = kwargs.pop('pc_to_align', None)
-    batched_ref = kwargs.pop('batched_ref', False)
+    batched_ref = kwargs.pop('batched_ref', True)
     batched_init_T = kwargs.pop('init_T', None)
     param_icp = kwargs.pop('param_icp', dict())
     detach_init_pose = kwargs.pop('detach_init_pose', False)
