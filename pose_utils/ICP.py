@@ -203,11 +203,8 @@ def fast_soft_knn(pc_ref, pc_to_align, softmax_tool, fact=10, d_norm=False):
     #d_matrix = torch.softmax(fact * torch.reciprocal(d_matrix), 1)
     #pc_nearest = torch.sum(pc_ref.t().matmul(d_matrix))
     pc_nearest = torch.cat([torch.sum(pc_ref*prob, 1).unsqueeze(1) for i, prob in enumerate(d_matrix)], 1)
-
-    mean_distance = torch.mean(torch.sum((pc_to_align - pc_nearest)**2))
-
+    mean_distance = torch.mean(torch.sum((pc_to_align - pc_nearest)**2, 0))
     return pc_nearest, mean_distance
-
 
 
 def best_fit_transform(pc_ref, pc_to_align, indexor):
@@ -248,7 +245,6 @@ def best_fit_transform(pc_ref, pc_to_align, indexor):
 
 
 def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
-    #TODO: change possible torch. function to torch.nn equivalent
     iter = kwargs.pop('iter', 100)
     tolerance = kwargs.pop('tolerance', 1e-3)
     unit_fact = kwargs.pop('fact', 1)
@@ -286,6 +282,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     prev_dist = 0
 
     for i in range(iter):
+        logger.debug('Iteration {}'.format(i))
         #t = time.time()
         pc_rec = T.matmul(row_pc_to_align)
         if use_hard_nn:
@@ -354,7 +351,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
 if __name__ == '__main__':
     ids = ['frame-000100','frame-000150', 'frame-000150']
 
-    scale = 1/32
+    scale = 1/16
 
     K = torch.zeros(3, 3)
     K[0, 0] = 585
@@ -429,7 +426,7 @@ if __name__ == '__main__':
 
     #T, d = soft_icp(pc_to_align, pc_ref, poses[1].inverse(), tolerance=1e-6, iter=100, fact=100, verbose=True, dnorm=False)
     #T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-5, iter=50, fact=2, verbose=True, dnorm=False, use_hard_nn=True, outlier=True)
-    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=2, verbose=False, dnorm=False,
+    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=2, verbose=True, dnorm=False,
                     outlier=True, reject_ratio=1)
     pc_aligned = T.matmul(pc_to_align)
 
