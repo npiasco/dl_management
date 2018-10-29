@@ -5,6 +5,7 @@ import torchvision.transforms.functional as func
 import pose_utils.utils as utils
 import datasets.custom_quaternion as custom_q
 import matplotlib.pyplot as plt
+import time
 import torchvision as tvis
 import math
 from mpl_toolkits.mplot3d import Axes3D
@@ -175,6 +176,39 @@ def soft_knn(pc_ref, pc_to_align, softmax_tool, fact=10, d_norm=False):
 
     return pc_nearest, mean_distance/(i+1)
 
+def fast_soft_knn(pc_ref, pc_to_align, softmax_tool, fact=10, d_norm=False):
+    logger.debug('Softmax fact is {}'.format(fact))
+
+    pc_ref_extended = pc_ref.new_ones(3*3, pc_ref.size(1))
+    pc_to_align_extended = pc_to_align.new_ones(pc_to_align.size(1), 3*3)
+
+    pc_ref_square = pc_ref**2
+    pc_ref_extended[0, :] = pc_ref_square[0, :]
+    pc_ref_extended[3, :] = pc_ref_square[1, :]
+    pc_ref_extended[6, :] = pc_ref_square[2, :]
+    pc_ref_extended[1, :] = pc_ref[0, :] * -2
+    pc_ref_extended[4, :] = pc_ref[1, :] * -2
+    pc_ref_extended[7, :] = pc_ref[2, :] * -2
+
+    pc_to_align_square = pc_to_align**2
+    pc_to_align_extended[:, 2] = pc_to_align_square[0, :]
+    pc_to_align_extended[:, 5] = pc_to_align_square[1, :]
+    pc_to_align_extended[:, 8] = pc_to_align_square[2, :]
+    pc_to_align_extended[:, 1] = pc_to_align[0, :]
+    pc_to_align_extended[:, 4] = pc_to_align[1, :]
+    pc_to_align_extended[:, 7] = pc_to_align[2, :]
+
+    d_matrix = pc_to_align_extended.matmul(pc_ref_extended)
+    d_matrix = softmax_tool(fact * torch.reciprocal(d_matrix))
+    #d_matrix = torch.softmax(fact * torch.reciprocal(d_matrix), 1)
+    #pc_nearest = torch.sum(pc_ref.t().matmul(d_matrix))
+    pc_nearest = torch.cat([torch.sum(pc_ref*prob, 1).unsqueeze(1) for i, prob in enumerate(d_matrix)], 1)
+
+    mean_distance = torch.mean(torch.sum((pc_to_align - pc_nearest)**2))
+
+    return pc_nearest, mean_distance
+
+
 
 def best_fit_transform(pc_ref, pc_to_align, indexor):
     pc_ref_centroid = torch.sum(pc_ref[:3, :]*indexor, -1)/torch.sum(indexor)
@@ -244,7 +278,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     row_pc_ref = pc_ref.view(4, -1)
     row_pc_to_align = pc_to_align.view(4, -1)
     indexor = pc_to_align.new_ones(row_pc_to_align.size(-1))
-    softmax_tool = torch.nn.Softmax(dim=0).to(pc_to_align.device)
+    softmax_tool = torch.nn.Softmax(dim=1).to(pc_to_align.device)
     sig_tool = torch.nn.Sigmoid().to(pc_to_align.device)
 
     # First iter
@@ -252,12 +286,14 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     prev_dist = 0
 
     for i in range(iter):
+        #t = time.time()
         pc_rec = T.matmul(row_pc_to_align)
         if use_hard_nn:
             pc_rec, pc_nearest, dist = hard_knn(row_pc_ref, pc_rec, fact=fact)
         else:
-            pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, softmax_tool, fact=fact, d_norm=distance_norm)
-
+            #pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, softmax_tool, fact=fact, d_norm=distance_norm)
+            pc_nearest, dist = fast_soft_knn(row_pc_ref, pc_rec, softmax_tool, fact=fact)
+        #print('Elapsed for matching {}'.format(time.time() - t))
         if outlier_rejection:
             indexor = soft_outlier_filter(pc_nearest, pc_rec, sig_tool, reject_ratio)
         if hard_rejection:
@@ -277,6 +313,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
             break
         else:
             prev_dist = dist.item()
+        #print('Elapsed all {}'.format(time.time() - t))
 
         if verbose:
             # Ploting
@@ -304,7 +341,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
         plt.close()
 
     pc_rec = T.matmul(row_pc_to_align)
-    pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, softmax_tool, fact=1e5, d_norm=False) # hard assigment
+    pc_nearest, dist = fast_soft_knn(row_pc_ref, pc_rec, softmax_tool, fact=1e5, d_norm=False) # hard assigment
     if hard_rejection:
         pc_nearest, pc_rec = hard_outlier_filter(pc_nearest, pc_rec, reject_ratio)
         indexor = pc_to_align.new_ones(pc_nearest.size(-1))
@@ -330,7 +367,7 @@ if __name__ == '__main__':
     K[2, 2] = 1
 
     root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
-    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
     depths = list()
@@ -392,7 +429,7 @@ if __name__ == '__main__':
 
     #T, d = soft_icp(pc_to_align, pc_ref, poses[1].inverse(), tolerance=1e-6, iter=100, fact=100, verbose=True, dnorm=False)
     #T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-5, iter=50, fact=2, verbose=True, dnorm=False, use_hard_nn=True, outlier=True)
-    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=2, verbose=True, dnorm=False,
+    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=2, verbose=False, dnorm=False,
                     outlier=True, reject_ratio=1)
     pc_aligned = T.matmul(pc_to_align)
 
