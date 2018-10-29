@@ -163,7 +163,7 @@ class UniformPruning:
 
             if moy_density is None:
                 logger.warning('No point found')
-                return  sample
+                return sample
 
             for i in range(0, w, self.kernel_size):
                 for j in range(0, h, self.kernel_size):
@@ -209,7 +209,8 @@ class Normalize(tf.Normalize):
 
     def __call__(self, sample):
         for name, mod in sample.items():
-            sample[name] = func.normalize(mod, self.mean, self.std)
+            if name is not 'K':
+                sample[name] = func.normalize(mod, self.mean, self.std)
 
         return sample
 
@@ -220,12 +221,13 @@ class Equalize:
 
     def __call__(self, sample):
         for name, mod in sample.items():
-            sample[name] = PIL.ImageOps.equalize(mod, mask=self.mask)
+            if name is not 'K':
+                sample[name] = PIL.ImageOps.equalize(mod, mask=self.mask)
 
         return sample
 
 
-class JetTransform():
+class JetTransform:
     def __init__(self, cmap='jet', s_lut=256):
         self.cmap = plt.get_cmap(cmap, lut=s_lut)
 
@@ -271,7 +273,7 @@ class GradNorm:
                     nn_func.conv2d(mod, self.w_x, padding=1, dilation=1),
                     nn_func.conv2d(mod, self.w_y, padding=1, dilation=1),
                     nn_func.conv2d(mod, self.w_z, padding=1, dilation=1),
-                    #mod
+                    # mod
                 ),
                 dim = 1
             ).squeeze().data
