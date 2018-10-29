@@ -1,6 +1,11 @@
 import setlog
 import torch
 import matplotlib.pyplot as plt
+import os
+import re
+import pathlib as path
+import PIL.Image
+import torchvision.transforms.functional as func
 
 
 logger = setlog.get_logger(__name__)
@@ -130,6 +135,81 @@ def rot_to_quat(m):
         q[2] = (m[1, 2] + m[2, 1]) / S
         q[3] = 0.25 * S
     return q
+
+
+def get_local_map(**kwargs):
+    T = kwargs.pop('T',  None).detach()
+    dataset = kwargs.pop('dataset',  'SEVENSCENES')
+    scene =  kwargs.pop('scene',  'heads/')
+    sequences = kwargs.pop('sequences',  'TrainSplit.txt')
+    num_pc = kwargs.pop('num_pc',  8)
+    resize_fact = kwargs.pop('resize',  1/16)
+    K = kwargs.pop('K', [[585, 0, 320], [0.0, 585, 240], [0.0, 0.0, 1.0]])
+    frame_spacing = kwargs.pop('frame_spacing', 20)
+    output_size = kwargs.pop('output_size', 2000)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    # Loading files...
+    env_var = os.environ[dataset]
+    folders = list()
+    with open(env_var + scene + sequences, 'r') as f:
+        for line in f:
+            fold = 'seq-{:02d}/'.format(int(re.search('(?<=sequence)\d', line).group(0)))
+            folders.append(env_var + scene + fold)
+    data = list()
+    for i, folder in enumerate(folders):
+        p = path.Path(folder)
+        data += [(i, re.search('(?<=-)\d+', file.name).group(0))
+                 for file in p.iterdir()
+                 if file.is_file() and '.txt' in file.name]
+    poses = list()
+    for fold, seq_num in data:
+        pose_file = folders[fold] + 'frame-' + seq_num + '.pose.txt'
+        pose = T.new_zeros(4, 4)
+        with open(pose_file, 'r') as pose_file_pt:
+            for i, line in enumerate(pose_file_pt):
+                for j, c in enumerate(line.split('\t')):
+                    try:
+                        pose[i, j] = float(c)
+                    except ValueError:
+                        pass
+        poses.append(pose)
+
+    # Nearest pose search
+    d_poses = [torch.norm(torch.eye(4, 4) - pose.matmul(T.inverse())).item() for pose in poses]
+    nearest_idx = sorted(range(len(d_poses)), key=lambda k: d_poses[k])
+
+    # Computing local pc
+    K = T.new_tensor(K)
+    K[0, :] *= resize_fact
+    K[1, :] *= resize_fact
+    pcs = list()
+    for i in range(1, num_pc*frame_spacing, frame_spacing):
+        fold, num = data[nearest_idx[i]]
+        file_name = folders[fold] + 'frame-' + num + '.depth.png'
+        depth = PIL.Image.open(file_name)
+        new_h = int(min(depth.size)*resize_fact)
+        if new_h/2 != min(K[0, 2].item(), K[1, 2].item()):
+            logger.warn('Resize factor is modifying the 3D geometry!! (fact={})'.format(resize_fact))
+        depth = func.to_tensor(
+            func.resize(depth, new_h, interpolation=0),
+        ).float()
+        depth[depth == 65535] = 0
+        depth *= 1e-3
+        depth.to(T.device) # move on GPU if necessary
+
+        pcs.append(toSceneCoord(depth, poses[nearest_idx[i]], K, remove_zeros=True))
+
+    # Pruning step
+    final_pc = torch.cat(pcs, 1)
+    logger.debug('Final points before pruning cloud has {} points'.format(final_pc.size(1)))
+    step = final_pc.size(1)//output_size
+    indexor = range(0, final_pc.size(1), step)
+    final_pc = final_pc[:, indexor]
+    final_pc = final_pc[:, :output_size] # TODO: had a shuffle
+    return final_pc
 
 
 if __name__ == '__main__':

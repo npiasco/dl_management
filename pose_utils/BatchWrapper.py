@@ -37,6 +37,17 @@ def inverse(variable, **kwargs):
     return 1/data_to_inv + offset
 
 
+def batched_local_map_getter(variable, **kwargs)
+    Ts = kwargs.pop('T', False)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+    Ts = recc_acces(variable, Ts)
+
+    for i, T in enumerate(Ts):
+    get_local_map
+
+
 def batched_depth_map_to_pc(variable, **kwargs):
     depth_maps = kwargs.pop('depth_maps', None)
     K = kwargs.pop('K', None)
