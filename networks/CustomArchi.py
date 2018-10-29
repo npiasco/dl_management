@@ -245,6 +245,7 @@ class Softlier(nn.Module):
         input_size = kwargs.pop('input_size', 256)
         size_layer = kwargs.pop('size_layer', 256)
         num_inter_layers = kwargs.pop('num_inter_layers', 1)
+        self.consensus = kwargs.pop('consensus', False)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
 
         if kwargs:
@@ -285,10 +286,13 @@ class Softlier(nn.Module):
 
     def forward(self, x):
         x = x.view(x.size(0), -1)
-        x = torch.sigmoid(self.thresholder(x))
-        mean_dist = torch.mean(x, 0)
-        eps = 1e-5
-        x = torch.sigmoid((x - mean_dist + eps)*1e10)
+        if self.consensus:
+            x = torch.sigmoid(self.thresholder(x))
+            mean_dist = torch.mean(x, 0)
+            eps = 1e-5
+            x = torch.sigmoid((x - mean_dist + eps)*1e10)
+        else:
+            x = torch.sigmoid((self.thresholder(x))*1e10)
         return x
 
     def get_training_layers(self, layers_to_train=None):
