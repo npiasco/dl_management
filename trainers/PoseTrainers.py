@@ -237,7 +237,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             self.training_pipeline.append(action)
             if 'func' in self.training_pipeline[-1].keys():
                 self.training_pipeline[-1]['func'] = eval(action['func'])
-            if self.training_pipeline[-1]['mode'] == 'loss':
+            if self.training_pipeline[-1]['mode'] in ('loss', 'loop_loss'):
                 self.loss_log[action['name']] = list()
 
         self.eval_forwards = {'data': list(), 'queries': list()}
@@ -273,7 +273,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         # TODO: .to to move on device
         variables = {'batch': self.batch_to_device(batch)}
         summed_loss = 0
-        for action in self.training_pipeline:
+        for n_action, action in enumerate(self.training_pipeline):
 
             variables = self._sequential_forward(action, variables, self.networks)
 
@@ -287,8 +287,12 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 self.optimizers[action['trainer']].zero_grad()
 
                 summed_loss.backward()
-                # summed_loss.backward(retain_graph=True)
+                if 'clip_grad' in action.keys():
+                    for nets_name in action['clip_grad']['networks']:
+                        torch.nn.utils.clip_grad_norm_(self.networks[nets_name].parameters(),
+                                                       action['clip_grad']['norm_max'])
                 self.optimizers[action['trainer']].step()
+                self.optimizers[action['trainer']].zero_grad()
                 summed_loss = 0
                 for name in self.optimizers_params[action['trainer']]['associated_net']:
                     for params in self.networks[name].get_training_layers():
@@ -303,6 +307,26 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                     for params in self.networks[name].get_training_layers():
                         for param in params['params']:
                             param.requires_grad = True
+            elif action['mode'] == 'loop':
+                n_iters = action['iters']
+                n_first_action = n_action+1
+                for i in range(n_iters):
+                    loop_action = self.training_pipeline[n_first_action]
+                    cursor = n_first_action
+                    while loop_action['mode'] != 'end_loop':
+                        variables = self._sequential_forward(loop_action, variables, self.networks)
+                        if loop_action['mode'] == 'loop_loss':
+                            input_args = [recc_acces(variables, name) for name in loop_action['args']]
+                            val = loop_action['func'](*input_args, **loop_action['param'])
+                            summed_loss += val
+                            if i == 0:
+                                self.loss_log[loop_action['name']].append(val.detach().item())
+                            else:
+                                self.loss_log[loop_action['name']][-1] += val.detach().item()
+                        cursor += 1
+                        loop_action = self.training_pipeline[cursor]
+            elif action['mode'] in ('loop_loss', 'end_loop'):
+                continue
             else:
                 if action['mode'] not in ('batch_forward', 'forward', 'minning'):
                     raise NameError('Unknown action {}'.format(action['mode']))
