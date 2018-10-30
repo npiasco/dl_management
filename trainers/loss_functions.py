@@ -153,16 +153,22 @@ def mult_triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps
     return sum(loss.values())
 
 
-def reg_loss(map_to_reg, **kwargs):
+def reg_loss(map_to_reg, im_ori, **kwargs):
     fact = kwargs.pop('fact', 1)
+    reduce_factor = kwargs.pop('reduce_factor', 0.5)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    loss = fact * (
-        torch.sum(torch.abs(map_to_reg[:, :, :, :-1] - map_to_reg[:, :, :, 1:])) +
-        torch.sum(torch.abs(map_to_reg[:, :, :-1, :] - map_to_reg[:, :, 1:, :]))
-    ) / map_to_reg.size(0)
+    if reduce_factor:
+        im_ori = func.interpolate(im_ori, scale_factor=reduce_factor, mode='bilinear', align_corners=True)
+
+    dx_im = torch.exp(-1 * torch.abs(im_ori[:, :, :, :-1] - im_ori[:, :, :, 1:]))
+    dy_im = torch.exp(-1 * torch.abs(im_ori[:, :, :-1, :] - im_ori[:, :, 1:, :]))
+    dx_mod = torch.abs(map_to_reg[:, :, :, :-1] - map_to_reg[:, :, :, 1:])
+    dy_mod = torch.abs(map_to_reg[:, :, :-1, :] - map_to_reg[:, :, 1:, :])
+
+    loss = fact * (torch.sum(dx_im*dx_mod) + torch.sum(dy_im*dy_mod)) / map_to_reg.numel()
 
     return loss
 
