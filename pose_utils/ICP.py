@@ -61,7 +61,7 @@ def soft_outlier_filter(pc_nearest, pc_to_align, reject_ratio=1):
     dist = torch.norm(pc_nearest - pc_to_align, dim=0)
     mean_dist = torch.mean(dist, 0)
     eps = 1e-5
-    filter = nn_func.sigmoid((dist - mean_dist*reject_ratio + eps)*-1e10)
+    filter = torch.sigmoid((dist - mean_dist*reject_ratio + eps)*-1e10)
 
     return filter
 
@@ -250,12 +250,12 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     unit_fact = kwargs.pop('fact', 1)
     outlier_rejection = kwargs.pop('outlier', False)
     hard_rejection = kwargs.pop('hard_rejection', False)
-    distance_norm = kwargs.pop('dnorm', False)
     verbose = kwargs.pop('verbose', False)
     use_hard_nn = kwargs.pop('use_hard_nn', False)
     fixed_fact = kwargs.pop('fixed_fact', False)
     custom_filter = kwargs.pop('custom_filter',  None)
     reject_ratio = kwargs.pop('reject_ratio',  1)
+    T_gt = kwargs.pop('T_gt', None)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -310,6 +310,17 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
             prev_dist = dist.item()
         #print('Elapsed all {}'.format(time.time() - t))
 
+        if T_gt is not None:
+            logger.debug('Training mode: stopping if no improvment in localization.')
+            Id = init_T.new_zeros(4, 4)
+            Id[0, 0] = Id[1, 1] = Id[2, 2] = Id[3, 3] = 1
+            if torch.norm(Id - T.matmul(T_gt.inverse())) > torch.norm(Id - init_T.matmul(T_gt.inverse())):
+                logger.debug('No improvment, stopping at iteration {}'.format(i))
+                break
+            else:
+                logger.debug('Loc error: {}'.format(torch.norm(Id - T.matmul(T_gt.inverse())).item()))
+                init_T = T
+
         if verbose:
             # Ploting
             ax1.clear()
@@ -336,12 +347,12 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
         plt.close()
 
     pc_rec = T.matmul(row_pc_to_align)
-    pc_nearest, dist = fast_soft_knn(row_pc_ref, pc_rec, softmax_tool, fact=1e5) # hard assigment
+    pc_nearest, dist = fast_soft_knn(row_pc_ref, pc_rec, fact=1e5) # hard assigment
     if hard_rejection:
         pc_nearest, pc_rec = hard_outlier_filter(pc_nearest, pc_rec, reject_ratio)
         indexor = pc_to_align.new_ones(pc_nearest.size(-1))
     elif outlier_rejection:
-        indexor = soft_outlier_filter(pc_nearest, pc_rec, sig_tool, reject_ratio)
+        indexor = soft_outlier_filter(pc_nearest, pc_rec, reject_ratio)
     real_error = torch.mean(torch.sum(((pc_rec - pc_nearest)*indexor)**2, 0))
     return T, real_error
 
@@ -424,8 +435,8 @@ if __name__ == '__main__':
 
     #T, d = soft_icp(pc_to_align, pc_ref, poses[1].inverse(), tolerance=1e-6, iter=100, fact=100, verbose=True, dnorm=False)
     #T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-5, iter=50, fact=2, verbose=True, dnorm=False, use_hard_nn=True, outlier=True)
-    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=2, verbose=False, dnorm=False,
-                    outlier=True, reject_ratio=1)
+    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=2, verbose=False,
+                    outlier=True, reject_ratio=1, T_gt=poses[1])
     pc_aligned = T.matmul(pc_to_align)
 
     fig = plt.figure(2)

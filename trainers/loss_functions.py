@@ -153,11 +153,24 @@ def mult_triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps
     return sum(loss.values())
 
 
+def reg_loss(map_to_reg, **kwargs):
+    fact = kwargs.pop('fact', 1)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    loss = fact * (
+        torch.sum(torch.abs(map_to_reg[:, :, :, :-1] - map_to_reg[:, :, :, 1:])) +
+        torch.sum(torch.abs(map_to_reg[:, :, :-1, :] - map_to_reg[:, :, 1:, :]))
+    ) / map_to_reg.size(0)
+
+    return loss
+
+
 def l1_modal_loss(predicted_maps, gt_maps, **kwargs):
     p = kwargs.pop('p', 1)
     factor = kwargs.pop('factor', 1)
     listed_maps = kwargs.pop('listed_maps', True)
-    reg = kwargs.pop('reg', 0)
     no_zeros = kwargs.pop('no_zeros', False)
 
     if kwargs:
@@ -185,12 +198,6 @@ def l1_modal_loss(predicted_maps, gt_maps, **kwargs):
         loss = factor * func.mse_loss(predicted, gt)
     else:
         raise AttributeError('No behaviour for p = {}'.format(p))
-
-    if reg:
-        loss += reg * (
-            torch.sum(torch.abs(predicted[:, :, :, :-1] - predicted[:, :, :, 1:])) +
-            torch.sum(torch.abs(predicted[:, :, :-1, :] - predicted[:, :, 1:, :]))
-        ) / predicted.size(0)
 
     return loss
 

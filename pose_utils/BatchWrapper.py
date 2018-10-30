@@ -28,13 +28,35 @@ def add_variable(variable, **kwargs):
 def inverse(variable, **kwargs):
     data_to_inv = kwargs.pop('data_to_inv', None)
     offset = kwargs.pop('offset', -1)
+    eps = kwargs.pop('eps', 1e-8)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     data_to_inv = recc_acces(variable, data_to_inv)
 
-    return 1/data_to_inv + offset
+    return torch.reciprocal(data_to_inv.clamp(min=eps)) + offset
+
+
+def add_random_transform(variable, **kwargs):
+    ori_T = kwargs.pop('original_T', False)
+    noise_factor = kwargs.pop('noise_factor', 1e-1)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    ori_T = recc_acces(variable, ori_T)
+    noise_T = ori_T.new_zeros(ori_T.size())
+
+    for i, T in enumerate(ori_T):
+        noise_R = utils.rotation_matrix(torch.rand(3), torch.rand(1)*noise_factor)
+        noise_t = torch.rand(3)*noise_factor
+        noise_T[i, :3, :3] = noise_R
+        noise_T[i, :3, 3] = noise_t
+        noise_T[i, 3, 3] = 1
+        noise_T[i] = noise_T[i].matmul(T)
+
+    return noise_T
 
 
 def batched_local_map_getter(variable, **kwargs):
@@ -77,7 +99,7 @@ def batched_depth_map_to_pc(variable, **kwargs):
 
     for i, depth_maps in enumerate(batched_depth_maps):
         if inverse_depth:
-            depth_maps = 1/depth_maps.clamp(min=eps) - 1
+            depth_maps = torch.reciprocal(depth_maps.clamp(min=eps)) - 1
         if remove_zeros:
             batched_pc = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros).unsqueeze(0)
         else:
@@ -153,6 +175,7 @@ def batched_icp(variable, **kwargs):
     batched_pc_to_align = kwargs.pop('pc_to_align', None)
     batched_ref = kwargs.pop('batched_ref', True)
     batched_init_T = kwargs.pop('init_T', None)
+    T_gt = kwargs.pop('T_gt', None)
     param_icp = kwargs.pop('param_icp', dict())
     detach_init_pose = kwargs.pop('detach_init_pose', False)
     custom_filter = kwargs.pop('custom_filter', None)
@@ -169,6 +192,8 @@ def batched_icp(variable, **kwargs):
             logger.debug('Detatching init pose')
     if custom_filter is not None:
         custom_filter = recc_acces(variable, custom_filter)
+    if T_gt:
+        T_gt = recc_acces(variable, T_gt)
 
     n_batch = batched_pc_to_align.size(0)
     dist = batched_pc_to_align.new_zeros(n_batch, 1)
@@ -186,10 +211,11 @@ def batched_icp(variable, **kwargs):
             init_T[0,0] = init_T[1,1] = init_T[2,2] = init_T[3,3] = 1
 
         current_filter = custom_filter[i, :] if custom_filter is not None else None
+        T_gt_i = T_gt[i] if T_gt is not None else None
         if batched_ref:
-            computed_pose, d = ICP.soft_icp(batched_pc_ref[i, :, :], pc_to_align, init_T, **param_icp, custom_filter=current_filter)
+            computed_pose, d = ICP.soft_icp(batched_pc_ref[i, :, :], pc_to_align, init_T, **param_icp, custom_filter=current_filter, T_gt=T_gt_i)
         else:
-            computed_pose, d = ICP.soft_icp(batched_pc_ref, pc_to_align, init_T, **param_icp, custom_filter=current_filter)
+            computed_pose, d = ICP.soft_icp(batched_pc_ref, pc_to_align, init_T, **param_icp, custom_filter=current_filter, T_gt=T_gt_i)
         dist[i] = d
         poses['p'][i, :] = computed_pose[:3, 3]
         poses['q'][i, :] = utils.rot_to_quat(computed_pose[:3, :3])
