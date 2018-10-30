@@ -60,6 +60,7 @@ def batched_depth_map_to_pc(variable, **kwargs):
     K = kwargs.pop('K', None)
     inverse_depth = kwargs.pop('inverse_depth', True)
     remove_zeros = kwargs.pop('remove_zeros', False)
+    eps = kwargs.pop('eps', 1e-8)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -76,7 +77,7 @@ def batched_depth_map_to_pc(variable, **kwargs):
 
     for i, depth_maps in enumerate(batched_depth_maps):
         if inverse_depth:
-            depth_maps = 1/depth_maps - 1
+            depth_maps = 1/depth_maps.clamp(min=eps) - 1
         if remove_zeros:
             batched_pc = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros).unsqueeze(0)
         else:

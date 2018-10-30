@@ -1,6 +1,7 @@
 import setlog
 import PIL.Image
 import torch
+import torch.nn.functional as nn_func
 import torchvision.transforms.functional as func
 import pose_utils.utils as utils
 import datasets.custom_quaternion as custom_q
@@ -56,11 +57,11 @@ def outlier_filter(pc_nearest, pc_to_align, threshold):
         return pc_nearest_filtered, pc_to_align_filtered
 
 
-def soft_outlier_filter(pc_nearest, pc_to_align, sig_tool, reject_ratio=1):
+def soft_outlier_filter(pc_nearest, pc_to_align, reject_ratio=1):
     dist = torch.norm(pc_nearest - pc_to_align, dim=0)
     mean_dist = torch.mean(dist, 0)
     eps = 1e-5
-    filter = sig_tool((dist - mean_dist*reject_ratio + eps)*-1e10)
+    filter = nn_func.sigmoid((dist - mean_dist*reject_ratio + eps)*-1e10)
 
     return filter
 
@@ -160,7 +161,7 @@ def hard_knn(pc_ref, pc_to_align, fact=10):
     return new_pc_to_align, pc_nearest, mean_distance / pc_nearest.size(1)
 '''
 
-def soft_knn(pc_ref, pc_to_align, softmax_tool, fact=10, d_norm=False):
+def soft_knn(pc_ref, pc_to_align, fact=10, d_norm=False):
     logger.debug('Softmax fact is {}'.format(fact))
     pc_nearest = pc_to_align.clone()
     pc_ref_t = pc_ref.transpose(0, 1)
@@ -170,13 +171,13 @@ def soft_knn(pc_ref, pc_to_align, softmax_tool, fact=10, d_norm=False):
         if d_norm:
             d_to_pt = d_to_pt / torch.mean(d_to_pt)
 
-        prob = softmax_tool(fact * 1/d_to_pt)
+        prob = nn_func.softmax(fact * 1/d_to_pt, dim=0)
         pc_nearest[:, i] = torch.sum(pc_ref * prob, 1)
         mean_distance += torch.sum((pt - pc_nearest[:, i])**2)
 
     return pc_nearest, mean_distance/(i+1)
 
-def fast_soft_knn(pc_ref, pc_to_align, softmax_tool, fact=10, d_norm=False):
+def fast_soft_knn(pc_ref, pc_to_align, fact=10, eps=1e-8):
     logger.debug('Softmax fact is {}'.format(fact))
 
     pc_ref_extended = pc_ref.new_ones(3*3, pc_ref.size(1))
@@ -199,9 +200,8 @@ def fast_soft_knn(pc_ref, pc_to_align, softmax_tool, fact=10, d_norm=False):
     pc_to_align_extended[:, 7] = pc_to_align[2, :]
 
     d_matrix = pc_to_align_extended.matmul(pc_ref_extended)
-    d_matrix = softmax_tool(fact * torch.reciprocal(d_matrix))
-    #d_matrix = torch.softmax(fact * torch.reciprocal(d_matrix), 1)
-    #pc_nearest = torch.sum(pc_ref.t().matmul(d_matrix))
+    d_matrix = nn_func.softmax(fact * torch.reciprocal(d_matrix.clamp(min=eps)), dim=1)
+
     pc_nearest = torch.cat([torch.sum(pc_ref*prob, 1).unsqueeze(1) for i, prob in enumerate(d_matrix)], 1)
     mean_distance = torch.mean(torch.sum((pc_to_align - pc_nearest)**2, 0))
     return pc_nearest, mean_distance
@@ -274,8 +274,6 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     row_pc_ref = pc_ref.view(4, -1)
     row_pc_to_align = pc_to_align.view(4, -1)
     indexor = pc_to_align.new_ones(row_pc_to_align.size(-1))
-    softmax_tool = torch.nn.Softmax(dim=1).to(pc_to_align.device)
-    sig_tool = torch.nn.Sigmoid().to(pc_to_align.device)
 
     # First iter
     fact = 1 * unit_fact
@@ -289,10 +287,10 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
             pc_rec, pc_nearest, dist = hard_knn(row_pc_ref, pc_rec, fact=fact)
         else:
             #pc_nearest, dist = soft_knn(row_pc_ref, pc_rec, softmax_tool, fact=fact, d_norm=distance_norm)
-            pc_nearest, dist = fast_soft_knn(row_pc_ref, pc_rec, softmax_tool, fact=fact)
+            pc_nearest, dist = fast_soft_knn(row_pc_ref, pc_rec, fact=fact)
         #print('Elapsed for matching {}'.format(time.time() - t))
         if outlier_rejection:
-            indexor = soft_outlier_filter(pc_nearest, pc_rec, sig_tool, reject_ratio)
+            indexor = soft_outlier_filter(pc_nearest, pc_rec, reject_ratio)
         if hard_rejection:
             pc_nearest, pc_rec = hard_outlier_filter(pc_nearest, pc_rec, reject_ratio)
             indexor = pc_to_align.new_ones(pc_nearest.size(-1))
@@ -338,7 +336,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
         plt.close()
 
     pc_rec = T.matmul(row_pc_to_align)
-    pc_nearest, dist = fast_soft_knn(row_pc_ref, pc_rec, softmax_tool, fact=1e5, d_norm=False) # hard assigment
+    pc_nearest, dist = fast_soft_knn(row_pc_ref, pc_rec, softmax_tool, fact=1e5) # hard assigment
     if hard_rejection:
         pc_nearest, pc_rec = hard_outlier_filter(pc_nearest, pc_rec, reject_ratio)
         indexor = pc_to_align.new_ones(pc_nearest.size(-1))
@@ -351,7 +349,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
 if __name__ == '__main__':
     ids = ['frame-000100','frame-000150', 'frame-000150']
 
-    scale = 1/16
+    scale = 1/8
 
     K = torch.zeros(3, 3)
     K[0, 0] = 585
@@ -364,7 +362,7 @@ if __name__ == '__main__':
     K[2, 2] = 1
 
     root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
-    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
     depths = list()
@@ -426,7 +424,7 @@ if __name__ == '__main__':
 
     #T, d = soft_icp(pc_to_align, pc_ref, poses[1].inverse(), tolerance=1e-6, iter=100, fact=100, verbose=True, dnorm=False)
     #T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-5, iter=50, fact=2, verbose=True, dnorm=False, use_hard_nn=True, outlier=True)
-    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=2, verbose=True, dnorm=False,
+    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=2, verbose=False, dnorm=False,
                     outlier=True, reject_ratio=1)
     pc_aligned = T.matmul(pc_to_align)
 
