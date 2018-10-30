@@ -12,13 +12,13 @@ Deconv:
         k_size: 4
         d_fact: 2
         out_channel: 1
-        div_fact: 2
+        div_fact: 4
 
 Pose:
     class: 'networks.Pose.PoseRegressor'
     param_class:
         layers_to_train: 'all'
-        input_size: 12544 # 256 * 7 * 7
-        size_layer: 512
+        input_size: 50176 # 256 * 7 * 7
+        size_layer: 256
         num_inter_layers: 1
 
