@@ -10,7 +10,7 @@ import time
 import torchvision as tvis
 import math
 from mpl_toolkits.mplot3d import Axes3D
-
+import networks.ICPNet as ICPNet
 
 logger = setlog.get_logger(__name__)
 
@@ -61,7 +61,7 @@ def soft_outlier_filter(pc_nearest, pc_to_align, reject_ratio=1):
     dist = torch.norm(pc_nearest - pc_to_align, dim=0)
     mean_dist = torch.mean(dist, 0)
     eps = 1e-5
-    filter = torch.sigmoid((dist - mean_dist*reject_ratio + eps)*-1e10)
+    filter = torch.sigmoid((dist - mean_dist*reject_ratio - eps)*-1e10)
 
     return filter
 
@@ -298,10 +298,11 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
             indexor = indexor*custom_filter
 
         new_T = best_fit_transform(pc_nearest, pc_rec, indexor)
-        T = torch.matmul(T, new_T)
+        T = torch.matmul(new_T, T)
 
         entrop = abs(prev_dist - dist.item())
-        fact = unit_fact if fixed_fact else min(1000, max(1, 1/entrop)) * unit_fact
+        if entrop != 0:
+            fact = unit_fact if fixed_fact else min(1000, max(1, 1/entrop)) * unit_fact
 
         if entrop < tolerance:
             logger.debug('Done in {} it'.format(i))
@@ -356,11 +357,58 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     real_error = torch.mean(torch.sum(((pc_rec - pc_nearest)*indexor)**2, 0))
     return T, real_error
 
+def ICPwNet(pc_ref, pc_to_align, init_T, **kwargs):
+    iter = kwargs.pop('iter', 100)
+    unit_fact = kwargs.pop('fact', 2)
+    verbose = kwargs.pop('verbose', False)
+    reject_ratio = kwargs.pop('reject_ratio',  1)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    net = ICPNet.CPNet(fact=unit_fact, reject_ratio=reject_ratio)
+    if verbose:
+        fig1 = plt.figure(1)
+        ax1 = fig1.add_subplot(111, projection='3d')
+        plt.ion()
+        plt.show()
+        pas = 1
+
+    T = init_T
+    # Row data
+    row_pc_ref = pc_ref.view(4, -1)
+    row_pc_to_align = pc_to_align.view(4, -1)
+
+    for i in range(iter):
+        logger.debug('Iteration {}'.format(i))
+        #t = time.time()
+        pc_rec = T.matmul(row_pc_to_align)
+        new_T = net(pc_rec.unsqueeze(0), row_pc_ref.unsqueeze(0))['T'][0]
+        T = torch.matmul(new_T, T)
+
+        if verbose:
+            # Ploting
+            ax1.clear()
+            utils.plt_pc(row_pc_ref, ax1, pas, 'b')
+            utils.plt_pc(pc_rec, ax1, pas, 'r')
+            ax1.set_xlim([-1, 1])
+            ax1.set_ylim([-1, 1])
+            ax1.set_zlim([-1, 1])
+
+            plt.pause(0.1)
+
+    if verbose:
+        plt.ioff()
+        ax1.clear()
+        plt.close()
+
+    return T, 0
+
 
 if __name__ == '__main__':
     ids = ['frame-000100','frame-000150', 'frame-000150']
 
-    scale = 1/8
+    scale = 1/32
 
     K = torch.zeros(3, 3)
     K[0, 0] = 585
@@ -372,7 +420,7 @@ if __name__ == '__main__':
 
     K[2, 2] = 1
 
-    root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
+    root = '/media/nathan/Data/7_Scenes/heads/seq-02/'
     #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
@@ -435,8 +483,8 @@ if __name__ == '__main__':
 
     #T, d = soft_icp(pc_to_align, pc_ref, poses[1].inverse(), tolerance=1e-6, iter=100, fact=100, verbose=True, dnorm=False)
     #T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-5, iter=50, fact=2, verbose=True, dnorm=False, use_hard_nn=True, outlier=True)
-    T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-6, iter=100, fact=2, verbose=False,
-                    outlier=True, reject_ratio=1, T_gt=poses[1])
+    #T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-10, iter=100, fact=2, verbose=True, outlier=True)
+    T, d = ICPwNet(pc_ref, pc_to_align, torch.eye(4, 4), iter=100, fact=2, verbose=True, reject_ratio=2)
     pc_aligned = T.matmul(pc_to_align)
 
     fig = plt.figure(2)
