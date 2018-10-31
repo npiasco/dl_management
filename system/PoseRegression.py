@@ -276,12 +276,17 @@ class MultNet(Default):
             print('Diff distance = {} m'.format(torch.norm(gt_pose[:, 3] - output_pose[:, 3]).item()))
             if 'posenet_pose' in variables.keys():
                 print('Diff distance = {} m (posenet)'.format(torch.norm(gt_pose[:, 3] - posenet_pose[:, 3]).item()))
+            if 'noised_T' in variables.keys():
+                noise_pose = trainers.minning_function.recc_acces(variables, ['noised_T']).squeeze()
+                print('Noised pose:')
+                print(noise_pose)
+                print('Diff distance = {} m (noise T)'.format(torch.norm(gt_pose[:, 3] - noise_pose[:, 3]).item()))
 
             fig = plt.figure(1)
             ax = fig.add_subplot(111, projection='3d')
 
             pc_utils.plt_pc(ref_pc.cpu(), ax, pas, 'b')
-            pc_utils.plt_pc(gt_pc.cpu(), ax, pas, 'c')
+            #pc_utils.plt_pc(gt_pc.cpu(), ax, pas, 'c')
             pc_utils.plt_pc(output_pc.cpu(), ax, pas, 'r')
             plt.show()
 
