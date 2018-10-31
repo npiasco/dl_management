@@ -6,29 +6,10 @@ import re
 import pathlib as path
 import PIL.Image
 import torchvision.transforms.functional as func
+import PIL.Image
 
 
 logger = setlog.get_logger(__name__)
-
-
-def mat_proj(T, bVec, homo=False):
-    if homo:
-        d_size = 1
-        for s in bVec.size()[1:]:
-            d_size *= s
-        homo_bVec = T.new_ones(4, d_size)
-        homo_bVec[:3, :] = bVec.view(3, -1)
-        '''
-        tbVec = homo_bVec.view(homo_bVec.size(0), -1).transpose(0, 1).unsqueeze(-1)
-        tproj = torch.matmul(T, tbVec)
-        proj = tproj.transpose(0, 1).view(bVec.size())
-        '''
-        tproj = torch.matmul(T, homo_bVec)
-        proj = tproj[:3, :].view(bVec.size())
-    else:
-        proj = torch.matmul(T, bVec)
-
-    return proj
 
 
 def depth_map_to_pc(depth_map, K, remove_zeros=False):
@@ -146,7 +127,7 @@ def get_local_map(**kwargs):
     sequences = kwargs.pop('sequences',  'TrainSplit.txt')
     num_pc = kwargs.pop('num_pc',  8)
     resize_fact = kwargs.pop('resize',  1/16)
-    K = kwargs.pop('K', [[585, 0, 320], [0.0, 585, 240], [0.0, 0.0, 1.0]])
+    K = kwargs.pop('K', [[585, 0.0, 320], [0.0, 585, 240], [0.0, 0.0, 1.0]])
     frame_spacing = kwargs.pop('frame_spacing', 20)
     output_size = kwargs.pop('output_size', 5000)
 
@@ -190,7 +171,7 @@ def get_local_map(**kwargs):
     K[0, :] *= resize_fact
     K[1, :] *= resize_fact
     pcs = list()
-    for i in range(1, num_pc*frame_spacing, frame_spacing):
+    for i in range(num_pc - 1, num_pc*frame_spacing, frame_spacing):
         fold, num = data[nearest_idx[i]]
         file_name = folders[fold] + 'frame-' + num + '.depth.png'
         depth = PIL.Image.open(file_name)
@@ -198,7 +179,8 @@ def get_local_map(**kwargs):
         if new_h/2 != min(K[0, 2].item(), K[1, 2].item()):
             logger.warn('Resize factor is modifying the 3D geometry!! (fact={})'.format(resize_fact))
         depth = func.to_tensor(
-            func.resize(depth, new_h, interpolation=0),
+            func.resize(func.resize(depth, new_h*2, interpolation=PIL.Image.NEAREST),
+                        new_h, interpolation=PIL.Image.NEAREST)
         ).float()
         depth[depth == 65535] = 0
         depth *= 1e-3
@@ -209,9 +191,10 @@ def get_local_map(**kwargs):
     # Pruning step
     final_pc = torch.cat(pcs, 1)
     logger.debug('Final points before pruning cloud has {} points'.format(final_pc.size(1)))
-    indexor = torch.randperm(final_pc.size(1))
-    final_pc = final_pc[:, indexor]
-    final_pc = final_pc[:, :output_size]
+    if isinstance(output_size, int):
+        indexor = torch.randperm(final_pc.size(1))
+        final_pc = final_pc[:, indexor]
+        final_pc = final_pc[:, :output_size]
     return final_pc
 
 

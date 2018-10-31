@@ -51,10 +51,11 @@ def add_random_transform(variable, **kwargs):
     for i, T in enumerate(ori_T):
         noise_R = utils.rotation_matrix(torch.rand(3), torch.rand(1)*noise_factor)
         noise_t = torch.rand(3)*noise_factor
-        noise_T[i, :3, :3] = noise_R
-        noise_T[i, :3, 3] = noise_t
-        noise_T[i, 3, 3] = 1
-        noise_T[i] = noise_T[i].matmul(T)
+        noise = ori_T.new_zeros(4, 4)
+        noise[:3, :3] = noise_R
+        noise[:3, 3] = noise_t
+        noise[3, 3] = 1
+        noise_T[i] = noise.matmul(T)
 
     return noise_T
 
@@ -69,10 +70,14 @@ def batched_local_map_getter(variable, **kwargs):
     Ts = recc_acces(variable, Ts)
     size_pc = map_args.get('output_size', 2000)
 
-    batched_local_maps = Ts.new_zeros(Ts.size(0), 4, size_pc)
+    if isinstance(size_pc, int):
+        batched_local_maps = Ts.new_zeros(Ts.size(0), 4, size_pc)
 
     for i, T in enumerate(Ts):
-        batched_local_maps[i] = utils.get_local_map(T=T, **map_args)
+        if isinstance(size_pc, int):
+            batched_local_maps[i] = utils.get_local_map(T=T, **map_args)
+        else:
+            batched_local_maps = utils.get_local_map(T=T, **map_args).unsqueeze(0)
 
     return batched_local_maps
 
@@ -174,12 +179,20 @@ def matmul(variables, **kwargs):
     m1 = kwargs.pop('m1', None)
     m2 = kwargs.pop('m2', None)
     get_pq =  kwargs.pop('get_pq', False)
+    inv_m2 =  kwargs.pop('inv_m2', False)
+    inv_m1 =  kwargs.pop('inv_m1', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     m1 = recc_acces(variables, m1)
     m2 = recc_acces(variables, m2)
+
+    if inv_m1:
+        m1 = torch.cat([m.inverse().unsqueeze(0) for m in m1], 0)
+
+    if inv_m2:
+        m2 = torch.cat([m.inverse().unsqueeze(0) for m in m2], 0)
 
     T = m1.matmul(m2)
     if get_pq:
@@ -188,7 +201,6 @@ def matmul(variables, **kwargs):
                 'q': torch.cat([utils.rot_to_quat(Ti[:3, :3]).unsqueeze(0) for Ti in T], 0)}
     else:
         return T
-
 
 
 def batched_icp(variable, **kwargs):
