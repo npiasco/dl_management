@@ -32,7 +32,7 @@ def T_loss(predicted, gt, fact=1):
 
     loss = 0
     for i, T in enumerate(gt):
-        loss += torch.norm(eye_mat - predicted[i]*T.inverse())
+        loss += torch.norm(eye_mat - predicted[i].matmul(T.inverse()))
 
     return fact*loss/(i+1)
 
