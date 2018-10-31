@@ -112,7 +112,7 @@ class CPNet(nn.Module):
             indexor = self.soft_outlier_rejection(pc, pc_nearest)
             T[i], q[i], t[i] = self.soft_tf(pc, pc_nearest, indexor)
 
-        return {'T': T, 'q': q, 't': t}
+        return {'T': T, 'q': q, 'p': t}
 
 
 if __name__ == '__main__':
