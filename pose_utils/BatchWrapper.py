@@ -170,6 +170,27 @@ def batched_outlier_filter(net, variables, **kwargs):
     return filters
 
 
+def matmul(variables, **kwargs):
+    m1 = kwargs.pop('m1', None)
+    m2 = kwargs.pop('m2', None)
+    get_pq =  kwargs.pop('get_pq', False)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    m1 = recc_acces(variables, m1)
+    m2 = recc_acces(variables, m2)
+
+    T = m1.matmul(m2)
+    if get_pq:
+        return {'T': T,
+                'p': T[:, :3, 3],
+                'q': torch.cat([utils.rot_to_quat(Ti[:3, :3]).unsqueeze(0) for Ti in T], 0)}
+    else:
+        return T
+
+
+
 def batched_icp(variable, **kwargs):
     batched_pc_ref = kwargs.pop('pc_ref', None)
     batched_pc_to_align = kwargs.pop('pc_to_align', None)

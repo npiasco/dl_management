@@ -9,6 +9,7 @@ import trainers.loss_functions
 import trainers.PoseTrainers
 import networks.Pose
 import networks.CustomArchi
+import networks.ICPNet
 import matplotlib.pyplot as plt
 import torch.utils.data as data
 import torchvision as torchvis
@@ -178,7 +179,7 @@ class MultNet(Default):
         mode = 'queries'
         self.data[dataset][mode].used_mod = [mod, aux_mod]
 
-        dtload = data.DataLoader(self.data[dataset][mode], batch_size=batch_size)
+        dtload = data.DataLoader(self.data[dataset][mode], batch_size=batch_size, shuffle=True)
         ccmap = plt.get_cmap('jet', lut=1024)
 
         for b in dtload:
@@ -251,12 +252,14 @@ class MultNet(Default):
                     variables = self.trainer._sequential_forward(action, variables, nets_to_test)
 
             ref_pc = trainers.minning_function.recc_acces(variables, ['model']).squeeze()
-            output_pose = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'T'])[0]
+            output_pose = trainers.minning_function.recc_acces(variables, ['Tf', 'T'])[0]
+            #output_pose = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'T'])[0]
             pc = trainers.minning_function.recc_acces(variables, ['pc']).squeeze()
             output_pc = output_pose.matmul(pc)
             gt_pose = trainers.minning_function.recc_acces(variables, ['batch', 'pose', 'T'])[0]
             gt_pc = gt_pose.matmul(pc)
             if 'posenet_pose' in variables.keys():
+                #posenet_pose = trainers.minning_function.recc_acces(variables, ['posenet_pose', 'T'])[0]
                 posenet_pose = trainers.minning_function.recc_acces(variables, ['posenet_pose', 'T'])[0]
                 posenet_pc = posenet_pose.matmul(pc)
 
