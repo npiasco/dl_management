@@ -7,6 +7,7 @@ import copy
 import collections as coll
 import torch.nn.functional as func
 import pose_utils.utils as putils
+import trainers.loss_functions as l_func
 
 
 logger = setlog.get_logger(__name__)
@@ -74,8 +75,8 @@ class PoseRegressor(nn.Module):
         else:
             x = self.regressor(x)
 
-        p = x[:, 0:3]
-        q = x[:, 3:]
+        p = x[:, 0:3].contiguous()
+        q = x[:, 3:].contiguous()
         T = x.new_zeros(x.size(0), 4, 4)
         T[:, :3, :3] = torch.cat([putils.quat_to_rot(sing_q).unsqueeze(0) for sing_q in func.normalize(q)], 0)
         T[:, :3, 3] = p
@@ -315,6 +316,34 @@ class Deconv(nn.Module):
                                 {'params': self.deconv.parameters()},
                                 {'params': self.fuse_layer.parameters()}] +
                                self.feature.get_training_layers('up_to_conv1')
+            }.get(name)
+        if not layers_to_train:
+            layers_to_train = self.layers_to_train
+        return sub_layers(layers_to_train)
+
+
+class AlphaWeights(nn.Module):
+    def __init__(self, **kwargs):
+        nn.Module.__init__(self)
+
+        init_weight = kwargs.pop('init_weight', (0.0, -3.0))
+        self.layers_to_train = kwargs.pop('layers_to_train', 'all')
+
+        if kwargs:
+            logger.error('Unexpected **kwargs: %r' % kwargs)
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        self.alpha = torch.nn.Parameter(torch.tensor(init_weight),
+                                        requires_grad=True)
+
+    def forward(self, p, gtp, q, gtq):
+        return l_func.mean_dist(p, gtp) * torch.exp(-1 * self.alpha[0]) + \
+               l_func.mean_dist(q, gtq) * torch.exp(-1 * self.alpha[1])
+
+    def get_training_layers(self, layers_to_train=None):
+        def sub_layers(name):
+            return {
+                'all': [{'params': self.parameters()}]
             }.get(name)
         if not layers_to_train:
             layers_to_train = self.layers_to_train

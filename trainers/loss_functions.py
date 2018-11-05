@@ -55,37 +55,6 @@ def minmax_pose_loss(p_ps, p_qs, gt_ps, gt_qs, **kwargs):
     return loss/(i+1)
 
 
-class AlphaWeights:
-    def __init__(self, init_weight=(0, -3), cuda=False):
-
-        self.alpha = torch.nn.Parameter(torch.FloatTensor(init_weight),
-                                        requires_grad=True)
-        if cuda:
-            self.cuda()
-
-    def combine(self, l1, l2):
-        return l1 * torch.exp(-1 * self.alpha[0]) + \
-               l2 * torch.exp(-1 * self.alpha[1])
-
-    @property
-    def params(self):
-        return [
-            {'params': self.alpha}
-        ]
-
-    def cuda(self):
-        self.alpha.data = self.alpha.data.cuda()
-
-    def cpu(self):
-        self.alpha.data = self.alpha.data.cpu()
-
-    def state_directory(self):
-        return self.alpha.data
-
-    def load_state_directory(self, data):
-        self.alpha.data = data
-
-
 class BetaWeights:
     def __init__(self, init_weight=312):
         self.beta = init_weight
@@ -154,7 +123,7 @@ def mult_triplet_margin_loss(anchor, positives, negatives, margin=0.25, p=2, eps
 
 
 def reg_loss(map_to_reg, im_ori, **kwargs):
-    fact = kwargs.pop('fact', 1)
+    fact = kwargs.pop('fact', 1e-2)
     reduce_factor = kwargs.pop('reduce_factor', 0.5)
 
     if kwargs:
