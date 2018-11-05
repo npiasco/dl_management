@@ -347,6 +347,12 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 variables,
                 **action['param']
             )
+        elif action['mode'] == 'mult_forward':
+            variables[action['out_name']] = action['func'](
+                [networks[net_name] for net_name in action['net_name']],
+                variables,
+                **action['param']
+            )
         elif action['mode'] == 'minning':
             variables[action['out_name']] = action['func'](
                 variables,
