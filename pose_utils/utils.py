@@ -7,6 +7,7 @@ import pathlib as path
 import PIL.Image
 import torchvision.transforms.functional as func
 import PIL.Image
+import time
 
 
 logger = setlog.get_logger(__name__)
@@ -130,6 +131,7 @@ def get_local_map(**kwargs):
     K = kwargs.pop('K', [[585, 0.0, 240], [0.0, 585, 240], [0.0, 0.0, 1.0]])
     frame_spacing = kwargs.pop('frame_spacing', 20)
     output_size = kwargs.pop('output_size', 5000)
+    reduce_computation = kwargs.pop('reduce_computation', 4)
     cnn_descriptor = kwargs.pop('cnn_descriptor', False)
     cnn_depth = kwargs.pop('cnn_depth', False)
     cnn_enc = kwargs.pop('cnn_enc', None)
@@ -137,6 +139,8 @@ def get_local_map(**kwargs):
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    t = time.time()
 
     # Loading files...
     env_var = os.environ[dataset]
@@ -149,8 +153,8 @@ def get_local_map(**kwargs):
     for i, folder in enumerate(folders):
         p = path.Path(folder)
         data += [(i, re.search('(?<=-)\d+', file.name).group(0))
-                 for file in p.iterdir()
-                 if file.is_file() and '.txt' in file.name]
+                 for j, file in enumerate(p.iterdir())
+                 if file.is_file() and '.txt' in file.name and j%reduce_computation == 0]
     poses = list()
     for fold, seq_num in data:
         pose_file = folders[fold] + 'frame-' + seq_num + '.pose.txt'
@@ -164,12 +168,14 @@ def get_local_map(**kwargs):
                         pass
         poses.append(pose)
 
+    print('Time file loading {}'.format(time.time() - t))
     # Nearest pose search
     eye_mat = T.new_zeros(4, 4)
     eye_mat[0, 0] = eye_mat[1, 1] = eye_mat[2, 2] = eye_mat[3, 3] = 1
     d_poses = [torch.norm(eye_mat - pose.matmul(T.inverse())).item() for pose in poses]
+    print('Time dist {}'.format(time.time() - t))
     nearest_idx = sorted(range(len(d_poses)), key=lambda k: d_poses[k])
-
+    print('Time tt {}'.format(time.time() - t))
     # Computing local pc
     K = T.new_tensor(K)
     K[0, :] *= resize_fact
@@ -235,6 +241,7 @@ def get_local_map(**kwargs):
         if cnn_descriptor:
             cnn_desc_out = cnn_desc_out[:, indexor]
             cnn_desc_out = cnn_desc_out[:, :output_size]
+    print('Time pc generation {}'.format(time.time() - t))
 
     if cnn_descriptor:
         return final_pc, cnn_desc_out
