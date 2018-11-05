@@ -60,6 +60,34 @@ def add_random_transform(variable, **kwargs):
     return noise_T
 
 
+def advanced_local_map_getter(nets, variable, **kwargs):
+    Ts = kwargs.pop('T', False)
+    descriptors_size = kwargs.pop('descriptors_size', 32)
+    map_args = kwargs.pop('map_args', dict())
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    Ts = recc_acces(variable, Ts)
+    size_pc = map_args.get('output_size', 2000)
+    cnn_descriptor = map_args.get('cnn_descriptor', False)
+
+    batched_local_maps = Ts.new_zeros(Ts.size(0), 4, size_pc)
+    if cnn_descriptor:
+        encoders = Ts.new_zeros(Ts.size(0), descriptors_size, size_pc)
+
+    for i, T in enumerate(Ts):
+        if cnn_descriptor:
+            batched_local_maps[i], encoders[i] = utils.get_local_map(T=T, **map_args, cnn_enc=nets[0], cnn_dec=nets[1])
+        else:
+            batched_local_maps[i] = utils.get_local_map(T=T, **map_args, cnn_enc=nets[0], cnn_dec=nets[1])
+
+    if cnn_descriptor:
+        return {'pc': batched_local_maps, 'descs': encoders}
+    else:
+        return batched_local_maps
+
+
 def batched_local_map_getter(variable, **kwargs):
     Ts = kwargs.pop('T', False)
     map_args = kwargs.pop('map_args', dict())

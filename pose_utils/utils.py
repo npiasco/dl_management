@@ -127,9 +127,13 @@ def get_local_map(**kwargs):
     sequences = kwargs.pop('sequences',  'TrainSplit.txt')
     num_pc = kwargs.pop('num_pc',  8)
     resize_fact = kwargs.pop('resize',  1/16)
-    K = kwargs.pop('K', [[585, 0.0, 320], [0.0, 585, 240], [0.0, 0.0, 1.0]])
+    K = kwargs.pop('K', [[585, 0.0, 240], [0.0, 585, 240], [0.0, 0.0, 1.0]])
     frame_spacing = kwargs.pop('frame_spacing', 20)
     output_size = kwargs.pop('output_size', 5000)
+    cnn_descriptor = kwargs.pop('cnn_descriptor', False)
+    cnn_depth = kwargs.pop('cnn_depth', False)
+    cnn_enc = kwargs.pop('cnn_enc', None)
+    cnn_dec = kwargs.pop('cnn_dec', None)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -171,31 +175,71 @@ def get_local_map(**kwargs):
     K[0, :] *= resize_fact
     K[1, :] *= resize_fact
     pcs = list()
-    for i in range(num_pc - 1, num_pc*frame_spacing, frame_spacing):
+    if cnn_descriptor:
+        descs = list()
+    for i in range(0, num_pc*frame_spacing, frame_spacing):
         fold, num = data[nearest_idx[i]]
-        file_name = folders[fold] + 'frame-' + num + '.depth.png'
-        depth = PIL.Image.open(file_name)
-        new_h = int(min(depth.size)*resize_fact)
-        if new_h/2 != min(K[0, 2].item(), K[1, 2].item()):
-            logger.warn('Resize factor is modifying the 3D geometry!! (fact={})'.format(resize_fact))
-        depth = func.to_tensor(
-            func.resize(func.resize(depth, new_h*2, interpolation=PIL.Image.NEAREST),
-                        new_h, interpolation=PIL.Image.NEAREST)
-        ).float()
-        depth[depth == 65535] = 0
-        depth *= 1e-3
-        depth = depth.to(T.device) # move on GPU if necessary
-
-        pcs.append(toSceneCoord(depth, poses[nearest_idx[i]], K, remove_zeros=True))
+        if cnn_descriptor or cnn_depth:
+            file_name = folders[fold] + 'frame-' + num + '.color.png'
+            im = PIL.Image.open(file_name)
+            new_h = int(min(im.size) * resize_fact * 2) # 2 time depth map by default
+            im = func.to_tensor(
+                func.center_crop(
+                    func.resize(im, new_h, interpolation=PIL.Image.BILINEAR),
+                    new_h
+                )
+            ).float()
+            im = im.to(T.device) # move on GPU if necessary
+            with torch.no_grad():
+                out_enc = cnn_enc(im.unsqueeze(0))
+            if cnn_descriptor:
+                desc = out_enc[cnn_descriptor].squeeze()
+                desc = desc.view(desc.size(0), -1)
+        if cnn_depth:
+            with torch.no_grad():
+                depth = cnn_dec(out_enc).squeeze(0)
+                depth = torch.reciprocal(depth.clamp(min=1e-8)) - 1 # Need to inverse the depth
+            pcs.append(toSceneCoord(depth, poses[nearest_idx[i]], K, remove_zeros=False))
+            if cnn_descriptor:
+                descs.append(desc)
+        else:
+            file_name = folders[fold] + 'frame-' + num + '.depth.png'
+            depth = PIL.Image.open(file_name)
+            new_h = int(min(depth.size)*resize_fact)
+            if new_h/2 != min(K[0, 2].item(), K[1, 2].item()):
+                logger.warn('Resize factor is modifying the 3D geometry!! (fact={})'.format(resize_fact))
+            depth = func.to_tensor(
+                func.center_crop(
+                    func.resize(func.resize(depth, new_h*2, interpolation=PIL.Image.NEAREST),
+                                new_h, interpolation=PIL.Image.NEAREST),
+                    new_h
+                )
+            ).float()
+            depth[depth == 65535] = 0
+            depth *= 1e-3
+            depth = depth.to(T.device) # move on GPU if necessary
+            if cnn_descriptor:
+                desc = desc[:, depth.view(1, -1).squeeze() != 0]
+                descs.append(desc)
+            pcs.append(toSceneCoord(depth, poses[nearest_idx[i]], K, remove_zeros=True))
 
     # Pruning step
     final_pc = torch.cat(pcs, 1)
+    if cnn_descriptor:
+        cnn_desc_out = torch.cat(descs, 1)
     logger.debug('Final points before pruning cloud has {} points'.format(final_pc.size(1)))
     if isinstance(output_size, int):
         indexor = torch.randperm(final_pc.size(1))
         final_pc = final_pc[:, indexor]
         final_pc = final_pc[:, :output_size]
-    return final_pc
+        if cnn_descriptor:
+            cnn_desc_out = cnn_desc_out[:, indexor]
+            cnn_desc_out = cnn_desc_out[:, :output_size]
+
+    if cnn_descriptor:
+        return final_pc, cnn_desc_out
+    else:
+        return final_pc
 
 
 if __name__ == '__main__':
