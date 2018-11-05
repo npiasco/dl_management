@@ -7,7 +7,6 @@ import pathlib as path
 import PIL.Image
 import torchvision.transforms.functional as func
 import PIL.Image
-import time
 import numpy as np
 
 
@@ -140,8 +139,6 @@ def get_local_map(**kwargs):
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    t = time.time()
-
     # Loading files...
     env_var = os.environ[dataset]
     folders = list()
@@ -168,7 +165,6 @@ def get_local_map(**kwargs):
                         pass
         poses.append(pose)
 
-    print('Time file loading {}'.format(time.time() - t))
     # Nearest pose search
     '''
     eye_mat = T.new_zeros(4, 4)
@@ -179,9 +175,7 @@ def get_local_map(**kwargs):
     eye_mat = np.eye(4, 4)
     d_poses = [np.linalg.norm(eye_mat - np.matmul(pose, InvnpT)) for pose in poses]
 
-    print('Time dist {}'.format(time.time() - t))
     nearest_idx = sorted(range(len(d_poses)), key=lambda k: d_poses[k])
-    print('Time tt {}'.format(time.time() - t))
     # Computing local pc
     K = T.new_tensor(K)
     K[0, :] *= resize_fact
@@ -247,7 +241,6 @@ def get_local_map(**kwargs):
         if cnn_descriptor:
             cnn_desc_out = cnn_desc_out[:, indexor]
             cnn_desc_out = cnn_desc_out[:, :output_size]
-    print('Time pc generation {}'.format(time.time() - t))
 
     if cnn_descriptor:
         return final_pc, cnn_desc_out
