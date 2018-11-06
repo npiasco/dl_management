@@ -99,6 +99,12 @@ class PoseRegressor(nn.Module):
             layers_to_train = self.layers_to_train
         return sub_layers(layers_to_train)
 
+    def full_save(self, discard_tf=False):
+        if discard_tf:
+            raise NotImplementedError('Functionality not implemented')
+        return {'regressor': self.regressor.state_dict(),}
+
+
 
 # Poses fusion layers
 class Mean(nn.Module):

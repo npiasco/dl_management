@@ -132,6 +132,11 @@ class PixEncoder(nn.Module):
         if layers_to_train == 'all':
             return [{'params': self.feature.parameters()}]
 
+    def full_save(self, discard_tf=False):
+        if discard_tf:
+            raise NotImplementedError('Functionality not implemented')
+        return {'feature': self.feature.state_dict(),}
+
 
 class PixDecoder(nn.Module):
     def __init__(self, **kwargs):
@@ -237,6 +242,11 @@ class PixDecoder(nn.Module):
             layers_to_train = self.layers_to_train
         if layers_to_train == 'all':
             return [{'params': self.feature.parameters()}]
+
+    def full_save(self, discard_tf=False):
+        if discard_tf:
+            raise NotImplementedError('Functionality not implemented')
+        return {'feature': self.feature.state_dict(), }
 
 
 class Softlier(nn.Module):
