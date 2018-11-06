@@ -1,6 +1,7 @@
 from _weakref import CallableProxyType
 
 import torch.nn as nn
+import torch.nn.functional as func_nn
 import torch
 import setlog
 import pose_utils.utils as utils
@@ -17,14 +18,20 @@ class CPNet(nn.Module):
         self.fact = kwargs.pop('fact', 2)
         self.reject_ratio = kwargs.pop('reject_ratio', 1)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
+        self.outlier_filter = kwargs.pop('outlier_filter', True)
+        self.use_dst_pt = kwargs.pop('use_dst_pt', True)
+        self.use_dst_desc = kwargs.pop('use_dst_desc', False)
+        self.normalize_desc = kwargs.pop('normalize_desc', True)
+        self.desc_p = kwargs.pop('desc_p', 2)
+
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
         self.softmax_1d = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
+        self.pdist = torch.nn.PairwiseDistance(p=1, keepdim=True)
 
-
-    def soft_knn(self, pc1, pc2):
+    def spatial_distance(self, pc1, pc2):
         pc1_extended = pc1.new_ones(pc1.size(1), 3 * 3)
         pc2_extended = pc2.new_ones(3 * 3, pc2.size(1))
 
@@ -44,9 +51,34 @@ class CPNet(nn.Module):
         pc2_extended[4, :] = pc2[1, :] * -2
         pc2_extended[7, :] = pc2[2, :] * -2
 
-
         d_matrix = pc1_extended.matmul(pc2_extended)
-        d_matrix = self.softmax_1d(self.fact * torch.reciprocal(d_matrix.clamp(min=self.eps)))
+
+        return d_matrix
+
+    def descriptor_distance(self, d1, d2):
+        '''
+        :param d1: desc of pc1, [s_desc, s_pc1]
+        :param d2:
+        :return:
+        '''
+
+        if self.normalize_desc:
+            d1 = func_nn.normalize(d1, dim=0)
+            d2 = func_nn.normalize(d2, dim=0)
+
+        d_matrix = torch.pow(d1.t().matmul(d2), self.desc_p)
+
+        return d_matrix
+
+    def soft_knn(self, pc1, pc2, *args):
+
+        distance = 1
+        if self.use_dst_pt:
+            distance *= torch.reciprocal(self.spatial_distance(pc1, pc2).clamp(min=self.eps))
+        if self.use_dst_desc:
+            if args:
+                distance *= self.descriptor_distance(args[0], args[1])
+        d_matrix = self.softmax_1d(self.fact * distance)
 
         pc_nearest = torch.cat([torch.sum(pc2 * prob, 1).unsqueeze(1) for i, prob in enumerate(d_matrix)], 1)
         mean_distance = torch.mean(torch.sum((pc1 - pc_nearest) ** 2, 0))
@@ -196,7 +228,7 @@ class CPNet(nn.Module):
             return []
 
 
-    def forward(self, pc1, pc2):
+    def forward(self, pc1, pc2, *args):
         '''
         Compute T from pc1 to pc2
 
@@ -210,13 +242,19 @@ class CPNet(nn.Module):
         t = pc1.new_zeros(pc1.size(0), 3)
 
         for i, pc in enumerate(pc1):
-            pc_nearest, _ = self.soft_knn(pc, pc2[i])
-            indexor = self.soft_outlier_rejection(pc, pc_nearest)
-            #T[i], q[i], t[i] = self.soft_tf(pc, pc_nearest, indexor)
-            T[i], q[i], t[i] = self.dlt(pc, pc_nearest, indexor)
+            if args:
+                pc_nearest, _ = self.soft_knn(pc, pc2[i], args[0][i], args[1][i])
+            else:
+                pc_nearest, _ = self.soft_knn(pc, pc2[i])
+            if self.outlier_filter:
+                indexor = self.soft_outlier_rejection(pc, pc_nearest)
+            else:
+                indexor = pc_nearest.new_ones(pc_nearest.size(1))
+
+            T[i], q[i], t[i] = self.soft_tf(pc, pc_nearest, indexor)
+            #T[i], q[i], t[i] = self.dlt(pc, pc_nearest, indexor)
             #print(T[i])
             #T[i], q[i], t[i] = self.directtf(pc, pc_nearest, indexor)
-            print(T[i])
 
         return {'T': T, 'q': q, 'p': t}
 
@@ -232,10 +270,15 @@ def normalize_rotmat(R):
     return R
 
 if __name__ == '__main__':
-    net = CPNet(fact=2000)
-    p1 = torch.rand(1, 4, 40)
+    torch.manual_seed(0)
+    device = 'cpu'
+    nb_pt = 22
+    net = CPNet(fact=2, outlier_filter=False, use_dst_desc=True, use_dst_pt=True, desc_p=2)
+    p1 = torch.rand(1, 4, nb_pt).to(device)
+    desc1 = torch.rand(1, 32, nb_pt).to(device)
+    desc2 = desc1
     p1[:, 3, :] = 1
-    T = torch.zeros(4, 4)
+    T = torch.zeros(4, 4).to(device)
     T[:3, :3] = utils.rotation_matrix(torch.tensor([1.0, 0, 0]), torch.tensor([0.05]))
     T[:3, 3] = torch.tensor([0.1, 0, 0])
     T[3, 3] = 1
@@ -245,7 +288,7 @@ if __name__ == '__main__':
     p1 + 0.001
     p2[:, 3, :] = 1
     """
-    T = net(p1, p2)
+    T = net(p1, p2, desc1, desc2)
     print(T['T'])
     """
     print(T['T'][0].matmul(p1))
