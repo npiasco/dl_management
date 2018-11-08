@@ -15,7 +15,7 @@ logger = setlog.get_logger(__name__)
 
 def depth_map_to_pc(depth_map, K, remove_zeros=False):
     p = [[[i, j, 1] for j in range(depth_map.size(1))] for i in range(depth_map.size(2))]
-    p = depth_map.new_tensor(p).transpose(0, 2)
+    p = depth_map.new_tensor(p).transpose(0, 2).contiguous()
 
     inv_K = K.inverse()
     p_d = (p * depth_map).view(3, -1)
@@ -135,6 +135,7 @@ def get_local_map(**kwargs):
     cnn_depth = kwargs.pop('cnn_depth', False)
     cnn_enc = kwargs.pop('cnn_enc', None)
     cnn_dec = kwargs.pop('cnn_dec', None)
+    no_grad = kwargs.pop('no_grad', True)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -196,16 +197,24 @@ def get_local_map(**kwargs):
                 )
             ).float()
             im = im.to(T.device) # move on GPU if necessary
-            with torch.no_grad():
+            if no_grad:
+                with torch.no_grad():
+                    out_enc = cnn_enc(im.unsqueeze(0))
+            else:
                 out_enc = cnn_enc(im.unsqueeze(0))
             if cnn_descriptor:
                 desc = out_enc[cnn_descriptor].squeeze()
                 desc = desc.view(desc.size(0), -1)
         if cnn_depth:
-            with torch.no_grad():
+            if no_grad:
+                with torch.no_grad():
+                    depth = cnn_dec(out_enc).squeeze(0)
+            else:
                 depth = cnn_dec(out_enc).squeeze(0)
-                depth = torch.reciprocal(depth.clamp(min=1e-8)) - 1 # Need to inverse the depth
-            pcs.append(toSceneCoord(depth, torch.from_numpy(poses[nearest_idx[i]]).to(T.device), K, remove_zeros=False))
+
+            depth = torch.reciprocal(depth.clamp(min=1e-8)) - 1  # Need to inverse the depth
+            pcs.append(
+                toSceneCoord(depth, torch.from_numpy(poses[nearest_idx[i]]).to(T.device), K, remove_zeros=False))
             if cnn_descriptor:
                 descs.append(desc)
         else:
@@ -264,3 +273,4 @@ if __name__ == '__main__':
     print(2*torch.acos(torch.abs(torch.dot(q, quat))) * 180/3.14156092)
     print(rot_to_quat(rot))
     print(rot_to_quat(rot.t()))
+    print(rot_to_quat(torch.eye(3,3)))
