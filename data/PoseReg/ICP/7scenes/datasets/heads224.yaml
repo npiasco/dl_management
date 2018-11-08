@@ -4,8 +4,8 @@ train:
         root: 'heads/'
         transform:
             first:
-                - {class: 'datasets.multmodtf.Resize', param_class: {size: 124}}
-                - {class: 'datasets.multmodtf.RandomCrop', param_class: {size: 112}}
+                - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}
+                - {class: 'datasets.multmodtf.RandomCrop', param_class: {size: 224}}
             rgb:
                 - {class: 'datasets.multmodtf.ToTensor', param_class:}
             depth:
@@ -19,8 +19,8 @@ test:
             root: 'heads/'
             transform:
                 first:
-                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 112}}
-                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 112}}
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 224}}
+                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
 
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
@@ -34,8 +34,8 @@ test:
             root: 'heads/'
             transform:
                 first:
-                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 112}}
-                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 112}}
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 224}}
+                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                 depth:
@@ -50,8 +50,8 @@ val:
             root: 'heads/'
             transform:
                 first:
-                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 112}}
-                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 112}}
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 224}}
+                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                 depth:
@@ -64,8 +64,8 @@ val:
             root: 'heads/'
             transform:
                 first:
-                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 112}}
-                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 112}}
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 224}}
+                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                 depth:
