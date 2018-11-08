@@ -92,7 +92,8 @@ class PoseRegressor(nn.Module):
     def get_training_layers(self, layers_to_train=None):
         def sub_layers(name):
             return {
-                'all': [{'params': self.regressor.parameters()}]
+                'all': [{'params': self.regressor.parameters()}],
+                'no': [],
             }.get(name)
 
         if not layers_to_train:
@@ -103,7 +104,6 @@ class PoseRegressor(nn.Module):
         if discard_tf:
             raise NotImplementedError('Functionality not implemented')
         return {'regressor': self.regressor.state_dict(),}
-
 
 
 # Poses fusion layers

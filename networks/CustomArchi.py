@@ -131,6 +131,8 @@ class PixEncoder(nn.Module):
             layers_to_train = self.layers_to_train
         if layers_to_train == 'all':
             return [{'params': self.feature.parameters()}]
+        elif layers_to_train == 'no':
+            return []
 
     def full_save(self, discard_tf=False):
         if discard_tf:
@@ -242,6 +244,8 @@ class PixDecoder(nn.Module):
             layers_to_train = self.layers_to_train
         if layers_to_train == 'all':
             return [{'params': self.feature.parameters()}]
+        elif layers_to_train == 'no':
+            return []
 
     def full_save(self, discard_tf=False):
         if discard_tf:
