@@ -23,9 +23,13 @@ class CPNet(nn.Module):
         self.use_dst_desc = kwargs.pop('use_dst_desc', False)
         self.normalize_desc = kwargs.pop('normalize_desc', True)
         self.desc_p = kwargs.pop('desc_p', 2)
+        self.pose_solver = kwargs.pop('pose_solver', 'svd')
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        if self.pose_solver not in ('svd', 'eig', 'dlt', 'lsq'):
+            raise AttributeError('No pose solver named {}'.format(self.pose_solver))
 
         self.softmax_1d = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
@@ -81,7 +85,8 @@ class CPNet(nn.Module):
         d_matrix = self.softmax_1d(self.fact * distance)
 
         pc_nearest = torch.cat([torch.sum(pc2 * prob, 1).unsqueeze(1) for i, prob in enumerate(d_matrix)], 1)
-        mean_distance = torch.mean(torch.sum((pc1 - pc_nearest) ** 2, 0))
+
+        mean_distance = torch.mean(func_nn.pairwise_distance(pc1.t(), pc_nearest.t(), p=2))
 
         return pc_nearest, mean_distance
 
@@ -118,6 +123,43 @@ class CPNet(nn.Module):
         T[3, 3] = 1
 
         return T, utils.rot_to_quat(R), t
+
+    def quat_tf(self, pc1, pc2, indexor):
+        pc2_centroid = torch.sum(pc2[:3, :] * indexor, -1) / torch.sum(indexor)
+        pc2_centred = ((pc2[:3, :].t() - pc2_centroid).t() * indexor).t()
+
+        pc1_centroid = torch.sum(pc1[:3, :] * indexor, -1) / torch.sum(indexor)
+        pc1_centred = ((pc1[:3, :].t() - pc1_centroid).t() * indexor).t()
+
+        S = torch.matmul(pc1_centred.t(), pc2_centred) / pc1.size(1)
+        s = pc1_centred.new_tensor([S[1, 2] -  S[2, 1], S[2, 0] -  S[0, 2], S[0, 1] -  S[1, 0]])
+        eye_mat = pc1_centred.new_zeros(3, 3)
+        eye_mat[0, 0] = eye_mat[1, 1] = eye_mat[2, 2] = 1
+        W = pc1_centred.new_zeros(4, 4)
+        W[0, 0] = torch.trace(S)
+        W[0, 1:] = s
+        W[1:, 0] = s
+        W[1:, 1:] = S + S.t() - torch.trace(S)*eye_mat
+
+        #e, v = torch.eig(W, eigenvectors=True)
+        e, v = torch.symeig(W, eigenvectors=True)
+
+        q = v.t()[torch.argmax(e)]
+        #q = v[torch.argmax(e[:, 0])]
+        #q = q.new_tensor([q[3], q[0], q[1], q[2]])
+
+        R = utils.quat_to_rot(q)
+
+        # translation
+        t = pc2_centroid - torch.matmul(R, pc1_centroid)
+
+        # homogeneous transformation
+        T = pc2.new_zeros(4, 4)
+        T[:3, :3] = R
+        T[:3, 3] = t
+        T[3, 3] = 1
+
+        return T, q, t
 
     def directtf(self, pc1, pc2, indexor):
         _, indices = torch.unique(pc2[0, :], return_inverse=True)
@@ -240,23 +282,28 @@ class CPNet(nn.Module):
         T = pc1.new_zeros(pc1.size(0), 4, 4)
         q = pc1.new_zeros(pc1.size(0), 4)
         t = pc1.new_zeros(pc1.size(0), 3)
+        errors = pc1.new_zeros(pc1.size(0), 1)
 
         for i, pc in enumerate(pc1):
             if args:
-                pc_nearest, _ = self.soft_knn(pc, pc2[i], args[0][i], args[1][i])
+                pc_nearest, errors[i] = self.soft_knn(pc, pc2[i], args[0][i], args[1][i])
             else:
-                pc_nearest, _ = self.soft_knn(pc, pc2[i])
+                pc_nearest, errors[i] = self.soft_knn(pc, pc2[i])
             if self.outlier_filter:
                 indexor = self.soft_outlier_rejection(pc, pc_nearest)
             else:
                 indexor = pc_nearest.new_ones(pc_nearest.size(1))
 
-            T[i], q[i], t[i] = self.soft_tf(pc, pc_nearest, indexor)
-            #T[i], q[i], t[i] = self.dlt(pc, pc_nearest, indexor)
-            #print(T[i])
-            #T[i], q[i], t[i] = self.directtf(pc, pc_nearest, indexor)
+            if self.pose_solver == 'svd':
+                T[i], q[i], t[i] = self.soft_tf(pc, pc_nearest, indexor)
+            elif self.pose_solver == 'eig':
+                T[i], q[i], t[i] = self.quat_tf(pc, pc_nearest, indexor)
+            elif self.pose_solver == 'dlt':
+                T[i], q[i], t[i] = self.dlt(pc, pc_nearest, indexor)
+            elif self.pose_solver == 'lsq':
+                T[i], q[i], t[i] = self.directtf(pc, pc_nearest, indexor)
 
-        return {'T': T, 'q': q, 'p': t}
+        return {'T': T, 'q': q, 'p': t, 'err': errors}
 
 def normalize_rotmat(R):
     z = R[:, 2]/torch.norm(R[:, 2])
@@ -270,10 +317,10 @@ def normalize_rotmat(R):
     return R
 
 if __name__ == '__main__':
-    torch.manual_seed(0)
+    torch.manual_seed(1)
     device = 'cpu'
-    nb_pt = 22
-    net = CPNet(fact=2, outlier_filter=False, use_dst_desc=True, use_dst_pt=True, desc_p=2)
+    nb_pt = 24
+    net = CPNet(fact=2, outlier_filter=True, use_dst_desc=True, use_dst_pt=True, desc_p=2, pose_solver='eig')
     p1 = torch.rand(1, 4, nb_pt).to(device)
     desc1 = torch.rand(1, 32, nb_pt).to(device)
     desc2 = desc1
