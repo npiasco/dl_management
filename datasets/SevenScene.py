@@ -1,3 +1,4 @@
+import time
 import setlog
 import torch.utils.data as utils
 import datasets.custom_quaternion as custom_q
@@ -41,7 +42,6 @@ class Base(utils.Dataset):
 
         self.root_path = kwargs.pop('root', None)
         self.folders = kwargs.pop('folders', None)
-        self.depth_factor = kwargs.pop('depth_factor', 1e-3)  # Depth in meter
         self.error_value = kwargs.pop('error_value', 65535)
         self.pose_tf = kwargs.pop('pose_tf', matrix_2_quaternion)
         self.transform = kwargs.pop('transform', None)
@@ -128,6 +128,47 @@ class Train(Base):
         self.data = [dat for i, dat in enumerate(self.data) if i % step != 0]
 
 
+class TrainSequence(Train):
+    def __init__(self, **kwargs):
+
+        self.num_samples = kwargs.pop('num_samples', 2)
+        self.spacing = kwargs.pop('spacing', 20)
+        self.random = kwargs.pop('random', True)
+
+        Train.__init__(self, **kwargs)
+
+        self.poses = list()
+        for fold, seq_num in self.data:
+            pose_file = self.folders[fold] + 'frame-' + seq_num + '.pose.txt'
+            pose = np.ndarray((4, 4), dtype=np.float32)
+            with open(pose_file, 'r') as pose_file_pt:
+                for i, line in enumerate(pose_file_pt):
+                    for j, c in enumerate(line.split('\t')):
+                        try:
+                            pose[i, j] = float(c)
+                        except ValueError:
+                            pass
+            self.poses.append(pose)
+
+    def __getitem__(self, idx):
+        T = self.poses[idx]
+        InvnpT = np.linalg.inv(T)
+        eye_mat = np.eye(4, 4)
+        d_poses = [np.linalg.norm(eye_mat - np.matmul(pose, InvnpT)) for pose in self.poses]
+        nearest_idx = np.argsort(d_poses)
+        if self.random:
+            nearest_idx = nearest_idx[1:(self.num_samples * self.spacing)]
+            indexor = torch.randperm(self.num_samples * self.spacing-1).numpy()
+            nearest_idx = nearest_idx[indexor]
+            nearest_idx.put(0, idx)
+
+        samples = list()
+        for i in range(0, self.num_samples * self.spacing, self.spacing):
+            samples.append(Train.__getitem__(self, nearest_idx[i]))
+
+        return samples
+
+
 class Test(Base):
     def __init__(self, **kwargs):
         default_tf = {
@@ -177,6 +218,11 @@ def show_batch(sample_batched):
     grid = torchvis.utils.make_grid(sample_batched['rgb'])
     plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
+def show_seq_batch(sample_batched):
+    """Show image with landmarks for a batch of samples."""
+    grid = torchvis.utils.make_grid(torch.cat([batched['rgb'] for batched in sample_batched]))
+    plt.imshow(grid.numpy().transpose((1, 2, 0)))
+
 
 def show_batch_mono(sample_batched):
     """Show image with landmarks for a batch of samples."""
@@ -189,7 +235,7 @@ if __name__ == '__main__':
 
     logger.setLevel('INFO')
     test_tf = {
-            'first': (tf.Resize(256), tf.CenterCrop(224)),
+            'first': (tf.Resize(256), tf.CenterCrop(256)),
             'rgb': (tf.ToTensor(), ),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
@@ -200,8 +246,7 @@ if __name__ == '__main__':
     root = os.environ['SEVENSCENES'] + 'chess/'
 
     train_dataset = Train(root=root,
-                          transform=test_tf,
-                          depth_factor=1e-3)
+                          transform=test_tf)
 
     train_dataset_wo_tf = Train(root=root,
                                 transform=test_tf_wo_tf,
@@ -213,7 +258,12 @@ if __name__ == '__main__':
     print(len(test_dataset))
     print(len(val_dataset))
 
-    dataloader = data.DataLoader(train_dataset, batch_size=4, shuffle=False, num_workers=8)
+    train_seq_dataset = TrainSequence(root=root,
+                                      transform=test_tf,
+                                      num_samples=3,
+                                      random=True)
+
+    dataloader = data.DataLoader(train_seq_dataset, batch_size=1, shuffle=False, num_workers=1)
     '''
     dataloader_wo_tf = data.DataLoader(train_dataset_wo_tf, batch_size=8, shuffle=False, num_workers=2)
     plt.figure(1)
@@ -224,13 +274,11 @@ if __name__ == '__main__':
     show_batch(tmp_batch)
     plt.show()
     '''
-    print(train_dataset.data)
-    print(val_dataset.data)
     plt.ion()
     plt.show()
     plt.figure(1)
     for i, b in enumerate(dataloader):
-        show_batch(b)
+        show_seq_batch(b)
         print(i)
-        plt.pause(0.02)
+        plt.pause(0.5)
         del b
