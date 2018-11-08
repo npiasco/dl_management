@@ -220,7 +220,7 @@ def show_batch(sample_batched):
 
 def show_seq_batch(sample_batched):
     """Show image with landmarks for a batch of samples."""
-    grid = torchvis.utils.make_grid(torch.cat([batched['rgb'] for batched in sample_batched]))
+    grid = torchvis.utils.make_grid(torch.cat([batched['rgb'] for batched in sample_batched]), nrow=2)
     plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
 
@@ -263,7 +263,7 @@ if __name__ == '__main__':
                                       num_samples=3,
                                       random=True)
 
-    dataloader = data.DataLoader(train_seq_dataset, batch_size=1, shuffle=False, num_workers=1)
+    dataloader = data.DataLoader(train_seq_dataset, batch_size=2, shuffle=True, num_workers=8)
     '''
     dataloader_wo_tf = data.DataLoader(train_dataset_wo_tf, batch_size=8, shuffle=False, num_workers=2)
     plt.figure(1)
@@ -280,5 +280,5 @@ if __name__ == '__main__':
     for i, b in enumerate(dataloader):
         show_seq_batch(b)
         print(i)
-        plt.pause(0.5)
+        plt.pause(2)
         del b
