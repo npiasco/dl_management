@@ -160,6 +160,18 @@ def batch_forward(net, batch, **kwargs):
     return forward
 
 
+def detach_input(variables, **kwargs):
+    inputs = kwargs.pop('inputs', None)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    inputs = recc_acces(variables, inputs)
+    inputs = inputs.detach()
+
+    return inputs
+
+
 def batch_to_var(net, batch, **kwargs):
     # TODO: Automatically inside the training loop
     mode = kwargs.pop('mode', None)
