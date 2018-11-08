@@ -1,5 +1,6 @@
 import pose_utils.ICP as ICP
 import torch
+import torch.nn.functional as nn_func
 import pose_utils.utils as utils
 from trainers.minning_function import recc_acces
 import numpy as np
@@ -83,7 +84,7 @@ def advanced_local_map_getter(nets, variable, **kwargs):
             batched_local_maps[i] = utils.get_local_map(T=T, **map_args, cnn_enc=nets[0], cnn_dec=nets[1])
 
     if cnn_descriptor:
-        return {'pc': batched_local_maps, 'descs': encoders}
+        return {'pc': batched_local_maps, 'desc': encoders}
     else:
         return batched_local_maps
 
@@ -116,12 +117,17 @@ def batched_depth_map_to_pc(variable, **kwargs):
     inverse_depth = kwargs.pop('inverse_depth', True)
     remove_zeros = kwargs.pop('remove_zeros', False)
     eps = kwargs.pop('eps', 1e-8)
+    scale_factor = kwargs.pop('scale_factor', None)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     batched_depth_maps = recc_acces(variable, depth_maps)
     K = recc_acces(variable, K)
+
+    if scale_factor is not None:
+        K[:, :2, :] *= scale_factor
+        batched_depth_maps = nn_func.interpolate(batched_depth_maps, scale_factor=scale_factor, mode='nearest')
 
     n_batch, _, height, width = batched_depth_maps.size()
     if remove_zeros:
@@ -139,6 +145,22 @@ def batched_depth_map_to_pc(variable, **kwargs):
             batched_pc[i, :, :] = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros)
 
     return batched_pc
+
+
+def resize(variable, **kwargs):
+    inputs = kwargs.pop('inputs', None)
+    scale_factor = kwargs.pop('scale_factor', None)
+    flatten = kwargs.pop('flatten', True)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    inputs = recc_acces(variable, inputs)
+    inputs = nn_func.interpolate(inputs, scale_factor=scale_factor, mode='nearest')
+    if flatten:
+        inputs = inputs.view(inputs.size(0),inputs.size(1), -1)
+
+    return inputs
 
 
 def batched_pc_pruning(variable, **kwargs):
