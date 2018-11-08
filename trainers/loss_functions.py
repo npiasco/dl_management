@@ -37,6 +37,17 @@ def T_loss(predicted, gt, fact=1):
     return fact*loss/(i+1)
 
 
+def Identity_loss(predicted, fact=1):
+    eye_mat = predicted.new_zeros(4, 4)
+    eye_mat[0, 0] = eye_mat[1, 1] = eye_mat[2, 2] = eye_mat[3, 3] = 1
+
+    loss = 0
+    for i, T in enumerate(predicted):
+        loss += torch.norm(eye_mat - T)
+
+    return fact*loss/(i+1)
+
+
 def minmax_pose_loss(p_ps, p_qs, gt_ps, gt_qs, **kwargs):
     pose_factor = kwargs.pop('pose_factor', 1)
     ori_factor = kwargs.pop('ori_factor', 1)
