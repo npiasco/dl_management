@@ -137,6 +137,9 @@ def batched_depth_map_to_pc(variable, **kwargs):
     K = recc_acces(variable, K)
 
     if scale_factor is not None:
+        if (1/scale_factor)%2 != 0:
+            raise ValueError('Scale factor is not a multiple of 2 (1/scale is {})'.format(1/scale_factor))
+        K = K.clone()
         K[:, :2, :] *= scale_factor
         batched_depth_maps = nn_func.interpolate(batched_depth_maps, scale_factor=scale_factor, mode='nearest')
 
@@ -300,7 +303,7 @@ def batched_icp_desc(variable, **kwargs):
             args = [batched_desc_to_align[i], batched_desc_ref[i]]
 
         computed_pose, _ = ICP.ICPwNet(pc_to_align,
-                                       batched_pc_ref[i, :, :],
+                                       batched_pc_ref[i],
                                        batched_init_T[i],
                                        *args,
                                        **param_icp)
