@@ -213,6 +213,11 @@ class MultNet(Default):
             plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
             plt.colorbar()
 
+            plt.figure(2)
+            images_batch = torch.cat((torch.abs(modality - inv_output.detach()).cpu(), torch.abs(inv_mod - output.detach()).cpu()))
+            grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
+            plt.imshow(grid.numpy().transpose(1, 2, 0), cmap=None)
+
             plt.figure(3)
             grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=batch_size)
             plt.imshow(grid.numpy().transpose(1, 2, 0))
@@ -251,15 +256,16 @@ class MultNet(Default):
                 for action in self.trainer.eval_forwards['queries']:
                     variables = self.trainer._sequential_forward(action, variables, nets_to_test)
 
-            ref_pc = trainers.minning_function.recc_acces(variables, ['model']).squeeze()
-            output_pose = trainers.minning_function.recc_acces(variables, ['Tf', 'T'])[0]
+            #ref_pc = trainers.minning_function.recc_acces(variables, ['model']).squeeze()
+            ref_pc = trainers.minning_function.recc_acces(variables, ['model', 'pc']).squeeze()
+            #output_pose = trainers.minning_function.recc_acces(variables, ['Tf', 'T'])[0]
             #output_pose = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'T'])[0]
+            output_pose = trainers.minning_function.recc_acces(variables, ['F_pose', 'T'])[0]
             pc = trainers.minning_function.recc_acces(variables, ['pc']).squeeze()
             output_pc = output_pose.matmul(pc)
             gt_pose = trainers.minning_function.recc_acces(variables, ['batch', 'pose', 'T'])[0]
             gt_pc = gt_pose.matmul(pc)
             if 'posenet_pose' in variables.keys():
-                #posenet_pose = trainers.minning_function.recc_acces(variables, ['posenet_pose', 'T'])[0]
                 posenet_pose = trainers.minning_function.recc_acces(variables, ['posenet_pose', 'T'])[0]
                 posenet_pc = posenet_pose.matmul(pc)
 
@@ -274,8 +280,14 @@ class MultNet(Default):
                 print(posenet_pose)
 
             print('Diff distance = {} m'.format(torch.norm(gt_pose[:, 3] - output_pose[:, 3]).item()))
+            gtq = trainers.minning_function.recc_acces(variables, ['batch', 'pose', 'orientation'])[0]
+            #q = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'q'])[0]
+            q = trainers.minning_function.recc_acces(variables, ['F_pose', 'q'])[0]
+            print('Diff orientation = {} deg'.format(2 * torch.acos(torch.abs(gtq.dot(q))) * 180 / 3.14159260))
             if 'posenet_pose' in variables.keys():
                 print('Diff distance = {} m (posenet)'.format(torch.norm(gt_pose[:, 3] - posenet_pose[:, 3]).item()))
+                posenetq = trainers.minning_function.recc_acces(variables, ['posenet_pose', 'q'])[0]
+                print('Diff orientation = {} deg (posenet)'.format(2*torch.acos(torch.abs(gtq.dot(posenetq)))*180/3.14159260) )
             if 'noised_T' in variables.keys():
                 noise_pose = trainers.minning_function.recc_acces(variables, ['noised_T']).squeeze()
                 print('Noised pose:')
@@ -286,7 +298,9 @@ class MultNet(Default):
             ax = fig.add_subplot(111, projection='3d')
 
             pc_utils.plt_pc(ref_pc.cpu(), ax, pas, 'b')
-            #pc_utils.plt_pc(gt_pc.cpu(), ax, pas, 'c')
+            pc_utils.plt_pc(gt_pc.cpu(), ax, pas, 'c')
+            if 'posenet_pose' in variables.keys():
+                pc_utils.plt_pc(posenet_pc.cpu(), ax, pas, 'm')
             pc_utils.plt_pc(output_pc.cpu(), ax, pas, 'r')
             plt.show()
 
