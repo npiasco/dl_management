@@ -36,7 +36,7 @@ def toSceneCoord(depth, pose, K, remove_zeros=False):
     return X
 
 
-def plt_pc(pc, ax, pas = 50, color='b'):
+def plt_pc(pc, ax, pas = 50, color='b', size=20):
     x = pc[0, :].view(1, -1).cpu().numpy()[0]
     x = [x[i] for i in range(0, len(x), pas)]
     y = pc[1, :].view(1, -1).cpu().numpy()[0]
@@ -44,7 +44,7 @@ def plt_pc(pc, ax, pas = 50, color='b'):
     z = pc[2, :].view(1, -1).cpu().numpy()[0]
     z = [z[i] for i in range(0, len(z), pas)]
 
-    ax.scatter(x, y, z, c=color, depthshade=True)
+    ax.scatter(x, y, z, c=color, depthshade=True, s=size)
 
 
 def rotation_matrix(axis, theta):
