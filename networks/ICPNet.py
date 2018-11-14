@@ -24,6 +24,7 @@ class CPNet(nn.Module):
         self.normalize_desc = kwargs.pop('normalize_desc', True)
         self.desc_p = kwargs.pop('desc_p', 2)
         self.pose_solver = kwargs.pop('pose_solver', 'svd')
+        knn = kwargs.pop('knn', 'soft')
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -32,8 +33,17 @@ class CPNet(nn.Module):
             raise AttributeError('No pose solver named {}'.format(self.pose_solver))
 
         self.softmax_1d = nn.Softmax(dim=1)
+        self.softmax_0d = nn.Softmax(dim=0)
         self.sigmoid = nn.Sigmoid()
         self.pdist = torch.nn.PairwiseDistance(p=1, keepdim=True)
+        self.is_hard_knn = False
+        if knn == 'soft':
+            self.knn = self.soft_knn
+        elif knn == 'hard':
+            self.knn = self.hard_knn
+            self.is_hard_knn = True
+        else:
+            raise('Unknown knn type {}'.format(knn))
 
     def spatial_distance(self, pc1, pc2):
         pc1_extended = pc1.new_ones(pc1.size(1), 3 * 3)
@@ -73,6 +83,29 @@ class CPNet(nn.Module):
         d_matrix = torch.pow(d1.t().matmul(d2), self.desc_p)
 
         return d_matrix
+
+    def hard_knn(self, pc1, pc2, *args):
+        distance = 1
+        if self.use_dst_pt:
+            distance *= torch.reciprocal(self.spatial_distance(pc1, pc2).clamp(min=self.eps))
+        if self.use_dst_desc:
+            if args:
+                distance *= self.descriptor_distance(args[0], args[1])
+
+        d_matrix = self.softmax_1d(self.fact * distance)
+        d_matrix_bi = self.softmax_0d(self.fact * distance)
+        pc_nearest = pc1.clone()
+        indexor = pc1.new_zeros(pc1.size(1))
+        for i, pt in enumerate(pc1.t()):
+            idx_1 = torch.argmax(d_matrix[i, :], 0)
+            idx_2 = torch.argmax(d_matrix_bi[:, idx_1], 0)
+            if i == idx_2.item():
+                pc_nearest[:, i] = pc2[:, idx_1]
+                indexor[i] = 1
+
+        mean_distance = torch.mean(func_nn.pairwise_distance(pc1.t(), pc_nearest.t(), p=2))
+
+        return pc_nearest, mean_distance, indexor
 
     def soft_knn(self, pc1, pc2, *args):
 
@@ -286,14 +319,21 @@ class CPNet(nn.Module):
 
         for i, pc in enumerate(pc1):
             if args:
-                pc_nearest, errors[i] = self.soft_knn(pc, pc2[i], args[0][i], args[1][i])
+                if self.is_hard_knn:
+                    pc_nearest, errors[i], indexor = self.knn(pc, pc2[i], args[0][i], args[1][i])
+                else:
+                    pc_nearest, errors[i] = self.knn(pc, pc2[i], args[0][i], args[1][i])
             else:
-                pc_nearest, errors[i] = self.soft_knn(pc, pc2[i])
-            if self.outlier_filter:
-                indexor = self.soft_outlier_rejection(pc, pc_nearest)
-            else:
-                indexor = pc_nearest.new_ones(pc_nearest.size(1))
+                if self.is_hard_knn:
+                    pc_nearest, errors[i], indexor = self.knn(pc, pc2[i])
+                else:
+                    pc_nearest, errors[i] = self.knn(pc, pc2[i])
 
+            if not self.is_hard_knn:
+                if self.outlier_filter:
+                    indexor = self.soft_outlier_rejection(pc, pc_nearest)
+                else:
+                    indexor = pc_nearest.new_ones(pc_nearest.size(1))
             if self.pose_solver == 'svd':
                 T[i], q[i], t[i] = self.soft_tf(pc, pc_nearest, indexor)
             elif self.pose_solver == 'eig':
@@ -304,6 +344,150 @@ class CPNet(nn.Module):
                 T[i], q[i], t[i] = self.directtf(pc, pc_nearest, indexor)
 
         return {'T': T, 'q': q, 'p': t, 'err': errors}
+
+
+class MatchNet(nn.Module):
+    def __init__(self, **kwargs):
+        nn.Module.__init__(self)
+
+        self.eps = kwargs.pop('eps', 1e-5)
+        self.fact = kwargs.pop('fact', 2)
+        self.reject_ratio = kwargs.pop('reject_ratio', 1)
+        self.layers_to_train = kwargs.pop('layers_to_train', 'all')
+        self.outlier_filter = kwargs.pop('outlier_filter', True)
+        self.use_dst_pt = kwargs.pop('use_dst_pt', True)
+        self.use_dst_desc = kwargs.pop('use_dst_desc', False)
+        self.normalize_desc = kwargs.pop('normalize_desc', True)
+        self.desc_p = kwargs.pop('desc_p', 2)
+        knn = kwargs.pop('knn', 'soft')
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        if knn == 'soft':
+            self.knn = self.soft_knn
+        elif knn == 'hard':
+            self.knn = self.hard_knn
+        else:
+            raise('Unknown knn type {}'.format(knn))
+
+        self.softmax_1d = nn.Softmax(dim=1)
+        self.softmax_0d = nn.Softmax(dim=0)
+        self.sigmoid = nn.Sigmoid()
+        self.pdist = torch.nn.PairwiseDistance(p=1, keepdim=True)
+
+    def spatial_distance(self, pc1, pc2):
+        pc1_extended = pc1.new_ones(pc1.size(1), 3 * 3)
+        pc2_extended = pc2.new_ones(3 * 3, pc2.size(1))
+
+        pc1_square = pc1 ** 2
+        pc1_extended[:, 2] = pc1_square[0, :]
+        pc1_extended[:, 5] = pc1_square[1, :]
+        pc1_extended[:, 8] = pc1_square[2, :]
+        pc1_extended[:, 1] = pc1[0, :]
+        pc1_extended[:, 4] = pc1[1, :]
+        pc1_extended[:, 7] = pc1[2, :]
+
+        pc2_square = pc2 ** 2
+        pc2_extended[0, :] = pc2_square[0, :]
+        pc2_extended[3, :] = pc2_square[1, :]
+        pc2_extended[6, :] = pc2_square[2, :]
+        pc2_extended[1, :] = pc2[0, :] * -2
+        pc2_extended[4, :] = pc2[1, :] * -2
+        pc2_extended[7, :] = pc2[2, :] * -2
+
+        d_matrix = pc1_extended.matmul(pc2_extended)
+
+        return d_matrix
+
+    def descriptor_distance(self, d1, d2):
+        '''
+        :param d1: desc of pc1, [s_desc, s_pc1]
+        :param d2:
+        :return:
+        '''
+        # Desc flattening
+        d1 = d1.view(d1.size(0), -1)
+        d2 = d2.view(d2.size(0), -1)
+        if self.normalize_desc:
+            d1 = func_nn.normalize(d1, dim=0)
+            d2 = func_nn.normalize(d2, dim=0)
+
+        d_matrix = torch.pow(d1.t().matmul(d2), self.desc_p)
+
+        return d_matrix
+
+
+    def hard_knn(self, pc1, pc2, *args):
+        distance = 1
+        if self.use_dst_pt:
+            distance *= torch.reciprocal(self.spatial_distance(pc1, pc2).clamp(min=self.eps))
+        if self.use_dst_desc:
+            if args:
+                distance *= self.descriptor_distance(args[0], args[1])
+
+        d_matrix = self.softmax_1d(self.fact * distance)
+        d_matrix_bi = self.softmax_0d(self.fact * distance)
+        pc_nearest = pc1.clone()
+        for i, pt in enumerate(pc1.t()):
+            idx_1 = torch.argmax(d_matrix[i, :], 0)
+            idx_2 = torch.argmax(d_matrix_bi[:, idx_1], 0)
+            if i == idx_2.item():
+                pc_nearest[:, i] = pc2[:, idx_1]
+
+        return pc_nearest
+
+
+    def soft_knn(self, pc1, pc2, *args):
+        distance = 1
+        if self.use_dst_pt:
+            distance *= torch.reciprocal(self.spatial_distance(pc1, pc2).clamp(min=self.eps))
+        if self.use_dst_desc:
+            if args:
+                distance *= self.descriptor_distance(args[0], args[1])
+        d_matrix = self.softmax_1d(self.fact * distance)
+
+        pc_nearest = torch.cat([torch.sum(pc2 * prob, 1).unsqueeze(1) for i, prob in enumerate(d_matrix)], 1)
+
+        mean_distance = torch.mean(func_nn.pairwise_distance(pc1.t(), pc_nearest.t(), p=2))
+
+        return pc_nearest
+
+    def soft_outlier_rejection(self, pc1, pc2):
+        dist = torch.norm(pc1 - pc2, dim=0)
+        mean_dist = torch.mean(dist, 0)
+        filter = self.sigmoid((dist - mean_dist * self.reject_ratio - self.eps) * -1e10)
+
+        return filter
+
+    def get_training_layers(self, layers_to_train=None):
+        if layers_to_train is None:
+            layers_to_train = self.layers_to_train
+        if layers_to_train == 'all':
+            return []
+
+
+    def forward(self, pc1, pc2, *args):
+        '''
+        Return matches from pc2 to pc1
+
+        :param pc1: pc ref
+        :param pc2: pc to align
+        :return: points of pc2 nn to pc1
+        '''
+
+        pc_nearest = pc1.new_zeros(pc1.size())
+        indexor = pc1.new_ones(pc1.size(0), pc1.size(2))
+        for i, pc in enumerate(pc1):
+            if args:
+                pc_nearest[i] = self.knn(pc, pc2[i], args[0][i], args[1][i])
+            else:
+                pc_nearest[i] = self.knn(pc, pc2[i])
+            if self.outlier_filter:
+                indexor[i] = self.soft_outlier_rejection(pc, pc_nearest[i])
+
+        return {'nn': pc_nearest, 'inliers': indexor.int()}
+
 
 def normalize_rotmat(R):
     z = R[:, 2]/torch.norm(R[:, 2])
@@ -320,7 +504,7 @@ if __name__ == '__main__':
     torch.manual_seed(1)
     device = 'cpu'
     nb_pt = 24
-    net = CPNet(fact=2, outlier_filter=True, use_dst_desc=True, use_dst_pt=True, desc_p=2, pose_solver='eig')
+    net = CPNet(fact=2, outlier_filter=False, use_dst_desc=True, use_dst_pt=True, desc_p=2, pose_solver='svd', knn='hard')
     p1 = torch.rand(1, 4, nb_pt).to(device)
     desc1 = torch.rand(1, 32, nb_pt).to(device)
     desc2 = desc1

@@ -269,6 +269,11 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
         plt.show()
         pas = 1
 
+    # Trying to speed up
+    pc_ref = pc_ref.cpu()
+    pc_to_align = pc_to_align.cpu()
+    init_T = init_T.cpu()
+
     T = init_T
     # Row data
     row_pc_ref = pc_ref.view(4, -1)
@@ -347,6 +352,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
         ax2.clear()
         plt.close()
 
+    '''
     pc_rec = T.matmul(row_pc_to_align)
     pc_nearest, dist = fast_soft_knn(row_pc_ref, pc_rec, fact=1e5) # hard assigment
     if hard_rejection:
@@ -355,18 +361,20 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     elif outlier_rejection:
         indexor = soft_outlier_filter(pc_nearest, pc_rec, reject_ratio)
     real_error = torch.mean(torch.sum(((pc_rec - pc_nearest)*indexor)**2, 0))
+    '''
+    real_error = dist
     return T, real_error
 
-def ICPwNet(pc_ref, pc_to_align, init_T, **kwargs):
-    iter = kwargs.pop('iter', 100)
-    unit_fact = kwargs.pop('fact', 2)
+def ICPwNet(pc_to_align, pc_ref, init_T, *args, **kwargs):
+    iter = kwargs.pop('iter', 10)
     verbose = kwargs.pop('verbose', False)
-    reject_ratio = kwargs.pop('reject_ratio',  1)
+    arg_net = kwargs.pop('arg_net',  dict())
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    net = ICPNet.CPNet(fact=unit_fact, reject_ratio=reject_ratio)
+    net = ICPNet.CPNet(**arg_net)
+    net.to(pc_ref.device)
     if verbose:
         fig1 = plt.figure(1)
         ax1 = fig1.add_subplot(111, projection='3d')
@@ -383,7 +391,10 @@ def ICPwNet(pc_ref, pc_to_align, init_T, **kwargs):
         logger.debug('Iteration {}'.format(i))
         #t = time.time()
         pc_rec = T.matmul(row_pc_to_align)
-        new_T = net(pc_rec.unsqueeze(0), row_pc_ref.unsqueeze(0))['T'][0]
+        if args:
+            new_T = net(pc_rec.unsqueeze(0), row_pc_ref.unsqueeze(0), args[0].unsqueeze(0), args[1].unsqueeze(0))['T'][0]
+        else:
+            new_T = net(pc_rec.unsqueeze(0), row_pc_ref.unsqueeze(0))['T'][0]
         T = torch.matmul(new_T, T)
 
         if verbose:
@@ -484,7 +495,8 @@ if __name__ == '__main__':
     #T, d = soft_icp(pc_to_align, pc_ref, poses[1].inverse(), tolerance=1e-6, iter=100, fact=100, verbose=True, dnorm=False)
     #T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-5, iter=50, fact=2, verbose=True, dnorm=False, use_hard_nn=True, outlier=True)
     #T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-10, iter=100, fact=2, verbose=True, outlier=True)
-    T, d = ICPwNet(pc_ref, pc_to_align, torch.eye(4, 4), iter=100, fact=2, verbose=True, reject_ratio=2)
+    T, d = ICPwNet(pc_ref, pc_to_align, torch.eye(4, 4), iter=10, verbose=True,
+                   arg_net={'fact': 2, 'reject_ratio': 1, 'pose_solver': 'svd', })
     pc_aligned = T.matmul(pc_to_align)
 
     fig = plt.figure(2)

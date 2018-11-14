@@ -73,15 +73,26 @@ def advanced_local_map_getter(nets, variable, **kwargs):
     size_pc = map_args.get('output_size', 2000)
     cnn_descriptor = map_args.get('cnn_descriptor', False)
 
-    batched_local_maps = Ts.new_zeros(Ts.size(0), 4, size_pc)
-    if cnn_descriptor:
-        encoders = Ts.new_zeros(Ts.size(0), descriptors_size, size_pc)
+    if isinstance(size_pc, int):
+        batched_local_maps = Ts.new_zeros(Ts.size(0), 4, size_pc)
+        if cnn_descriptor:
+            encoders = Ts.new_zeros(Ts.size(0), descriptors_size, size_pc)
 
     for i, T in enumerate(Ts):
         if cnn_descriptor:
-            batched_local_maps[i], encoders[i] = utils.get_local_map(T=T, **map_args, cnn_enc=nets[0], cnn_dec=nets[1])
+            if isinstance(size_pc, int):
+                batched_local_maps[i], encoders[i] = utils.get_local_map(T=T, **map_args, cnn_enc=nets[0], cnn_dec=nets[1])
+            else:
+                batched_local_maps, encoders = utils.get_local_map(T=T, **map_args, cnn_enc=nets[0],
+                                                                         cnn_dec=nets[1])
+                batched_local_maps = batched_local_maps.unsqueeze(0)
+                encoders = encoders.unsqueeze(0)
         else:
-            batched_local_maps[i] = utils.get_local_map(T=T, **map_args, cnn_enc=nets[0], cnn_dec=nets[1])
+            if isinstance(size_pc, int):
+                batched_local_maps[i] = utils.get_local_map(T=T, **map_args, cnn_enc=nets[0], cnn_dec=nets[1])
+            else:
+                batched_local_maps = utils.get_local_map(T=T, **map_args, cnn_enc=nets[0], cnn_dec=nets[1])
+                batched_local_maps = batched_local_maps.unsqueeze(0)
 
     if cnn_descriptor:
         return {'pc': batched_local_maps, 'desc': encoders}
@@ -252,6 +263,52 @@ def matmul(variables, **kwargs):
     else:
         return T
 
+def batched_icp_desc(variable, **kwargs):
+    batched_pc_ref = kwargs.pop('pc_ref', None)
+    batched_desc_ref = kwargs.pop('desc_ref', None)
+    batched_pc_to_align = kwargs.pop('pc_to_align', None)
+    batched_desc_to_align = kwargs.pop('desc_to_align', None)
+    batched_init_T = kwargs.pop('init_T', None)
+    param_icp = kwargs.pop('param_icp', dict())
+    detach_init_pose = kwargs.pop('detach_init_pose', False)
+    desc = kwargs.pop('desc', False)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    batched_pc_ref = recc_acces(variable, batched_pc_ref)
+    batched_pc_to_align = recc_acces(variable, batched_pc_to_align)
+    if desc:
+        batched_desc_ref = recc_acces(variable, batched_desc_ref)
+        batched_desc_to_align = recc_acces(variable, batched_desc_to_align)
+
+    batched_init_T = recc_acces(variable, batched_init_T)
+    if detach_init_pose:
+        batched_init_T = batched_init_T.detach()
+        logger.debug('Detatching init pose')
+
+    n_batch = batched_pc_to_align.size(0)
+    poses = {
+        'p': batched_pc_to_align.new_zeros(n_batch, 3),
+        'q': batched_pc_to_align.new_zeros(n_batch, 4),
+        'T': batched_pc_to_align.new_zeros(n_batch, 4, 4),
+    }
+
+    for i, pc_to_align in enumerate(batched_pc_to_align):
+        args = list()
+        if desc:
+            args = [batched_desc_to_align[i], batched_desc_ref[i]]
+
+        computed_pose, _ = ICP.ICPwNet(pc_to_align,
+                                       batched_pc_ref[i, :, :],
+                                       batched_init_T[i],
+                                       *args,
+                                       **param_icp)
+        poses['p'][i, :] = computed_pose[:3, 3]
+        poses['q'][i, :] = utils.rot_to_quat(computed_pose[:3, :3])
+        poses['T'][i, :, :] = computed_pose
+
+    return poses
 
 def batched_icp(variable, **kwargs):
     batched_pc_ref = kwargs.pop('pc_ref', None)
