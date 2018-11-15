@@ -20,10 +20,91 @@ def mean_dist(predicted, gt):
     )
 
 
+def reproj_on_matching_loss(pc_to_align, pc_ref, T, K, inliers=None, **kwargs):
+    '''
+    Compute the reprojection that minimise:
+    pc_to_align - T*pc_ref
+    if point on T*pc_ref reproject on the correct coordinate camera pixels (K)
+    :param pc_ref:
+    :param pc_to_align:
+    :param T:
+    :param indexor:
+    :param fact:
+    :return:
+    '''
+    p = kwargs.pop('p', 1)
+    factor = kwargs.pop('factor', 1)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    loss = 0
+    Q = pc_ref.new_tensor([[1, 0, 0, 0],
+                           [0, 1, 0, 0],
+                           [0, 0, 1, 0]])
+
+    for i, pc in enumerate(pc_to_align):
+        if inliers is not None:
+            pc = torch.cat([point.unsqueeze(1) for n_p, point in enumerate(pc.t()) if inliers[i][n_p]], 1)
+            pc_nn = torch.cat([point.unsqueeze(1) for n_p, point in enumerate(pc_ref[i].t()) if inliers[i][n_p]], 1)
+        else:
+            pc_nn = pc_ref[i]
+
+        pc_nn_t = T[i].matmul(pc_nn) # Should be aligned with pc
+
+        # Repro:
+        rep_pc = K[i].matmul(Q.matmul(pc))
+        rep_pc_nn_t = K[i].matmul(Q.matmul(pc_nn_t))
+
+        # Get normalized coord:
+        n_rep_pc = rep_pc[:2] / rep_pc[2]
+        n_rep_pc_nn_t = rep_pc_nn_t[:2] / rep_pc_nn_t[2]
+
+        # Get rounded coord:
+        r_n_rep_pc = torch.round(n_rep_pc[:1, :])
+        r_n_rep_pc_nn_t = torch.round(n_rep_pc_nn_t[:1, :])
+        idx = (r_n_rep_pc == r_n_rep_pc_nn_t).squeeze()
+
+        predicted = rep_pc[2, idx]
+        gt =  rep_pc_nn_t[2, idx]
+
+        if p == 1:
+            loss += func.l1_loss(predicted, gt)
+        elif p == 2:
+            loss += func.mse_loss(predicted, gt)
+        else:
+            raise AttributeError('No behaviour for p = {}'.format(p))
+
+    return factor * loss / (i + 1)
+
+
 def full_pose_loss(predicted, gt, key='full', combine_func=None):
 
     return combine_func.combine(mean_dist(predicted[key]['p'], gt['p']),
                                 mean_dist(predicted[key]['q'], gt['q']))
+
+def matching_loss(pc_ref, pc_to_align, T, inliers=None):
+    '''
+    Compute the reprojection error of pc_to_align matched to pc_ref according to tf T
+    :param pc_ref:
+    :param pc_to_align:
+    :param T:
+    :param indexor:
+    :param fact:
+    :return:
+    '''
+    loss = 0
+    for i, pc in enumerate(pc_ref):
+        if inliers is not None:
+            pc = torch.cat([point.unsqueeze(1) for n_p, point in enumerate(pc.t()) if inliers[i][n_p]], 1)
+            pc_nn = torch.cat([point.unsqueeze(1) for n_p, point in enumerate(pc_to_align[i].t()) if inliers[i][n_p]], 1)
+        else:
+            pc_nn = pc_to_align[i]
+
+        #loss += func.mse_loss(T[i].matmul(pc_nn), pc)
+        loss += torch.sum(torch.sum((T[i].matmul(pc_nn) - pc) ** 2, 0))
+
+    return loss / (i + 1)
 
 
 def T_loss(predicted, gt, fact=1):
