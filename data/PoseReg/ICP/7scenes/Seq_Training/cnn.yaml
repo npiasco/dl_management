@@ -28,11 +28,23 @@ CPNet:
         layers_to_train: 'all'
         reject_ratio: 1
         outlier_filter: false
-        fact: 2000
+        fact: 2
         use_dst_pt: true
         use_dst_desc: true
         desc_p: 2
         pose_solver: 'svd'
+
+MatchNet:
+    class: 'networks.ICPNet.MatchNet'
+    param_class:
+        layers_to_train: 'all'
+        reject_ratio: 1.5
+        outlier_filter: false
+        fact: 2000
+        use_dst_pt: true
+        use_dst_desc: true
+        desc_p: 2
+        knn: hard
 
 init_weights:
     Main:

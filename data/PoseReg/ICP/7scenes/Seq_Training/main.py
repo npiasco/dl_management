@@ -32,9 +32,9 @@ if __name__ == '__main__':
     elif action == 'P':
         machine.plot()
     elif action == 'm':
-        machine.map_print(batch_size=1)
+        machine.map_print(batch_size=2)
     elif action == 'mf':
-        machine.map_print(final=True, batch_size=1)
+        machine.map_print(final=True, batch_size=2)
     elif action == 'pose':
         machine.view_localization(pas=2)
     elif action == 'posef':
