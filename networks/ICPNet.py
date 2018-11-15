@@ -100,7 +100,7 @@ class CPNet(nn.Module):
             idx_1 = torch.argmax(d_matrix[i, :], 0)
             idx_2 = torch.argmax(d_matrix_bi[:, idx_1], 0)
             if i == idx_2.item():
-                pc_nearest[:, i] = pc2[:, idx_1]
+                pc_nearest[:, i] = pc2[:, idx_1].clone()
                 indexor[i] = 1
 
         mean_distance = torch.mean(func_nn.pairwise_distance(pc1.t(), pc_nearest.t(), p=2))
@@ -364,10 +364,13 @@ class MatchNet(nn.Module):
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
+        self.hard = False
         if knn == 'soft':
             self.knn = self.soft_knn
         elif knn == 'hard':
             self.knn = self.hard_knn
+            self.hard = True
+            self.outlier_filter = False
         else:
             raise('Unknown knn type {}'.format(knn))
 
@@ -429,13 +432,16 @@ class MatchNet(nn.Module):
         d_matrix = self.softmax_1d(self.fact * distance)
         d_matrix_bi = self.softmax_0d(self.fact * distance)
         pc_nearest = pc1.clone()
+        indexor = pc1.new_zeros(pc1.size(1))
+
         for i, pt in enumerate(pc1.t()):
             idx_1 = torch.argmax(d_matrix[i, :], 0)
             idx_2 = torch.argmax(d_matrix_bi[:, idx_1], 0)
             if i == idx_2.item():
                 pc_nearest[:, i] = pc2[:, idx_1]
+                indexor[i] = 1
 
-        return pc_nearest
+        return pc_nearest, indexor
 
 
     def soft_knn(self, pc1, pc2, *args):
@@ -480,9 +486,16 @@ class MatchNet(nn.Module):
         indexor = pc1.new_ones(pc1.size(0), pc1.size(2))
         for i, pc in enumerate(pc1):
             if args:
-                pc_nearest[i] = self.knn(pc, pc2[i], args[0][i], args[1][i])
+                if self.hard:
+                    pc_nearest[i], indexor[i] = self.knn(pc, pc2[i], args[0][i], args[1][i])
+                else:
+                    pc_nearest[i] = self.knn(pc, pc2[i], args[0][i], args[1][i])
             else:
-                pc_nearest[i] = self.knn(pc, pc2[i])
+                if self.hard:
+                    pc_nearest[i], indexor[i] = self.knn(pc, pc2[i])
+                else:
+                    pc_nearest[i] = self.knn(pc, pc2[i])
+
             if self.outlier_filter:
                 indexor[i] = self.soft_outlier_rejection(pc, pc_nearest[i])
 
