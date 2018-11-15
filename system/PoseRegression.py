@@ -260,7 +260,7 @@ class MultNet(Default):
             ref_pc = trainers.minning_function.recc_acces(variables, ['model', 'pc']).squeeze()
             #output_pose = trainers.minning_function.recc_acces(variables, ['Tf', 'T'])[0]
             #output_pose = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'T'])[0]
-            output_pose = trainers.minning_function.recc_acces(variables, ['F_pose', 'T'])[0]
+            output_pose = trainers.minning_function.recc_acces(variables, self.trainer.access_pose + ['T'])[0]
             pc = trainers.minning_function.recc_acces(variables, ['pc']).squeeze()
             output_pc = output_pose.matmul(pc)
             gt_pose = trainers.minning_function.recc_acces(variables, ['batch', 'pose', 'T'])[0]
@@ -282,7 +282,7 @@ class MultNet(Default):
             print('Diff distance = {} m'.format(torch.norm(gt_pose[:, 3] - output_pose[:, 3]).item()))
             gtq = trainers.minning_function.recc_acces(variables, ['batch', 'pose', 'orientation'])[0]
             #q = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'q'])[0]
-            q = trainers.minning_function.recc_acces(variables, ['F_pose', 'q'])[0]
+            q = trainers.minning_function.recc_acces(variables, self.trainer.access_pose+ ['q'])[0]
             print('Diff orientation = {} deg'.format(2 * torch.acos(torch.abs(gtq.dot(q))) * 180 / 3.14159260))
             if 'posenet_pose' in variables.keys():
                 print('Diff distance = {} m (posenet)'.format(torch.norm(gt_pose[:, 3] - posenet_pose[:, 3]).item()))
@@ -298,10 +298,16 @@ class MultNet(Default):
             ax = fig.add_subplot(111, projection='3d')
 
             pc_utils.plt_pc(ref_pc.cpu(), ax, pas, 'b')
-            pc_utils.plt_pc(gt_pc.cpu(), ax, pas, 'c')
+            pc_utils.plt_pc(gt_pc.cpu(), ax, pas, 'c', size=15)
             if 'posenet_pose' in variables.keys():
-                pc_utils.plt_pc(posenet_pc.cpu(), ax, pas, 'm')
-            pc_utils.plt_pc(output_pc.cpu(), ax, pas, 'r')
+                pc_utils.plt_pc(posenet_pc.cpu(), ax, pas, 'm', size=15)
+            pc_utils.plt_pc(output_pc.cpu(), ax, pas, 'r', size=20)
+            centroid = torch.mean(ref_pc[:3, :], -1)
+
+            ax.set_xlim([centroid[0].cpu().item()-1, centroid[0].cpu().item()+1])
+            ax.set_ylim([centroid[1].cpu().item()-1, centroid[1].cpu().item()+1])
+            ax.set_zlim([centroid[2].cpu().item()-1, centroid[2].cpu().item()+1])
+
             plt.show()
 
     def test_on_final(self):
