@@ -1,7 +1,7 @@
 Main:
     class: 'networks.CustomArchi.PixEncoder'
     param_class:
-        layers_to_train: 'no'
+        layers_to_train: 'all'
         k_size: 4
         d_fact: 2
 
@@ -17,7 +17,7 @@ Deconv:
 Pose:
     class: 'networks.Pose.PoseRegressor'
     param_class:
-        layers_to_train: 'no'
+        layers_to_train: 'all'
         input_size: 12544 # 256 * 7 * 7
         size_layer: 512
         num_inter_layers: 1
@@ -33,6 +33,8 @@ CPNet:
         use_dst_desc: true
         desc_p: 2
         pose_solver: 'svd'
+        knn: hard
+
 
 MatchNet:
     class: 'networks.ICPNet.MatchNet'
@@ -46,10 +48,10 @@ MatchNet:
         desc_p: 2
         knn: hard
 
-init_weights:
-    Main:
-        feature: '../Depth+Pose/Main_feature.pth'
-    Deconv:
-        feature: '../Depth+Pose/Deconv_feature.pth'
-    Pose:
-        regressor: '../Depth+Pose/Pose_regressor.pth'
+#init_weights:
+#    Main:
+#        feature: '../Depth+Pose/Main_feature.pth'
+#    Deconv:
+#        feature: '../Depth+Pose/Deconv_feature.pth'
+#    Pose:
+#        regressor: '../Depth+Pose/Pose_regressor.pth'
