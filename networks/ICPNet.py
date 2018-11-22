@@ -480,10 +480,6 @@ class MatchNet(nn.Module):
         return pc_nearest, indexor
 
     def hard_knn(self, pc1, pc2, *args):
-        '''
-        Deprecated func
-        '''
-        logger.warning('Deprectated method.')
         distance = 1
         if self.use_dst_pt:
             distance *= torch.reciprocal(self.spatial_distance(pc1, pc2).clamp(min=self.eps))
