@@ -65,19 +65,20 @@ param_class:
             {
              mode: 'minning',
              func: 'b_wrapper.batched_depth_map_to_pc',
-             param: {depth_maps: [maps_0], K: [batch, 0, K], remove_zeros: false, scale_factor: 0.25},
+             param: {depth_maps: [maps_0], K: [batch, 0, K], remove_zeros: false},#, scale_factor: 0.25},
              out_name: 'pc_0_r0'
             },
-            {
-             mode: 'minning',
-             func: 'b_wrapper.resize',
-             param: {inputs: [fw_main_0, conv1], scale_factor: 0.25},
-             out_name: 'desc_0'
-            },
+#            {
+#             mode: 'minning',
+#             func: 'b_wrapper.resize',
+#             param: {inputs: [fw_main_0, conv1], scale_factor: 0.25},
+#             out_name: 'desc_0'
+#            },
             {
              mode: 'minning',
              func: 'minning.detach_input',
-             param: {inputs: ['desc_0']},
+             param: {inputs: ['fw_main_0', 'conv1']},
+             #param: {inputs: ['desc_0']},
              out_name: 'desc_0'
             },
             {
@@ -97,7 +98,7 @@ param_class:
              mode: 'minning',
              func: 'minning.detach_input',
              param: {inputs: ['pc_1_r1']},
-             out_name: 'pc_1_r1'
+             out_name: 'pc_1_r1_nograd'
             },
             {
              mode: 'minning',
@@ -127,8 +128,8 @@ param_class:
              mode: 'forward',
              func: 'minning.custom_forward',
              param: {multiples_instance: false, input_targets:
-             [['pc_0_r0_nograd'], ['pc_1_r0'], ['desc_0'], ['desc_1']]},
              #[['pc_0_r0_nograd'], ['pc_1_r1'], ['desc_0'], ['desc_1']]},
+             [['pc_0_r0_nograd'], ['pc_1_r0'], ['desc_0'], ['desc_1']]},
              net_name: 'MatchNet',
              #out_name: 'match_1to0_1'
              out_name: 'match_1to0_0'
@@ -165,7 +166,7 @@ param_class:
              mode: 'backprop',
              name: 'deconv_backprop',
              trainer: 'deconv_trainer',
-             clip_grad: {networks: [Main, Deconv], val_max: 1.0}
+             #clip_grad: {networks: [Main, Deconv], val_max: 1.0}
             },
             {
              mode: 'loss',
@@ -240,7 +241,7 @@ param_class:
                  mode: 'mult_forward',
                  func: 'b_wrapper.advanced_local_map_getter',
                  param: {T: ['posenet_pose', 'T'], descriptors_size: 64,
-                 map_args: {scene: heads/, frame_spacing: 20, output_size: none, no_grad: true,
+                 map_args: {scene: heads/, frame_spacing: 20, output_size: 4000, no_grad: true,
                  resize: 0.1166666667, num_pc: 2, cnn_depth: true, cnn_descriptor: 'conv1'}},
                  net_name: ['Main', 'Deconv'],
                  out_name: 'model'
