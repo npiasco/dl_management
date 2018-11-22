@@ -77,6 +77,8 @@ def advanced_local_map_getter(nets, variable, **kwargs):
         batched_local_maps = Ts.new_zeros(Ts.size(0), 4, size_pc)
         if cnn_descriptor:
             encoders = Ts.new_zeros(Ts.size(0), descriptors_size, size_pc)
+    elif Ts.size(0) != 0:
+        raise AttributeError('Can generate full pc when batch size != 0.')
 
     for i, T in enumerate(Ts):
         if cnn_descriptor:
