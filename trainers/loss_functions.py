@@ -256,6 +256,8 @@ def l1_modal_loss(predicted_maps, gt_maps, **kwargs):
         non_zeros_idx = gt_w_grad.nonzero()
         gt = gt_w_grad[non_zeros_idx][:, 0]
         predicted = predicted[non_zeros_idx][:, 0]
+    else:
+        gt = gt_w_grad
 
     #gt = gt_w_grad.detach()
 

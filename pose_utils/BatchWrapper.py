@@ -139,7 +139,6 @@ def batched_depth_map_to_pc(variable, **kwargs):
     if scale_factor is not None:
         if (1/scale_factor)%2 != 0:
             raise ValueError('Scale factor is not a multiple of 2 (1/scale is {})'.format(1/scale_factor))
-        K = K.clone()
         K[:, :2, :] *= scale_factor
         batched_depth_maps = nn_func.interpolate(batched_depth_maps, scale_factor=scale_factor, mode='nearest')
 

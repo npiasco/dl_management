@@ -7,8 +7,15 @@ param_class:
             associated_net: ['Deconv']
             optimizer_type: ADAM
             param:
-                lr: 0.00001 # * 0.5
-                weight_decay: 0.0007
+                lr: 0.00005 # * 0.5
+                weight_decay: 0.001
+        posenet_trainer:
+            associated_net: ['Main']
+            optimizer_type: ADAM
+            param:
+                lr: 0.0001 # * 0.5
+                weight_decay: 0.001
+
     training_pipeline:
         [
             #------------------ Main Forward -----------------#
@@ -29,9 +36,30 @@ param_class:
             {
                 mode: forward,
                 func: minning.custom_forward,
-                param: {multiples_instance: false, input_targets: [['fw_main_0'], ], detach_inputs: true, dict: True},
+                param: {multiples_instance: false, input_targets: [['fw_main_0'], ], detach_inputs: false, dict: True},
                 net_name: 'Deconv',
                 out_name: 'maps_0'
+            },
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['fw_main_1'], ], detach_inputs: false, dict: True},
+                net_name: 'Deconv',
+                out_name: 'maps_1'
+            },
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['fw_main_0', 'conv7']], detach_inputs: true},
+                net_name: 'Pose',
+                out_name: 'posenet_pose_0'
+            },
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['fw_main_1', 'conv7']], detach_inputs: true},
+                net_name: 'Pose',
+                out_name: 'posenet_pose_1'
             },
             #-------------------------------------------------#
             {
@@ -61,7 +89,8 @@ param_class:
             {
              mode: 'minning',
              func: 'b_wrapper.batched_depth_map_to_pc',
-             param: {depth_maps: [batch, 1, depth], K: [batch, 1, K], remove_zeros: false, inverse_depth: false}, #, scale_factor: 0.3},
+             #param: {depth_maps: [batch, 1, depth], K: [batch, 1, K], remove_zeros: false, inverse_depth: false}, #, scale_factor: 0.3},
+             param: {depth_maps: [maps_1], K: [batch, 1, K], remove_zeros: false}, #, scale_factor: 0.3},
              out_name: 'pc_1_r1'
             },
             {
@@ -82,12 +111,12 @@ param_class:
              param: {m1: ['batch', 1,  'pose', 'T'], m2: ['batch', 0,  'pose', 'T'], inv_m1: true},
              out_name: 'T_1_0'
             },
-            {
-             mode: 'minning',
-             func: 'b_wrapper.matmul',
-             param: {m1: ['T_0_1'], m2: ['pc_1_r1']},
-             out_name: 'pc_1_r0'
-            },
+#            {
+#             mode: 'minning',
+#             func: 'b_wrapper.matmul',
+#             param: {m1: ['T_0_1'], m2: ['pc_1_r1']},
+#             out_name: 'pc_1_r0'
+#            },
             {
              mode: 'forward',
              func: 'minning.custom_forward',
@@ -130,6 +159,25 @@ param_class:
              name: 'deconv_backprop',
              trainer: 'deconv_trainer',
              #clip_grad: {networks: [Deconv], val_max: 0.001}
+            },
+            {
+             mode: 'loss',
+             name: 'min_max_posenet_loss_0',
+             func: 'loss_func.minmax_pose_loss',
+             args: [['posenet_pose_0', 'p'], ['posenet_pose_0', 'q'], ['batch', 0, 'pose', 'position'], ['batch', 0, 'pose', 'orientation']],
+             param: {pose_factor: 1, ori_factor: 1, min_factor: 0.1, max_factor: 0.9}
+            },
+            {
+             mode: 'loss',
+             name: 'min_max_posenet_loss_1',
+             func: 'loss_func.minmax_pose_loss',
+             args: [['posenet_pose_1', 'p'], ['posenet_pose_1', 'q'], ['batch', 1, 'pose', 'position'], ['batch', 1, 'pose', 'orientation']],
+             param: {pose_factor: 1, ori_factor: 1, min_factor: 0.1, max_factor: 0.9}
+            },
+            {
+             mode: 'backprop',
+             name: 'posenet_backprop',
+             trainer: 'posenet_trainer'
             },
             #-------------------------------------------------#
         ]
@@ -185,8 +233,8 @@ param_class:
                  mode: 'mult_forward',
                  func: 'b_wrapper.advanced_local_map_getter',
                  param: {T: ['posenet_pose', 'T'], descriptors_size: 64,
-                 map_args: {scene: heads/, frame_spacing: 20, output_size: 2000, no_grad: true,
-                 resize: 0.1166666667, num_pc: 8, cnn_depth: false, cnn_descriptor: 'conv1'}},
+                 map_args: {scene: heads/, frame_spacing: 20, output_size: none, no_grad: true,
+                 resize: 0.1166666667, num_pc: 2, cnn_depth: true, cnn_descriptor: 'conv1'}},
                  net_name: ['Main', 'Deconv'],
                  out_name: 'model'
                 },

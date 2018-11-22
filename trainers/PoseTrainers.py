@@ -430,15 +430,16 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         for dataloader in (dataset_loader, queries_loader):
             for batch in tqdm.tqdm(dataloader):
                 variables = {'batch': self.batch_to_device(batch)}
-                for action in self.eval_forwards['data']:
+                for action in self.eval_forwards['queries']:
                     variables = self._sequential_forward(action, variables, networks)
 
                 errors.append(
                     loss_func.l1_modal_loss(
-                        recc_acces(variables, self.eval_final_desc[0]),
-                        recc_acces(variables, self.eval_final_desc[1]),
-                        listed_maps=False
-                    ).cpu().data[0]
+                        recc_acces(variables, self.access_pose[0]),
+                        recc_acces(variables, self.access_pose[1]),
+                        listed_maps=False,
+                        no_zeros=True
+                    ).cpu().item()
                 )
 
         return errors

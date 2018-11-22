@@ -31,7 +31,7 @@ test:
     data:
         class: datasets.SevenScene.Val
         param_class:
-            root: 'minimal_heads/'
+            root: 'heads/'
             transform:
                 first:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: 112}}
