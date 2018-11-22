@@ -65,20 +65,20 @@ param_class:
             {
              mode: 'minning',
              func: 'b_wrapper.batched_depth_map_to_pc',
-             param: {depth_maps: [maps_0], K: [batch, 0, K], remove_zeros: false},#, scale_factor: 0.25},
+             param: {depth_maps: [maps_0], K: [batch, 0, K], remove_zeros: false}, scale_factor: 0.5},
              out_name: 'pc_0_r0'
             },
-#            {
-#             mode: 'minning',
-#             func: 'b_wrapper.resize',
-#             param: {inputs: [fw_main_0, conv1], scale_factor: 0.25},
-#             out_name: 'desc_0'
-#            },
+            {
+             mode: 'minning',
+             func: 'b_wrapper.resize',
+             param: {inputs: [fw_main_0, conv1], scale_factor: 0.5},
+             out_name: 'desc_0'
+            },
             {
              mode: 'minning',
              func: 'minning.detach_input',
-             param: {inputs: ['fw_main_0', 'conv1']},
-             #param: {inputs: ['desc_0']},
+             #param: {inputs: ['fw_main_0', 'conv1']},
+             param: {inputs: ['desc_0']},
              out_name: 'desc_0'
             },
             {
