@@ -377,6 +377,7 @@ class MatchNet(nn.Module):
             self.knn = self.hard_knn_cpu
             self.hard = True
             self.outlier_filter = False
+            self.use_dst_desc = False
             self.nn_computor = neighbors.NearestNeighbors(n_neighbors=1)
         else:
             raise('Unknown knn type {}'.format(knn))
@@ -431,17 +432,17 @@ class MatchNet(nn.Module):
         pc_nearest = pc1.clone()
         indexor = pc1.new_zeros(pc1.size(1))
 
-        pc1_cpu = pc1.detach().t().cpu().numpy()
-        pc2_cpu = pc2.detach().t().cpu().numpy()
+        pc1_cpu = pc1[:3, :].detach().t().cpu().numpy()
+        pc2_cpu = pc2[:3, :].detach().t().cpu().numpy()
 
         self.nn_computor.fit(pc1_cpu)
         idx_nn_1 = self.nn_computor.kneighbors(pc2_cpu, return_distance=False)
         self.nn_computor.fit(pc2_cpu)
         idx_nn_2 = self.nn_computor.kneighbors(pc1_cpu, return_distance=False)
 
-        for i, pt in enumerate(pc1.t()):
-            idx_1 = idx_nn_1[i][0]
-            idx_2 = idx_nn_2[idx_1][0]
+        for i in range(pc1.size(1)):
+            idx_1 = idx_nn_2[i][0]
+            idx_2 = idx_nn_1[idx_1][0]
             if i == idx_2:
                 pc_nearest[:, i] = pc2[:, idx_1]
                 indexor[i] = 1
@@ -461,7 +462,7 @@ class MatchNet(nn.Module):
         pc_nearest = pc1.clone()
         indexor = pc1.new_zeros(pc1.size(1))
 
-        for i, pt in enumerate(pc1.t()):
+        for i in range(pc1.size(1)):
             idx_1 = torch.argmax(d_matrix[i, :], 0)
             idx_2 = torch.argmax(d_matrix_bi[:, idx_1], 0)
             if i == idx_2.item():
@@ -543,14 +544,15 @@ if __name__ == '__main__':
 
     torch.manual_seed(10)
     device = 'cuda'
-    nb_pt = 5000
-    p1 = torch.rand(1, 4, nb_pt).to(device)
+    nb_pt = 100
+    p1 = torch.rand(2, 4, nb_pt).to(device)
     p1[:, 3, :] = 1
     T = torch.zeros(4, 4).to(device)
     T[:3, :3] = utils.rotation_matrix(torch.tensor([1.0, 0, 0]), torch.tensor([0.05]))
     T[:3, 3] = torch.tensor([0.1, 0, 0])
     T[3, 3] = 1
     p2 = T.matmul(p1)
+    p2 = torch.rand(2, 4, 2*nb_pt).to(device)
     '''
     print(T)
     net = CPNet(fact=2, outlier_filter=False, use_dst_desc=True, use_dst_pt=True, desc_p=2, pose_solver='svd', knn='hard')
