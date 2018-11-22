@@ -1,16 +1,16 @@
 class: 'trainers.PoseTrainers.MultNetTrainer'
 param_class:
-    cuda_on: False
+    cuda_on: True
     val_num_workers: 8
     optimizers_params:
         deconv_trainer:
-            associated_net: ['Deconv']
+            associated_net: ['Deconv','Main']
             optimizer_type: ADAM
             param:
                 lr: 0.00005 # * 0.5
                 weight_decay: 0.001
         posenet_trainer:
-            associated_net: ['Main']
+            associated_net: ['Pose']
             optimizer_type: ADAM
             param:
                 lr: 0.0001 # * 0.5
@@ -96,6 +96,12 @@ param_class:
             {
              mode: 'minning',
              func: 'minning.detach_input',
+             param: {inputs: ['pc_1_r1']},
+             out_name: 'pc_1_r1'
+            },
+            {
+             mode: 'minning',
+             func: 'minning.detach_input',
              param: {inputs: ['fw_main_1', 'conv1']},
              out_name: 'desc_1'
             },
@@ -111,19 +117,20 @@ param_class:
              param: {m1: ['batch', 1,  'pose', 'T'], m2: ['batch', 0,  'pose', 'T'], inv_m1: true},
              out_name: 'T_1_0'
             },
-#            {
-#             mode: 'minning',
-#             func: 'b_wrapper.matmul',
-#             param: {m1: ['T_0_1'], m2: ['pc_1_r1']},
-#             out_name: 'pc_1_r0'
-#            },
+            {
+             mode: 'minning',
+             func: 'b_wrapper.matmul',
+             param: {m1: ['T_0_1'], m2: ['pc_1_r1']},
+             out_name: 'pc_1_r0'
+            },
             {
              mode: 'forward',
              func: 'minning.custom_forward',
              param: {multiples_instance: false, input_targets:
-             #[['pc_0_r0_nograd'], ['pc_1_r0'], ['desc_0'], ['desc_1']]},
-             [['pc_0_r0_nograd'], ['pc_1_r1'], ['desc_0'], ['desc_1']]},
+             [['pc_0_r0_nograd'], ['pc_1_r0'], ['desc_0'], ['desc_1']]},
+             #[['pc_0_r0_nograd'], ['pc_1_r1'], ['desc_0'], ['desc_1']]},
              net_name: 'MatchNet',
+             #out_name: 'match_1to0_1'
              out_name: 'match_1to0_0'
             },
              #-------------------- Losses ---------------------#
@@ -158,7 +165,7 @@ param_class:
              mode: 'backprop',
              name: 'deconv_backprop',
              trainer: 'deconv_trainer',
-             #clip_grad: {networks: [Deconv], val_max: 0.001}
+             clip_grad: {networks: [Main, Deconv], val_max: 1.0}
             },
             {
              mode: 'loss',
