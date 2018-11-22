@@ -68,8 +68,10 @@ def reproj_on_matching_loss(pc_to_align, pc_ref, T, K, inliers=None, **kwargs):
 
         predicted = rep_pc[2, idx]
         gt =  rep_pc_nn_t[2, idx]
-
-        if p == 1:
+        if torch.sum(idx) < 1:
+            logger.warning('No aligned points')
+            continue
+        elif p == 1:
             loss += func.pairwise_distance(predicted.unsqueeze(0), gt.unsqueeze(0), p=1)
             #loss += func.l1_loss(predicted, gt)
         elif p == 2:
