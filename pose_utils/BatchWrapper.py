@@ -10,6 +10,49 @@ import setlog
 logger = setlog.get_logger(__name__)
 
 
+def corrected_depth_map_getter(variable, **kwargs):
+    poor_pc = kwargs.pop('poor_pc', None)
+    nn_pc = kwargs.pop('nn_pc', None)
+    T  = kwargs.pop('T', None)
+    K  = kwargs.pop('K', None)
+    inliers = kwargs.pop('inliers', None)
+    diffuse = kwargs.pop('diffuse', None)
+    filter_param = kwargs.pop('filter_param', dict())
+    filter_loop_param = kwargs.pop('filter_loop_param', dict())
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    poor_pc = recc_acces(variable, poor_pc)
+    nn_pc = recc_acces(variable, nn_pc)
+    T = recc_acces(variable, T)
+    K = recc_acces(variable, K)
+
+    if inliers is not None:
+        inliers = recc_acces(variable, inliers)
+
+    if diffuse is not None:
+        diffuse = utils.gaussian_kernel(**filter_param).to(poor_pc.device)
+
+    b, _, n_pc = poor_pc.size()
+    size_depth_map = int(n_pc**0.5)
+
+    final_maps = poor_pc.new_zeros(b, 1, size_depth_map, size_depth_map)
+
+    for i, pc in enumerate(poor_pc):
+        if inliers is not None:
+            inlier = inliers[i]
+        else:
+            inlier = None
+
+        final_maps[i] = utils.projected_depth_map_utils(pc, nn_pc[i], T[i], K[i],
+                                                        diffuse=diffuse,
+                                                        inliers=inlier,
+                                                        **filter_loop_param)
+
+    return final_maps
+
+
 def add_variable(variable, **kwargs):
     value = kwargs.pop('value', None)
     load = kwargs.pop('load', False)
