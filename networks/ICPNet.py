@@ -382,7 +382,10 @@ class MatchNet(nn.Module):
             self.hard = True
             if self.bidirectional:
                 self.outlier_filter = False
-            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=1)
+            if self.use_dst_desc and not self.use_dst_pt and self.normalize_desc:
+                self.nn_computor = neighbors.NearestNeighbors(n_neighbors=1, metric='cosine')
+            else:
+                self.nn_computor = neighbors.NearestNeighbors(n_neighbors=1)
                                                           #metric=self.custom_metric)
         else:
             raise('Unknown knn type {}'.format(knn))
@@ -457,8 +460,12 @@ class MatchNet(nn.Module):
                     d2 = func_nn.normalize(d2, dim=0)
                 d1_cpu = d1.detach().t().cpu().numpy()
                 d2_cpu = d2.detach().t().cpu().numpy()
-                pc1_cpu = np.concatenate((pc1_cpu, d1_cpu), axis=1)
-                pc2_cpu = np.concatenate((pc2_cpu, d2_cpu), axis=1)
+                if self.use_dst_pt:
+                    pc1_cpu = np.concatenate((pc1_cpu, d1_cpu), axis=1)
+                    pc2_cpu = np.concatenate((pc2_cpu, d2_cpu), axis=1)
+                else:
+                    pc1_cpu = d1_cpu
+                    pc2_cpu = d2_cpu
 
         self.nn_computor.fit(pc2_cpu)
         idx_nn_2 = self.nn_computor.kneighbors(pc1_cpu, return_distance=False)
@@ -584,9 +591,9 @@ def normalize_rotmat(R):
 if __name__ == '__main__':
 
     torch.manual_seed(10)
-    device = 'cuda'
+    device = 'cpu'
     batch = 1
-    nb_pt = 3000
+    nb_pt = 300
     p1 = torch.rand(batch, 4, nb_pt).to(device)
     p1[:, 3, :] = 1
     T = torch.zeros(4, 4).to(device)
@@ -606,8 +613,8 @@ if __name__ == '__main__':
     T = net(p1, p2, desc1, desc2)
     print(T['T'])
     '''
-    net = MatchNet(use_dst_desc=True, use_dst_pt=True, knn='hard', fact=20000)
-    net_cpu = MatchNet(use_dst_desc=True, use_dst_pt=True, knn='hard_cpu')
+    net = MatchNet(use_dst_desc=True, use_dst_pt=False, knn='hard', fact=20000)
+    net_cpu = MatchNet(use_dst_desc=True, use_dst_pt=False, knn='hard_cpu')
 
     t1 = time.time()
     nearest = net(p1, p2, desc1, desc2)
