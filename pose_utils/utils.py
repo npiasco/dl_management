@@ -82,6 +82,7 @@ def projected_depth_map_utils(poor_pc, nn_pc, T, K, **kwargs):
 
     inliers = (torch.min(proj_pc[0, :].int() == proj_nn[0, :].int(),
                          proj_pc[1, :].int() == proj_nn[1, :].int())).squeeze()
+    logger.debug('Get {} reprojection inliers'.format(torch.sum(inliers).item()))
 
     repro_err = poor_pc.new_zeros(1, size_depth_map, size_depth_map)
 
