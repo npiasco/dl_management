@@ -5,6 +5,10 @@ import torch.nn.functional as func_nn
 import torch
 import setlog
 import pose_utils.utils as utils
+import sklearn.neighbors as neighbors
+import scipy.spatial.distance as dst_func
+import time
+import numpy as np
 
 
 logger = setlog.get_logger(__name__)
@@ -359,6 +363,7 @@ class MatchNet(nn.Module):
         self.use_dst_desc = kwargs.pop('use_dst_desc', False)
         self.normalize_desc = kwargs.pop('normalize_desc', True)
         self.desc_p = kwargs.pop('desc_p', 2)
+        self.bidirectional = kwargs.pop('bidirectional', False)
         knn = kwargs.pop('knn', 'soft')
 
         if kwargs:
@@ -370,7 +375,18 @@ class MatchNet(nn.Module):
         elif knn == 'hard':
             self.knn = self.hard_knn
             self.hard = True
-            self.outlier_filter = False
+            if self.bidirectional:
+                self.outlier_filter = False
+        elif knn == 'hard_cpu':
+            self.knn = self.hard_knn_cpu
+            self.hard = True
+            if self.bidirectional:
+                self.outlier_filter = False
+            if self.use_dst_desc and not self.use_dst_pt and self.normalize_desc:
+                self.nn_computor = neighbors.NearestNeighbors(n_neighbors=1, metric='cosine')
+            else:
+                self.nn_computor = neighbors.NearestNeighbors(n_neighbors=1)
+                                                          #metric=self.custom_metric)
         else:
             raise('Unknown knn type {}'.format(knn))
 
@@ -378,6 +394,11 @@ class MatchNet(nn.Module):
         self.softmax_0d = nn.Softmax(dim=0)
         self.sigmoid = nn.Sigmoid()
         self.pdist = torch.nn.PairwiseDistance(p=1, keepdim=True)
+
+    @staticmethod
+    def custom_metric(u, v):
+        #return dst_func.minkowski(u[:3], v[:3], p=2)*dst_func.cosine(u[3:], v[3:])
+        return sum((u[:3] - v[:3])**2) * 1/np.dot(u[3:], v[3:])
 
     def spatial_distance(self, pc1, pc2):
         pc1_extended = pc1.new_ones(pc1.size(1), 3 * 3)
@@ -420,8 +441,56 @@ class MatchNet(nn.Module):
 
         return d_matrix
 
+    def hard_knn_cpu(self, pc1, pc2, *args):
+        pc_nearest = pc1.clone()
+        if self.bidirectional:
+            indexor = pc1.new_zeros(pc1.size(1))
+        else:
+            indexor = pc1.new_ones(pc1.size(1))
+
+        pc1_cpu = pc1[:3, :].detach().t().cpu().numpy()
+        pc2_cpu = pc2[:3, :].detach().t().cpu().numpy()
+
+        if self.use_dst_desc:
+            if args:
+                d1 = args[0].view(args[0].size(0), -1)
+                d2 = args[1].view(args[1].size(0), -1)
+                if self.normalize_desc:
+                    d1 = func_nn.normalize(d1, dim=0)
+                    d2 = func_nn.normalize(d2, dim=0)
+                d1_cpu = d1.detach().t().cpu().numpy()
+                d2_cpu = d2.detach().t().cpu().numpy()
+                if self.use_dst_pt:
+                    pc1_cpu = np.concatenate((pc1_cpu, d1_cpu), axis=1)
+                    pc2_cpu = np.concatenate((pc2_cpu, d2_cpu), axis=1)
+                else:
+                    pc1_cpu = d1_cpu
+                    pc2_cpu = d2_cpu
+
+        self.nn_computor.fit(pc2_cpu)
+        idx_nn_2 = self.nn_computor.kneighbors(pc1_cpu, return_distance=False)
+        if self.bidirectional:
+            self.nn_computor.fit(pc1_cpu)
+            idx_nn_1 = self.nn_computor.kneighbors(pc2_cpu, return_distance=False)
+
+
+        for i in range(pc1.size(1)):
+            idx_1 = idx_nn_2[i][0]
+            if self.bidirectional:
+                idx_2 = idx_nn_1[idx_1][0]
+                if i == idx_2:
+                    pc_nearest[:, i] = pc2[:, idx_1]
+                    indexor[i] = 1
+            else:
+                pc_nearest[:, i] = pc2[:, idx_1]
+
+        return pc_nearest, indexor
 
     def hard_knn(self, pc1, pc2, *args):
+        '''
+        Deprecated func
+        '''
+        logger.warning('Deprectated method.')
         distance = 1
         if self.use_dst_pt:
             distance *= torch.reciprocal(self.spatial_distance(pc1, pc2).clamp(min=self.eps))
@@ -430,19 +499,25 @@ class MatchNet(nn.Module):
                 distance *= self.descriptor_distance(args[0], args[1])
 
         d_matrix = self.softmax_1d(self.fact * distance)
-        d_matrix_bi = self.softmax_0d(self.fact * distance)
+        if self.bidirectional:
+            d_matrix_bi = self.softmax_0d(self.fact * distance)
         pc_nearest = pc1.clone()
-        indexor = pc1.new_zeros(pc1.size(1))
+        if self.bidirectional:
+            indexor = pc1.new_zeros(pc1.size(1))
+        else:
+            indexor = pc1.new_ones(pc1.size(1))
 
-        for i, pt in enumerate(pc1.t()):
+        for i in range(pc1.size(1)):
             idx_1 = torch.argmax(d_matrix[i, :], 0)
-            idx_2 = torch.argmax(d_matrix_bi[:, idx_1], 0)
-            if i == idx_2.item():
+            if self.bidirectional:
+                idx_2 = torch.argmax(d_matrix_bi[:, idx_1], 0)
+                if i == idx_2.item():
+                    pc_nearest[:, i] = pc2[:, idx_1]
+                    indexor[i] = 1
+            else:
                 pc_nearest[:, i] = pc2[:, idx_1]
-                indexor[i] = 1
 
         return pc_nearest, indexor
-
 
     def soft_knn(self, pc1, pc2, *args):
         distance = 1
@@ -514,28 +589,40 @@ def normalize_rotmat(R):
     return R
 
 if __name__ == '__main__':
-    torch.manual_seed(1)
+
+    torch.manual_seed(10)
     device = 'cpu'
-    nb_pt = 24
-    net = CPNet(fact=2, outlier_filter=False, use_dst_desc=True, use_dst_pt=True, desc_p=2, pose_solver='svd', knn='hard')
-    p1 = torch.rand(1, 4, nb_pt).to(device)
-    desc1 = torch.rand(1, 32, nb_pt).to(device)
-    desc2 = desc1
+    batch = 1
+    nb_pt = 300
+    p1 = torch.rand(batch, 4, nb_pt).to(device)
     p1[:, 3, :] = 1
     T = torch.zeros(4, 4).to(device)
     T[:3, :3] = utils.rotation_matrix(torch.tensor([1.0, 0, 0]), torch.tensor([0.05]))
     T[:3, 3] = torch.tensor([0.1, 0, 0])
     T[3, 3] = 1
-    print(T)
     p2 = T.matmul(p1)
-    """
-    p1 + 0.001
-    p2[:, 3, :] = 1
-    """
+    #p2 = torch.rand(2, 4, nb_pt).to(device)
+    desc1 = torch.rand(batch, 32, nb_pt).to(device)
+    desc2 = desc1
+    '''
+    print(T)
+    net = CPNet(fact=2, outlier_filter=False, use_dst_desc=True, use_dst_pt=True, desc_p=2, pose_solver='svd', knn='hard')
+    desc1 = torch.rand(1, 32, nb_pt).to(device)
+    desc2 = desc1
+
     T = net(p1, p2, desc1, desc2)
     print(T['T'])
-    """
-    print(T['T'][0].matmul(p1))
-    print(p2 - T['T'][0].matmul(p1))
-    """
+    '''
+    net = MatchNet(use_dst_desc=True, use_dst_pt=False, knn='hard', fact=20000)
+    net_cpu = MatchNet(use_dst_desc=True, use_dst_pt=False, knn='hard_cpu')
 
+    t1 = time.time()
+    nearest = net(p1, p2, desc1, desc2)
+    print(nearest['nn'] - T.matmul(p1))
+    t2 = time.time()
+    print('In {}'.format(t2 - t1))
+
+    nearest = net_cpu(p1, p2, desc1, desc2)
+    print(nearest['nn'] - T.matmul(p1))
+    t3 = time.time()
+    print('In {}'.format(t3 - t2))

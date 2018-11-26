@@ -146,6 +146,8 @@ class MultNet(Default):
             if not final:
                 nets_to_test[net_name].load_state_dict(self.trainer.best_net[1][net_name])
 
+            if hasattr(nets_to_test[net_name], 'full_save') is False:
+                continue
             serlz = nets_to_test[net_name].cpu().full_save(discard_tf=discard_tf)
             for part_name, data in serlz.items():
                 serialization_name = net_name + '_' + part_name + '.pth'

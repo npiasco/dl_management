@@ -61,15 +61,21 @@ def reproj_on_matching_loss(pc_to_align, pc_ref, T, K, inliers=None, **kwargs):
         n_rep_pc_nn_t = rep_pc_nn_t[:2] / rep_pc_nn_t[2]
 
         # Get rounded coord:
-        r_n_rep_pc = torch.round(n_rep_pc[:1, :])
-        r_n_rep_pc_nn_t = torch.round(n_rep_pc_nn_t[:1, :])
-        idx = (r_n_rep_pc == r_n_rep_pc_nn_t).squeeze()
+        r_n_rep_pc = torch.round(n_rep_pc)
+        r_n_rep_pc_nn_t = torch.round(n_rep_pc_nn_t)
+        idx = (torch.min(r_n_rep_pc[0, :] == r_n_rep_pc_nn_t[0, :],
+                         r_n_rep_pc[1, :] == r_n_rep_pc_nn_t[1, :])).squeeze()
 
         predicted = rep_pc[2, idx]
         gt =  rep_pc_nn_t[2, idx]
-
-        if p == 1:
-            loss += func.l1_loss(predicted, gt)
+        logger.debug('Selected points {:.2}% (on {:.2}% inliers pruning)'.format(torch.sum(idx).item()/rep_pc.size(1),
+                                                                         rep_pc.size(1)/inliers[i].size(0)))
+        if torch.sum(idx) < 1:
+            logger.warning('No aligned points')
+            continue
+        elif p == 1:
+            loss += func.pairwise_distance(predicted.unsqueeze(0), gt.unsqueeze(0), p=1)
+            #loss += func.l1_loss(predicted, gt)
         elif p == 2:
             loss += func.mse_loss(predicted, gt)
         else:
