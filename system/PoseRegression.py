@@ -166,7 +166,18 @@ class MultNet(Default):
         self.data['test']['data'].used_mod = self.testing_mod
         BaseClass.Base.test(self)
 
-    def creat_model(self, fake_depth=False, scene='heads/', test=False):
+    def creat_model(self, fake_depth=False, scene='heads/', test=False, final=False):
+
+        nets_to_test = self.trainer.networks
+        if not final:
+            nets_to_test = dict()
+            for name, network in self.trainer.networks.items():
+                nets_to_test[name] = copy.deepcopy(network)
+                nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
+
+        for network in nets_to_test.values():
+            network.eval()
+
         frame_spacing = 20
         size_dataset = len(self.data['train'])
         sequences = 'TestSplit.txt' if test else 'TrainSplit.txt'
@@ -181,8 +192,8 @@ class MultNet(Default):
             'output_size': None,
             'cnn_descriptor': False,
             'cnn_depth': fake_depth,
-            'cnn_enc': self.trainer.networks['Main'].cpu(),
-            'cnn_dec': self.trainer.networks['Deconv'].cpu(),
+            'cnn_enc': nets_to_test['Main'].cpu(),
+            'cnn_dec': nets_to_test['Deconv'].cpu(),
             'no_grad': True,
         }
         file_name = 'fake_depth_model.ply' if fake_depth else 'depth_model.ply'
