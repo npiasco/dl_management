@@ -68,6 +68,8 @@ def reproj_on_matching_loss(pc_to_align, pc_ref, T, K, inliers=None, **kwargs):
 
         predicted = rep_pc[2, idx]
         gt =  rep_pc_nn_t[2, idx]
+        logger.debug('Selected points {:.2}% (on {:.2}% inliers pruning)'.format(torch.sum(idx).item()/rep_pc.size(1),
+                                                                         rep_pc.size(1)/inliers[i].size(0)))
         if torch.sum(idx) < 1:
             logger.warning('No aligned points')
             continue

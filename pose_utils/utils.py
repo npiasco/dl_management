@@ -8,9 +8,98 @@ import PIL.Image
 import torchvision.transforms.functional as func
 import PIL.Image
 import numpy as np
+import math
 
 
 logger = setlog.get_logger(__name__)
+
+
+def gaussian_kernel(kernel_size=15, sigma=3.0, channels=1):
+    # Create a x, y coordinate grid of shape (kernel_size, kernel_size, 2)
+    x_cord = torch.arange(kernel_size)
+    x_grid = x_cord.repeat(kernel_size).view(kernel_size, kernel_size)
+    y_grid = x_grid.t()
+    xy_grid = torch.stack([x_grid, y_grid], dim=-1)
+
+    mean = (kernel_size - 1) / 2.
+    variance = sigma ** 2.
+
+    # Calculate the 2-dimensional gaussian kernel which is
+    # the product of two gaussian distributions for two different
+    # variables (in this case called x and y)
+    gaussian_kernel = (1. / (2. * math.pi * variance)) * \
+                      torch.exp(
+                          (-torch.sum((xy_grid - mean) ** 2., dim=-1) / \
+                          (2 * variance)).float()
+                      )
+    # Make sure sum of values in gaussian kernel equals 1.
+    gaussian_kernel = gaussian_kernel / torch.sum(gaussian_kernel)
+
+    # Reshape to 2d depthwise convolutional weight
+    gaussian_kernel = gaussian_kernel.view(1, 1, kernel_size, kernel_size)
+    gaussian_kernel = gaussian_kernel.repeat(channels, 1, 1, 1)
+
+    gaussian_filter = torch.nn.Conv2d(in_channels=channels, out_channels=channels, padding=(kernel_size-1)//2,
+                                      kernel_size=kernel_size, groups=channels, bias=False)
+
+    gaussian_filter.weight.data = gaussian_kernel
+    gaussian_filter.weight.requires_grad = False
+
+    return gaussian_filter
+
+
+def projected_depth_map_utils(poor_pc, nn_pc, T, K, **kwargs):
+
+    inliers = kwargs.pop('inliers', None)
+    diffuse = kwargs.pop('diffuse', None)
+    n_diffuse = kwargs.pop('n_diffuse', 1)
+    keep_sources = kwargs.pop('keep_sources', True)
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    Q = poor_pc.new_tensor([[1, 0, 0, 0],
+                            [0, 1, 0, 0],
+                            [0, 0, 1, 0]])
+
+    size_depth_map = int(math.sqrt(poor_pc.size(1)))
+    initial_dmap = poor_pc.new_zeros(1, size_depth_map, size_depth_map)
+    proj_poor_pc = K.matmul(Q.matmul(poor_pc))
+    proj_poor_pc[:2, :] /= proj_poor_pc[2, :]
+    proj_poor_pc[:2, :] = torch.round(proj_poor_pc[:2, :])
+    initial_dmap[:, proj_poor_pc[0, :].long(), proj_poor_pc[1, :].long()] = proj_poor_pc[2, :]
+
+    if inliers is not None:
+        poor_pc = poor_pc[:, inliers.bytes()]
+        nn_pc = nn_pc[:, inliers.bytes()]
+
+    proj_pc = K.matmul(Q.matmul(poor_pc))
+    proj_nn = K.matmul(Q.matmul(T.matmul(nn_pc)))
+
+    proj_pc[:2, :] /= proj_pc[2, :]
+    proj_pc[:2, :] = torch.round(proj_pc[:2, :])
+    proj_nn[:2, :] /= proj_nn[2, :]
+    proj_nn[:2, :] = torch.round(proj_nn[:2, :])
+
+    inliers = (torch.min(proj_pc[0, :].int() == proj_nn[0, :].int(),
+                         proj_pc[1, :].int() == proj_nn[1, :].int())).squeeze()
+    logger.debug('Get {} reprojection inliers'.format(torch.sum(inliers).item()))
+
+    repro_err = poor_pc.new_zeros(1, size_depth_map, size_depth_map)
+
+    if diffuse is not None:
+        for i in range(n_diffuse):
+            repro_err[:, proj_nn[0, inliers].long(), proj_nn[1, inliers].long()] = \
+                (proj_pc[2, inliers] - proj_nn[2, inliers])
+            repro_err = diffuse(repro_err.unsqueeze(0)).squeeze(0)
+        if keep_sources:
+            repro_err[:, proj_nn[0, inliers].long(), proj_nn[1, inliers].long()] = \
+                (proj_pc[2, inliers] - proj_nn[2, inliers])
+    else:
+        repro_err[:, proj_nn[0, inliers].long(), proj_nn[1, inliers].long()] = \
+            (proj_pc[2, inliers] - proj_nn[2, inliers])
+
+    final_map = (initial_dmap + repro_err).clamp(min=0)
+    return final_map
 
 
 def depth_map_to_pc(depth_map, K, remove_zeros=False):
