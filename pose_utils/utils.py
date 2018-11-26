@@ -8,10 +8,25 @@ import PIL.Image
 import torchvision.transforms.functional as func
 import PIL.Image
 import numpy as np
+from plyfile import PlyData, PlyElement
 import math
 
 
 logger = setlog.get_logger(__name__)
+
+
+def model_to_ply(**kwargs):
+
+    file_name = kwargs.pop('file_name', 'model.ply')
+    map_args = kwargs.pop('map_args', dict())
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    model = get_local_map(**map_args)
+    np_model = model[:3, :].t().cpu().detach().numpy()
+    np_model = np.array([(p_[0], p_[1], p_[2]) for p_ in np_model], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
+    el = PlyElement.describe(np_model, 'vertex')
+    PlyData([el]).write(file_name)
 
 
 def gaussian_kernel(kernel_size=15, sigma=3.0, channels=1):
@@ -97,8 +112,8 @@ def projected_depth_map_utils(poor_pc, nn_pc, T, K, **kwargs):
     else:
         repro_err[:, proj_nn[0, inliers].long(), proj_nn[1, inliers].long()] = \
             (proj_pc[2, inliers] - proj_nn[2, inliers])
-
-    final_map = (initial_dmap + repro_err).clamp(min=0)
+    # - / +
+    final_map = (initial_dmap - repro_err).clamp(min=0)
     return final_map
 
 

@@ -166,6 +166,29 @@ class MultNet(Default):
         self.data['test']['data'].used_mod = self.testing_mod
         BaseClass.Base.test(self)
 
+    def creat_model(self, fake_depth=False, scene='heads/', test=False):
+        frame_spacing = 20
+        size_dataset = len(self.data['train'])
+        sequences = 'TestSplit.txt' if test else 'TrainSplit.txt'
+        map_args = {
+            'T': torch.eye(4, 4),
+            'dataset': 'SEVENSCENES',
+            'scene': scene,
+            'sequences': sequences,
+            'num_pc': size_dataset//frame_spacing,
+            'resize': 0.1166666667,
+            'frame_spacing': frame_spacing,
+            'output_size': None,
+            'cnn_descriptor': False,
+            'cnn_depth': fake_depth,
+            'cnn_enc': self.trainer.networks['Main'].cpu(),
+            'cnn_dec': self.trainer.networks['Deconv'].cpu(),
+            'no_grad': True,
+        }
+        file_name = 'fake_depth_model.ply' if fake_depth else 'depth_model.ply'
+        file_name = 'test_' + file_name if test else file_name
+        pc_utils.model_to_ply(map_args=map_args, file_name=file_name)
+
     def map_print(self, final=False, mod='rgb', aux_mod='depth', batch_size=1):
         nets_to_test = self.trainer.networks
         if not final:
@@ -298,12 +321,12 @@ class MultNet(Default):
 
             fig = plt.figure(1)
             ax = fig.add_subplot(111, projection='3d')
-
-            pc_utils.plt_pc(ref_pc.cpu(), ax, pas, 'b')
-            pc_utils.plt_pc(gt_pc.cpu(), ax, pas, 'c', size=15)
+            plot_size = 60
+            pc_utils.plt_pc(ref_pc.cpu(), ax, pas, 'b', size=plot_size)
+            pc_utils.plt_pc(gt_pc.cpu(), ax, pas, 'c', size=2*plot_size, marker='*')
             if 'posenet_pose' in variables.keys():
-                pc_utils.plt_pc(posenet_pc.cpu(), ax, pas, 'm', size=15)
-            pc_utils.plt_pc(output_pc.cpu(), ax, pas, 'r', size=20)
+                pc_utils.plt_pc(posenet_pc.cpu(), ax, pas, 'm', size=2*plot_size, marker='o')
+            pc_utils.plt_pc(output_pc.cpu(), ax, pas, 'r', size=2*plot_size, marker='o')
             centroid = torch.mean(ref_pc[:3, :], -1)
 
             ax.set_xlim([centroid[0].cpu().item()-1, centroid[0].cpu().item()+1])
