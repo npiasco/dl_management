@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import torch.utils.data as data
 import tqdm
 import os
+import random
 PIL.PngImagePlugin.logger.setLevel('INFO')
 
 
@@ -103,6 +104,41 @@ class Base(utils.Dataset):
         return sample
 
 
+class MultiDataset(utils.Dataset):
+    def __init__(self, **kwargs):
+        utils.Dataset.__init__(self)
+        root = kwargs.pop('root', '')
+        folders = kwargs.pop('folders', list())
+        type = kwargs.pop('type', 'train')
+        general_options = kwargs.pop('general_options', dict())
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        if type == 'train':
+            self.datasets = [Train(root=root + folder, **general_options) for folder in folders]
+        elif type == 'val':
+            self.datasets = [Val(root=root + folder, **general_options) for folder in folders]
+        else:
+            raise AttributeError('No implementation for type {}'.format(type))
+
+    def __len__(self):
+        return sum([len(dataset) for dataset in self.datasets])
+
+    def __getitem__(self, idx):
+        n_dataset = 0
+        goon = True
+        size_sum_dataset = 0
+        while goon:
+            if idx >= size_sum_dataset +  len(self.datasets[n_dataset]):
+                size_sum_dataset += len(self.datasets[n_dataset])
+                n_dataset += 1
+            else:
+                goon = False
+
+        return self.datasets[n_dataset].__getitem__(idx-size_sum_dataset)
+
+
 class Train(Base):
     def __init__(self, **kwargs):
         default_tf = {
@@ -126,7 +162,6 @@ class Train(Base):
         step = round(1 / (1-pruning))
         logger.info('Computed step for pruning: {}'.format(step))
         self.data = [dat for i, dat in enumerate(self.data) if i % step != 0]
-
 
 class TrainSequence(Train):
     def __init__(self, **kwargs):
@@ -263,7 +298,12 @@ if __name__ == '__main__':
                                       num_samples=3,
                                       random=True)
 
-    dataloader = data.DataLoader(train_seq_dataset, batch_size=2, shuffle=True, num_workers=8)
+    mult_train_seq_dataset = MultiDataset(type='val', root=os.environ['SEVENSCENES'],
+                                          folders=['chess/', 'heads/'], general_options={
+            'transform': test_tf, 'used_mod': ('rgb',)
+        })
+
+    dataloader = data.DataLoader(mult_train_seq_dataset, batch_size=16, shuffle=False, num_workers=8)
     '''
     dataloader_wo_tf = data.DataLoader(train_dataset_wo_tf, batch_size=8, shuffle=False, num_workers=2)
     plt.figure(1)
@@ -276,9 +316,12 @@ if __name__ == '__main__':
     '''
     plt.ion()
     plt.show()
-    plt.figure(1)
+    fig = plt.figure(1)
+    print(len(mult_train_seq_dataset))
     for i, b in enumerate(dataloader):
-        show_seq_batch(b)
+        #show_seq_batch(b)
+        fig.clear()
+        show_batch(b)
         print(i)
-        plt.pause(2)
+        plt.pause(0.5)
         del b
