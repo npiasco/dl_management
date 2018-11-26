@@ -7,7 +7,9 @@ train:
                 - {class: 'datasets.multmodtf.Resize', param_class: {size: 124}}
                 - {class: 'datasets.multmodtf.RandomCrop', param_class: {size: 112}}
             rgb:
+                - {class: 'datasets.multmodtf.ColorJitter', param_class: {brightness: 0.5, contrast: 0.5, saturation: 0.5, hue: 0.05}}
                 - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
             depth:
                 - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                 - {class: 'datasets.multmodtf.ToTensor', param_class:}
@@ -19,11 +21,12 @@ test:
             root: 'heads/'
             transform:
                 first:
-                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 112}}
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 124}}
                     - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 112}}
 
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
                 depth:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
@@ -34,10 +37,11 @@ test:
             root: 'heads/'
             transform:
                 first:
-                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 112}}
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 124}}
                     - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 112}}
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
                 depth:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
@@ -50,10 +54,11 @@ val:
             root: 'heads/'
             transform:
                 first:
-                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 112}}
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 124}}
                     - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 112}}
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
                 depth:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
@@ -64,10 +69,11 @@ val:
             root: 'heads/'
             transform:
                 first:
-                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 112}}
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 124}}
                     - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 112}}
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
                 depth:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}

@@ -1,4 +1,5 @@
 import setlog
+import tqdm
 import yaml
 import os
 import system.BaseClass as BaseClass
@@ -166,6 +167,60 @@ class MultNet(Default):
         self.data['test']['data'].used_mod = self.testing_mod
         BaseClass.Base.test(self)
 
+    def compute_mean_std(self, jobs=16, **kwargs):
+
+        training = kwargs.pop('training', True)
+        mod = kwargs.pop('mod', 'rgb')
+        testing = kwargs.pop('testing', False)
+        val = kwargs.pop('val', True)
+
+        if kwargs:
+            raise ValueError('Not expected arg {}'.kwargs)
+
+        mean = None
+        std = None
+        logger.info('Computing mean and std for modality {}'.format(mod))
+
+        channel = 1 if mod != 'rgb' else 3
+
+        n_ex = 0
+
+        if training:
+            n_ex += len(self.data['train'])
+            dtload = data.DataLoader(self.data['train'], batch_size=1, num_workers=jobs)
+            for batch in tqdm.tqdm(dtload):
+                if mean is None:
+                    mean = torch.mean(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
+                    std = torch.std(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
+                else:
+                    mean += torch.mean(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
+                    std += torch.std(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
+
+        if val:
+            n_ex += len(self.data['val']['queries'])
+            dtload = data.DataLoader(self.data['val']['queries'], batch_size=1, num_workers=jobs)
+            for batch in tqdm.tqdm(dtload):
+                if mean is None:
+                    mean = torch.mean(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
+                    std = torch.std(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
+                else:
+                    mean += torch.mean(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
+                    std += torch.std(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
+
+        if testing:
+            n_ex += len(self.data['test']['queries'])
+            dtload = data.DataLoader(self.data['test']['queries'], batch_size=1, num_workers=jobs)
+            for batch in tqdm.tqdm(dtload):
+                if mean is None:
+                    mean = torch.mean(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
+                    std = torch.std(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
+                else:
+                    mean += torch.mean(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
+                    std += torch.std(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
+        mean /= n_ex
+        std /= n_ex
+        logger.info('Mean = {}\nSTD = {}'.format(mean, std))
+
     def creat_model(self, fake_depth=False, scene='heads/', test=False, final=False):
 
         nets_to_test = self.trainer.networks
@@ -220,7 +275,8 @@ class MultNet(Default):
         mode = 'queries'
         self.data[dataset][mode].used_mod = [mod, aux_mod]
 
-        dtload = data.DataLoader(self.data[dataset][mode], batch_size=batch_size, shuffle=True)
+        #dtload = data.DataLoader(self.data[dataset][mode], batch_size=batch_size, shuffle=True)
+        dtload = data.DataLoader(self.data['train'], batch_size=batch_size, shuffle=True)
         ccmap = plt.get_cmap('jet', lut=1024)
 
         for b in dtload:
