@@ -198,7 +198,12 @@ class MultNet(Default):
         }
         file_name = 'fake_depth_model.ply' if fake_depth else 'depth_model.ply'
         file_name = 'test_' + file_name if test else file_name
-        pc_utils.model_to_ply(map_args=map_args, file_name=file_name)
+        color = [255, 0, 0]
+        if test:
+            color[1] = 255
+        if final:
+            color[2] = 255
+        pc_utils.model_to_ply(map_args=map_args, file_name=file_name, color=color)
 
     def map_print(self, final=False, mod='rgb', aux_mod='depth', batch_size=1):
         nets_to_test = self.trainer.networks
