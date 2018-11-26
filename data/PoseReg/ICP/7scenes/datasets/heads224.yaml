@@ -8,6 +8,7 @@ train:
                 - {class: 'datasets.multmodtf.RandomCrop', param_class: {size: 224}}
             rgb:
                 - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
             depth:
                 - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                 - {class: 'datasets.multmodtf.ToTensor', param_class:}
@@ -24,6 +25,7 @@ test:
 
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
                 depth:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
@@ -38,6 +40,7 @@ test:
                     - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
                 depth:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
@@ -54,6 +57,7 @@ val:
                     - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
                 depth:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
@@ -68,6 +72,7 @@ val:
                     - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
                 depth:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
