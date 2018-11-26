@@ -293,8 +293,10 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 summed_loss.backward()
                 if 'clip_grad' in action.keys():
                     for nets_name in action['clip_grad']['networks']:
-                        torch.nn.utils.clip_grad_norm_(self.networks[nets_name].parameters(),
-                                                       action['clip_grad']['norm_max'])
+                        for params in self.networks[nets_name].get_training_layers():
+                            for param in params['params']:
+                                torch.nn.utils.clip_grad_value_(param,
+                                                                action['clip_grad']['val_max'])
                 self.optimizers[action['trainer']].step()
                 self.optimizers[action['trainer']].zero_grad()
                 summed_loss = 0
