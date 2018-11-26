@@ -32,7 +32,7 @@ class Platinum(utils.data.Dataset):
                 'first': (tf.Resize((224, 224)), tf.ToTensor())
             }
 
-        self.data = pd.read_csv(self.root + file, header=1, sep=',')
+        self.data = pd.read_csv(self.root + file, header=1, sep=';')
         self.modalities = modalities
         self.used_mod = self.modalities
 
@@ -50,7 +50,7 @@ class Platinum(utils.data.Dataset):
                 fidx = idx // (self.panorama_split['h_split'] * self.panorama_split['v_split'])
             else:
                 fidx = idx
-            file_name = self.root + self.data.ix[fidx, self.mod_to_indx(mod_name)] + '.png'
+            file_name = self.root + self.data.ix[fidx, self.mod_to_indx(mod_name)]# + '.png'
             if self.panorama_split is not None:
                 raw_img = scipy.misc.imread(file_name)
                 r = raw_img.shape[1] / (2 * np.pi)
