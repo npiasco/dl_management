@@ -19,12 +19,13 @@ def model_to_ply(**kwargs):
 
     file_name = kwargs.pop('file_name', 'model.ply')
     map_args = kwargs.pop('map_args', dict())
+    color = kwargs.pop('color', (255, 0, 0))
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     model = get_local_map(**map_args)
     np_model = model[:3, :].t().cpu().detach().numpy()
-    np_model = np.array([(p_[0], p_[1], p_[2]) for p_ in np_model], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
+    np_model = np.array([(p_[0], p_[1], p_[2], color[0], color[1], color[2]) for p_ in np_model], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'), ('red', 'u1'), ('green', 'u1'), ('blue', 'u1')])
     el = PlyElement.describe(np_model, 'vertex')
     PlyData([el]).write(file_name)
 
