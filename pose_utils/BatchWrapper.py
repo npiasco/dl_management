@@ -57,14 +57,21 @@ def add_variable(variable, **kwargs):
     value = kwargs.pop('value', None)
     load = kwargs.pop('load', False)
     source = kwargs.pop('source', None)
+    repeat = kwargs.pop('repeat', False)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     if load:
         value = torch.load(value)
     source = recc_acces(variable, source)
     new_var = source.new_tensor(value)
-
-    if kwargs:
-        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+    if repeat:
+        new_var = new_var.unsqueeze(0)
+        new_var_size = new_var.size()
+        new_size = [1 for _ in range(len(new_var_size))]
+        new_size[0] = repeat
+        new_var = new_var.repeat(new_size)
 
     return new_var
 
