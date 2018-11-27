@@ -110,15 +110,16 @@ class MultiDataset(utils.Dataset):
         root = kwargs.pop('root', '')
         folders = kwargs.pop('folders', list())
         type = kwargs.pop('type', 'train')
+        transform = kwargs.pop('transform', dict())
         general_options = kwargs.pop('general_options', dict())
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
         if type == 'train':
-            self.datasets = [Train(root=root + folder, **general_options) for folder in folders]
+            self.datasets = [Train(root=root + folder, transform=transform, **general_options) for folder in folders]
         elif type == 'val':
-            self.datasets = [Val(root=root + folder, **general_options) for folder in folders]
+            self.datasets = [Val(root=root + folder, transform=transform,  **general_options) for folder in folders]
         else:
             raise AttributeError('No implementation for type {}'.format(type))
 
@@ -137,6 +138,15 @@ class MultiDataset(utils.Dataset):
                 goon = False
 
         return self.datasets[n_dataset].__getitem__(idx-size_sum_dataset)
+
+    @property
+    def used_mod(self):
+        return self.datasets[0].used_mod
+
+    @used_mod.setter
+    def used_mod(self, mode):
+        for dataset in self.datasets:
+            dataset.used_mod = mode
 
 
 class Train(Base):
@@ -299,10 +309,10 @@ if __name__ == '__main__':
                                       random=True)
 
     mult_train_seq_dataset = MultiDataset(type='val', root=os.environ['SEVENSCENES'],
-                                          folders=['chess/', 'heads/'], general_options={
-            'transform': test_tf, 'used_mod': ('rgb',)
-        })
+                                          folders=['chess/', 'heads/'], transform=test_tf,
+                                          general_options={'used_mod': ('rgb',)})
 
+    mult_train_seq_dataset.used_mod = ('depth',)
     dataloader = data.DataLoader(mult_train_seq_dataset, batch_size=16, shuffle=False, num_workers=8)
     '''
     dataloader_wo_tf = data.DataLoader(train_dataset_wo_tf, batch_size=8, shuffle=False, num_workers=2)
@@ -321,7 +331,8 @@ if __name__ == '__main__':
     for i, b in enumerate(dataloader):
         #show_seq_batch(b)
         fig.clear()
-        show_batch(b)
+        #show_batch(b)
+        show_batch_mono(b)
         print(i)
         plt.pause(0.5)
         del b
