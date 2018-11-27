@@ -2,7 +2,7 @@ train:
     class: datasets.SevenScene.MultiDataset
     param_class:
         root: ''
-        type: 'val'
+        type: 'train'
         folders: ['heads/', 'chess/']
         transform:
             first:
