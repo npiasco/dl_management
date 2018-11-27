@@ -234,7 +234,7 @@ class MultNet(Default):
             network.eval()
 
         frame_spacing = 20
-        size_dataset = len(self.data['train'])
+        size_dataset = len(self.data['test']['query']) if test else len(self.data['train'])
         sequences = 'TestSplit.txt' if test else 'TrainSplit.txt'
         map_args = {
             'T': torch.eye(4, 4),
