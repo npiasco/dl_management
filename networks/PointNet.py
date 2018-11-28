@@ -107,12 +107,12 @@ class PointNet(nn.Module):
             input_f = nnf.normalize(input_f, dim=1)
 
         if self.nfeat_stn > 0:
-            T = self.stn(input_p)
+            T = self.stn(input_p[:, :3, :])
             #xy_transf = torch.bmm(input[:,:3,:].transpose(1,2), T).transpose(1,2)
-            xy_transf = T.matmul(input_p)
+            xy_transf = T.matmul(input_p[:, :3, :])
             input = torch.cat([xy_transf, input_f], 1)
         else:
-            input = torch.cat([input_p, input_f], 1)
+            input = torch.cat([input_p[:, :3, :], input_f], 1)
 
         input = self.convs(input)
         max_input = nnf.max_pool1d(input, input.size(2)).squeeze(2)
@@ -148,4 +148,4 @@ if __name__ == '__main__':
                    nf_conv_desc=[64, 64, 4],
                    nfeat=3+16, nfeat_global=0)
     print(net)
-    print(net(p1[:, :3, :], desc1).size())
+    print(net(p1, desc1).size())
