@@ -3,6 +3,7 @@ import torch.nn.functional as nnf
 import torch
 import setlog
 import pose_utils.utils as utils
+import copy
 
 
 logger = setlog.get_logger(__name__)
@@ -16,34 +17,43 @@ class STNkD(nn.Module):
       nf_conv: list of layer widths of point embeddings (before maxpool)
       nf_fc: list of layer widths of joint embeddings (after maxpool)
     """
-    def __init__(self, nfeat, nf_conv, nf_fc, K=3):
+    def __init__(self, nfeat, nf_conv, nf_fc, **kwargs):
         nn.Module.__init__(self)
+        K = kwargs.pop('K', 3)
+        norm_layer = kwargs.pop('norm_layer', 'group')
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        if norm_layer == 'group':
+            norm_layer_func = lambda x: copy.deepcopy(nn.GroupNorm(x//2, x))
+        elif norm_layer == 'batch':
+            norm_layer_func = lambda x: copy.deepcopy(nn.BatchNorm1d(x))
 
         modules = []
         for i in range(len(nf_conv)):
             modules.append(nn.Conv1d(nf_conv[i-1] if i>0 else nfeat, nf_conv[i], 1))
-            modules.append(nn.BatchNorm1d(nf_conv[i]))
+            modules.append(norm_layer_func(nf_conv[i]))
             modules.append(nn.ReLU(True))
         self.convs = nn.Sequential(*modules)
 
         modules = []
         for i in range(len(nf_fc)):
             modules.append(nn.Linear(nf_fc[i-1] if i>0 else nf_conv[-1], nf_fc[i]))
-            modules.append(nn.BatchNorm1d(nf_fc[i]))
+            modules.append(norm_layer_func(nf_fc[i]))
             modules.append(nn.ReLU(True))
         self.fcs = nn.Sequential(*modules)
 
         self.proj = nn.Linear(nf_fc[-1], K*K)
         nn.init.constant_(self.proj.weight, 0)
         nn.init.constant_(self.proj.bias, 0)
-        self.eye = torch.eye(K).unsqueeze(0)
+        self.eye = nn.Parameter(torch.eye(K).unsqueeze(0), requires_grad=False)
 
     def forward(self, input):
         input = self.convs(input)
         input = nnf.max_pool1d(input, input.size(2)).squeeze(2)
         input = self.fcs(input)
         input = self.proj(input)
-        return input.view(-1,self.eye.size(1),self.eye.size(2)) + self.eye
+        return input.view(-1, self.eye.size(1), self.eye.size(2)) + self.eye
 
 class PointNet(nn.Module):
     """
@@ -58,6 +68,7 @@ class PointNet(nn.Module):
       last_ac: whether to use batch norm and relu after the last parameteric layer
     """
     def __init__(self, nf_conv, nf_fc, nf_conv_stn, nf_fc_stn, nf_conv_desc, nfeat, **kwargs):
+        nn.Module.__init__(self)
 
         nfeat_stn = kwargs.pop('nfeat_stn',3)
         nfeat_global = kwargs.pop('nfeat_global', 0)
@@ -65,11 +76,17 @@ class PointNet(nn.Module):
         last_ac = kwargs.pop('last_ac', False)
         self.normalize_p = kwargs.pop('normalize_p', True)
         self.normalize_f = kwargs.pop('normalize_f', True)
+        self.layers_to_train = kwargs.pop('layers_to_train', 'all')
+        norm_layer = kwargs.pop('norm_layer', 'group')
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-        nn.Module.__init__(self)
+        if norm_layer == 'group':
+            norm_layer_func = lambda x: copy.deepcopy(nn.GroupNorm(x//2, x))
+        elif norm_layer == 'batch':
+            norm_layer_func = lambda x: copy.deepcopy(nn.BatchNorm1d(x))
+
         if nfeat_stn > 0:
             self.stn = STNkD(nfeat_stn, nf_conv_stn, nf_fc_stn)
         self.nfeat_stn = nfeat_stn
@@ -77,7 +94,7 @@ class PointNet(nn.Module):
         modules = []
         for i in range(len(nf_conv)):
             modules.append(nn.Conv1d(nf_conv[i-1] if i>0 else nfeat, nf_conv[i], 1))
-            modules.append(nn.BatchNorm1d(nf_conv[i]))
+            modules.append(norm_layer_func(nf_conv[i]))
             modules.append(nn.ReLU(True))
         self.convs = nn.Sequential(*modules)
 
@@ -85,7 +102,7 @@ class PointNet(nn.Module):
         for i in range(len(nf_fc)):
             modules.append(nn.Linear(nf_fc[i-1] if i>0 else nf_conv[-1]+nfeat_global, nf_fc[i]))
             if i<len(nf_fc)-1 or last_ac:
-                modules.append(nn.BatchNorm1d(nf_fc[i]))
+                modules.append(norm_layer_func(nf_fc[i]))
                 modules.append(nn.ReLU(True))
             if i==len(nf_fc)-2 and prelast_do>0:
                 modules.append(nn.Dropout(prelast_do))
@@ -94,7 +111,7 @@ class PointNet(nn.Module):
         modules = []
         for i in range(len(nf_conv_desc)):
             modules.append(nn.Conv1d(nf_conv_desc[i - 1] if i > 0 else nf_conv[-1] + nf_fc[-1], nf_conv_desc[i], 1))
-            modules.append(nn.BatchNorm1d(nf_conv_desc[i]))
+            modules.append(norm_layer_func(nf_conv_desc[i]))
             modules.append(nn.ReLU(True))
         self.convs_desc = nn.Sequential(*modules)
 
@@ -123,6 +140,11 @@ class PointNet(nn.Module):
         input = torch.cat((input, global_desc.repeat(1, 1, input.size(-1))), 1)
         return self.convs_desc(input)
 
+    def get_training_layers(self, layers_to_train=None):
+        if layers_to_train is None:
+            layers_to_train = self.layers_to_train
+        if layers_to_train == 'all':
+            return [{'params': self.parameters()}]
 
 if __name__ == '__main__':
 
