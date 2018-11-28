@@ -16,7 +16,7 @@ class STNkD(nn.Module):
       nf_conv: list of layer widths of point embeddings (before maxpool)
       nf_fc: list of layer widths of joint embeddings (after maxpool)
     """
-    def __init__(self, nfeat, nf_conv, nf_fc, K=2):
+    def __init__(self, nfeat, nf_conv, nf_fc, K=3):
         nn.Module.__init__(self)
 
         modules = []
@@ -34,11 +34,11 @@ class STNkD(nn.Module):
         self.fcs = nn.Sequential(*modules)
 
         self.proj = nn.Linear(nf_fc[-1], K*K)
-        nn.init.constant(self.proj.weight, 0); nn.init.constant(self.proj.bias, 0)
+        nn.init.constant_(self.proj.weight, 0)
+        nn.init.constant_(self.proj.bias, 0)
         self.eye = torch.eye(K).unsqueeze(0)
 
     def forward(self, input):
-        self.eye = self.eye.cuda() if input.is_cuda else self.eye
         input = self.convs(input)
         input = nnf.max_pool1d(input, input.size(2)).squeeze(2)
         input = self.fcs(input)
@@ -57,8 +57,19 @@ class PointNet(nn.Module):
       prelast_do: dropout after the pre-last parameteric layer
       last_ac: whether to use batch norm and relu after the last parameteric layer
     """
-    def __init__(self, nf_conv, nf_fc, nf_conv_stn, nf_fc_stn, nfeat, nfeat_stn=2, nfeat_global=1, prelast_do=0.5, last_ac=False):
-        super(PointNet, self).__init__()
+    def __init__(self, nf_conv, nf_fc, nf_conv_stn, nf_fc_stn, nf_conv_desc, nfeat, **kwargs):
+
+        nfeat_stn = kwargs.pop('nfeat_stn',3)
+        nfeat_global = kwargs.pop('nfeat_global', 0)
+        prelast_do = kwargs.pop('prelast_do', 0.5)
+        last_ac = kwargs.pop('last_ac', False)
+        self.normalize_p = kwargs.pop('normalize_p', True)
+        self.normalize_f = kwargs.pop('normalize_f', True)
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        nn.Module.__init__(self)
         if nfeat_stn > 0:
             self.stn = STNkD(nfeat_stn, nf_conv_stn, nf_fc_stn)
         self.nfeat_stn = nfeat_stn
@@ -80,24 +91,44 @@ class PointNet(nn.Module):
                 modules.append(nn.Dropout(prelast_do))
         self.fcs = nn.Sequential(*modules)
 
-    def forward(self, input, input_global):
+        modules = []
+        for i in range(len(nf_conv_desc)):
+            modules.append(nn.Conv1d(nf_conv_desc[i - 1] if i > 0 else nf_conv[-1] + nf_fc[-1], nf_conv_desc[i], 1))
+            modules.append(nn.BatchNorm1d(nf_conv_desc[i]))
+            modules.append(nn.ReLU(True))
+        self.convs_desc = nn.Sequential(*modules)
+
+    def forward(self, input_p, input_f, input_global=None):
+        if self.normalize_p:
+            centroid = torch.mean(input_p, -1).unsqueeze(-1)
+            input_p = input_p - centroid
+
+        if self.normalize_f:
+            input_f = nnf.normalize(input_f, dim=1)
+
         if self.nfeat_stn > 0:
-            T = self.stn(input[:,:self.nfeat_stn,:])
-            xy_transf = torch.bmm(input[:,:2,:].transpose(1,2), T).transpose(1,2)
-            input = torch.cat([xy_transf, input[:,2:,:]], 1)
+            T = self.stn(input_p)
+            #xy_transf = torch.bmm(input[:,:3,:].transpose(1,2), T).transpose(1,2)
+            xy_transf = T.matmul(input_p)
+            input = torch.cat([xy_transf, input_f], 1)
+        else:
+            input = torch.cat([input_p, input_f], 1)
 
         input = self.convs(input)
-        input = nnf.max_pool1d(input, input.size(2)).squeeze(2)
+        max_input = nnf.max_pool1d(input, input.size(2)).squeeze(2)
         if input_global is not None:
-            input = torch.cat([input, input_global.view(-1,1)], 1)
-        return self.fcs(input)
+            max_input = torch.cat([max_input, input_global.view(-1,1)], 1)
+        global_desc = self.fcs(max_input).unsqueeze(-1)
+        # in the original paper, concatenation is done on max_input & input
+        input = torch.cat((input, global_desc.repeat(1, 1, input.size(-1))), 1)
+        return self.convs_desc(input)
 
 
 if __name__ == '__main__':
 
     torch.manual_seed(10)
     device = 'cpu'
-    batch = 1
+    batch = 2
     nb_pt = 5000
     p1 = torch.rand(batch, 4, nb_pt).to(device)
     p1[:, 3, :] = 1
@@ -109,3 +140,12 @@ if __name__ == '__main__':
     #p2 = torch.rand(2, 4, nb_pt).to(device)
     desc1 = torch.rand(batch, 16, nb_pt).to(device)
     desc2 = desc1
+
+    net = PointNet(nf_conv=[64,64,128,128,256],
+                   nf_fc=[256,64,32],
+                   nf_conv_stn=[64,64,128],
+                   nf_fc_stn=[128,64],
+                   nf_conv_desc=[64, 64, 4],
+                   nfeat=3+16, nfeat_global=0)
+    print(net)
+    print(net(p1[:, :3, :], desc1).size())
