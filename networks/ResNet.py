@@ -163,6 +163,14 @@ class Deconv(nn.Module):
         input_size = kwargs.pop('input_size', 256)
         self.up_factor = kwargs.pop('up_factor', 1)
         alexnet_entry = kwargs.pop('alexnet_entry', False)
+        final_activation = kwargs.pop('final_activation', 'tanh')
+
+        if final_activation == 'tanh':
+            f_act = ('tanh', nn.Tanh())
+        elif final_activation == 'sig':
+            f_act = ('sig', nn.Sigmoid())
+        else:
+            raise AttributeError('No end activation named {}'.format(f_act))
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -195,7 +203,7 @@ class Deconv(nn.Module):
                     ('deconv0', nn.ConvTranspose2d(2 * size_res_2, modality_ch, kernel_size=6, stride=2, padding=2-out_pad)),
                     ('deconvf', nn.ConvTranspose2d(modality_ch, modality_ch, kernel_size=6, stride=2, padding=2,
                                                    output_padding=0)),
-                    ('tanh', nn.Tanh()),
+                    f_act,
 
                 ]
         }
