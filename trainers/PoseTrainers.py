@@ -250,22 +250,6 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
 
         self.build_model = eval(build_model_func)
 
-    @property
-    def device(self):
-        return torch.device('cuda' if self.cuda_on else 'cpu')
-
-    def batch_to_device(self, batch):
-        if isinstance(batch, list):
-            for i, elem in enumerate(batch):
-                batch[i] = self.batch_to_device(elem)
-        else:
-            for name, values in batch.items():
-                if isinstance(values, dict):
-                    batch[name] = self.batch_to_device(values)
-                else:
-                    batch[name] = values.to(self.device)
-        return batch
-
     def train(self, batch):
         for network in self.networks.values():
             network.train().to(self.device)
