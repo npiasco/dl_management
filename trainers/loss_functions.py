@@ -89,6 +89,7 @@ def full_pose_loss(predicted, gt, key='full', combine_func=None):
     return combine_func.combine(mean_dist(predicted[key]['p'], gt['p']),
                                 mean_dist(predicted[key]['q'], gt['q']))
 
+
 def matching_loss(pc_ref, pc_to_align, T, inliers=None):
     '''
     Compute the reprojection error of pc_to_align matched to pc_ref according to tf T
@@ -102,13 +103,15 @@ def matching_loss(pc_ref, pc_to_align, T, inliers=None):
     loss = 0
     for i, pc in enumerate(pc_ref):
         if inliers is not None:
-            pc = torch.cat([point.unsqueeze(1) for n_p, point in enumerate(pc.t()) if inliers[i][n_p]], 1)
-            pc_nn = torch.cat([point.unsqueeze(1) for n_p, point in enumerate(pc_to_align[i].t()) if inliers[i][n_p]], 1)
+            pc = pc[:, inliers[i].byte()]
+            #pc = torch.cat([point.unsqueeze(1) for n_p, point in enumerate(pc.t()) if inliers[i][n_p]], 1)
+            pc_nn = pc_to_align[i, :, inliers[i].byte()]
+            #pc_nn = torch.cat([point.unsqueeze(1) for n_p, point in enumerate(pc_to_align[i].t()) if inliers[i][n_p]], 1)
         else:
             pc_nn = pc_to_align[i]
 
         #loss += func.mse_loss(T[i].matmul(pc_nn), pc)
-        loss += torch.sum(torch.sum((T[i].matmul(pc_nn) - pc) ** 2, 0))
+        loss += torch.mean(torch.sum((T[i].matmul(pc_nn) - pc) ** 2, 0))
 
     return loss / (i + 1)
 

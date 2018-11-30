@@ -17,6 +17,32 @@ def recc_acces(var, names):
         return recc_acces(var[names[0]], sub_name)
 
 
+def outliers_count(variable, **kwargs):
+    pc_ref = kwargs.pop('pc_ref', None)
+    pc_to_align = kwargs.pop('pc_to_align', None)
+    T = kwargs.pop('T', None)
+    sigma = kwargs.pop('sigma', 1e-1)
+    beta = kwargs.pop('beta', 0.5)
+
+    pc_ref = recc_acces(variable, pc_ref)
+    pc_to_align = recc_acces(variable, pc_to_align)
+    T = recc_acces(variable, T)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    return torch.sum(
+        torch.sigmoid(
+            (
+                beta * torch.sum(
+                    (pc_ref - T.matmul(pc_to_align)) ** 2,
+                    1)
+                - sigma
+            )
+        )
+    )/(pc_ref.size(0)*pc_ref.size(-1))
+
+
 def default(network, batch, mode, **kwargs):
     cuda_func = kwargs.pop('cuda_func', lambda x: x.cuda())
     mod = kwargs.pop('mod', None)

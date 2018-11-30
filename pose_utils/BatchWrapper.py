@@ -123,16 +123,16 @@ def advanced_local_map_getter(nets, variable, **kwargs):
     size_pc = map_args.get('output_size', 2000)
     cnn_descriptor = map_args.get('cnn_descriptor', False)
 
-    if isinstance(size_pc, int):
+    if not isinstance(size_pc, bool):
         batched_local_maps = Ts.new_zeros(Ts.size(0), 4, size_pc)
         if cnn_descriptor:
             encoders = Ts.new_zeros(Ts.size(0), descriptors_size, size_pc)
-    elif Ts.size(0) != 0:
-        raise AttributeError('Can generate full pc when batch size != 0.')
+    elif Ts.size(0) != 1:
+        raise AttributeError('Can generate full pc when batch size != 1.')
 
     for i, T in enumerate(Ts):
         if cnn_descriptor:
-            if isinstance(size_pc, int):
+            if not isinstance(size_pc, bool):
                 batched_local_maps[i], encoders[i] = utils.get_local_map(T=T, **map_args, cnn_enc=nets[0], cnn_dec=nets[1])
             else:
                 batched_local_maps, encoders = utils.get_local_map(T=T, **map_args, cnn_enc=nets[0],
@@ -205,12 +205,26 @@ def batched_depth_map_to_pc(variable, **kwargs):
         if inverse_depth:
             depth_maps = torch.reciprocal(depth_maps.clamp(min=eps)) - 1
         if remove_zeros:
-            batched_pc = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros).unsqueeze(0)
+            batched_pc, indexor = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros)
+            batched_pc = {'pc': batched_pc.unsqueeze(0), 'index': indexor}
         else:
             batched_pc[i, :, :] = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros)
 
     return batched_pc
 
+def index(variable, **kwargs):
+    inputs = kwargs.pop('inputs', None)
+    index = kwargs.pop('index', None)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    inputs = recc_acces(variable, inputs)
+    index = recc_acces(variable, index)
+    inputs = inputs.view(1, inputs.size(1), -1)
+    inputs = inputs[:, :, index]
+
+    return inputs
 
 def resize(variable, **kwargs):
     inputs = kwargs.pop('inputs', None)

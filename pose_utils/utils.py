@@ -126,16 +126,24 @@ def depth_map_to_pc(depth_map, K, remove_zeros=False):
     p_d = (p * depth_map).view(3, -1)
 
     if remove_zeros:
-        p_d = p_d[:, depth_map.view(1, -1).squeeze() != 0]
+        indexor = depth_map.view(1, -1).squeeze() != 0
+        p_d = p_d[:, indexor ]
 
     x = inv_K.matmul(p_d)
     x_homo = x.new_ones(4, x.nelement()//3)
     x_homo[:3, :] = x
-    return x_homo
+
+    if remove_zeros:
+        return x_homo, indexor
+    else:
+        return x_homo
 
 
 def toSceneCoord(depth, pose, K, remove_zeros=False):
-    x = depth_map_to_pc(depth, K, remove_zeros=remove_zeros)
+    if remove_zeros:
+        x, _ = depth_map_to_pc(depth, K, remove_zeros=remove_zeros)
+    else:
+        x = depth_map_to_pc(depth, K, remove_zeros=remove_zeros)
 
     X = pose.matmul(x)
     return X
@@ -350,7 +358,7 @@ def get_local_map(**kwargs):
     if cnn_descriptor:
         cnn_desc_out = torch.cat(descs, 1)
     logger.debug('Final points before pruning cloud has {} points'.format(final_pc.size(1)))
-    if isinstance(output_size, int):
+    if not isinstance(output_size, bool):
         indexor = torch.randperm(final_pc.size(1))
         final_pc = final_pc[:, indexor]
         final_pc = final_pc[:, :output_size]
