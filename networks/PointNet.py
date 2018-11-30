@@ -78,6 +78,7 @@ class PointNet(nn.Module):
         self.normalize_f = kwargs.pop('normalize_f', True)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
         norm_layer = kwargs.pop('norm_layer', 'group')
+        end_relu = kwargs.pop('end_relu', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -95,6 +96,7 @@ class PointNet(nn.Module):
         for i in range(len(nf_conv)):
             modules.append(nn.Conv1d(nf_conv[i-1] if i>0 else nfeat, nf_conv[i], 1))
             modules.append(norm_layer_func(nf_conv[i]))
+
             modules.append(nn.ReLU(True))
         self.convs = nn.Sequential(*modules)
 
@@ -113,6 +115,10 @@ class PointNet(nn.Module):
             modules.append(nn.Conv1d(nf_conv_desc[i - 1] if i > 0 else nf_conv[-1] + nf_fc[-1], nf_conv_desc[i], 1))
             modules.append(norm_layer_func(nf_conv_desc[i]))
             modules.append(nn.ReLU(True))
+
+        if not end_relu:
+            modules.pop()
+
         self.convs_desc = nn.Sequential(*modules)
 
     def forward(self, input_p, input_f, input_global=None):
@@ -165,9 +171,9 @@ if __name__ == '__main__':
 
     net = PointNet(nf_conv=[64,64,128,128,256],
                    nf_fc=[256,64,32],
-                   nf_conv_stn=[64,64,128],
-                   nf_fc_stn=[128,64],
+                   nf_conv_stn=[64, 64, 128],
+                   nf_fc_stn=[128, 64],
                    nf_conv_desc=[64, 64, 4],
-                   nfeat=3+16, nfeat_global=0)
+                   nfeat=3+16, nfeat_global=0, nfeat_stn=0, end_relu=False)
     print(net)
     print(net(p1, desc1).size())
