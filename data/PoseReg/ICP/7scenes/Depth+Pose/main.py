@@ -13,8 +13,9 @@ import system.PoseRegression as System
 if __name__ == '__main__':
     machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])],
                              #trainer_file='posenet_trainer.yaml',
-                             trainer_file='trainer.yaml',
-                             dataset_file='../datasets/heads.yaml'
+                             trainer_file='trainer_icp.yaml',
+                             #dataset_file='../datasets/heads.yaml'
+                             dataset_file = '../datasets/heads_no_norm.yaml'
                              )
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':
@@ -30,13 +31,17 @@ if __name__ == '__main__':
     elif action == 'P':
         machine.plot()
     elif action == 'm':
-        machine.map_print(batch_size=1)
+        machine.map_print(batch_size=2)
     elif action == 'mf':
-        machine.map_print(final=True, batch_size=1)
+        machine.map_print(final=True, batch_size=2)
+    elif action == 's':
+        machine.serialize_net()
+    elif action == 'sf':
+        machine.serialize_net(final=True)
     elif action == 'pose':
         machine.view_localization(pas=10)
     elif action == 'posef':
-        machine.view_localization(pas=10, final=True)
+        machine.view_localization(pas=5, final=True)
     elif action == '':
         machine.train()
         machine.test()

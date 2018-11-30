@@ -210,7 +210,7 @@ if __name__ == '__main__':
             pas = 1
 
             utils.plt_pc(pc_ref, ax, pas, 'b')
-            utils.plt_pc(utils.mat_proj(poses[1][:3,:].detach(), pc_to_align.detach(), homo=True), ax, pas, 'c')
+            utils.plt_pc(poses[1].detach().matmul(pc_to_align.detach()), ax, pas, 'c')
 
             plt.figure(1)
             grid = torchvision.utils.make_grid(torch.cat(

@@ -42,12 +42,15 @@ MatchNet:
         reject_ratio: 1.5
         outlier_filter: false
         fact: 2000
-        use_dst_pt: true
+        use_dst_pt: false
         use_dst_desc: true
+        normalize_desc: false
         desc_p: 2
         knn: hard
+        bidirectional: false
 
 #init_weights:
+    #/mnt/anakim/data/Seq_Training/
 #    Main:
 #        feature: '../Depth+Pose/Main_feature.pth'
 #    Deconv:

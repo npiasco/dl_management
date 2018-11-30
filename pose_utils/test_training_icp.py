@@ -139,8 +139,22 @@ if __name__ == '__main__':
         pcs.append(utils.toSceneCoord(depth, pose, K, remove_zeros=True))
 
     idx = 0
+
+    net = nn.Sequential(
+        CA.PixEncoder(k_size=4, d_fact=4),
+        #CA.PixDecoder(k_size=4, d_fact=4, out_channel=1, div_fact=2)
+    )
+    net_dec = CA.PixDecoder(k_size=4, d_fact=4, out_channel=1, div_fact=2)
+
     pc_ref = torch.cat((pcs[0], pcs[1], pcs[2]), 1)
-    pc_ref = utils.get_local_map(T=poses[idx], output_size=5000)
+    cnn_desc = torch.FloatTensor(32, 600).float()
+    pc_ref, cnn_desc = utils.get_local_map(T=poses[idx],
+                                 output_size=600,
+                                 cnn_depth=True,
+                                 cnn_enc=net,
+                                 cnn_dec=net_dec,
+                                 cnn_descriptor='conv1',
+                                 resize=1/10)
     #pc_ref = torch.load('base_model.pth')
 
     #pc_ref = torch.cat(pcs, 1)
@@ -238,7 +252,7 @@ if __name__ == '__main__':
             pas = 1
 
             utils.plt_pc(pc_ref_pruned, ax, pas, 'b')
-            utils.plt_pc(utils.mat_proj(pose_net[:3,:].detach(), pc_to_align_pruned.detach(), homo=True), ax, pas, 'c')
+            utils.plt_pc(pose_net.matmul(pc_to_align_pruned.detach()), ax, pas, 'c')
 
             plt.figure(1)
             grid = torchvision.utils.make_grid(torch.cat(

@@ -20,7 +20,7 @@ test:
             root: 'minimal_heads/'
             transform:
                 first:
-                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 224}}
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 112}}
                     - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 112}}
 
                 rgb:

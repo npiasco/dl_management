@@ -39,7 +39,7 @@ param_class:
             {
              mode: 'minning',
              func: 'b_wrapper.batched_local_map_getter',
-             param: {T: [batch, pose, T], map_args: {scene: minimal_heads/, frame_spacing: 1, output_size: 2000}},
+             param: {T: [batch, pose, T], map_args: {scene: toy_heads/, frame_spacing: 1, output_size: 2000}},
              out_name: 'model'
             },
             {
@@ -76,13 +76,6 @@ param_class:
             #-------------------------------------------------#
 
             #-------------------- Losses ---------------------#
-            {
-             mode: 'loss',
-             name: 'posenet_loss',
-             func: 'loss_func.T_loss',
-             args: [['posenet_pose', T], ['batch', 'pose', 'T']],
-             param: {}
-            },
             {
              mode: 'loss',
              name: 'CPNet_loss',
@@ -142,7 +135,7 @@ param_class:
                  mode: 'minning',
                  func: 'b_wrapper.batched_local_map_getter',
                  #param: {T: [posenet_pose, T], map_args: {scene: minimal_heads/, frame_spacing: 1, output_size: 2000}},
-                 param: {T: [batch, pose, T], map_args: {scene: minimal_heads/, frame_spacing: 1, output_size: 2000}},
+                 param: {T: [batch, pose, T], map_args: {scene: toy_heads/, frame_spacing: 1, output_size: 2000}},
                  out_name: 'model'
                 },
                 {

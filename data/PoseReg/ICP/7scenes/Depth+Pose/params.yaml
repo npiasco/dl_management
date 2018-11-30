@@ -1,8 +1,18 @@
-batch_size: 10
-curr_epoch: 0
-max_epoch: 2000
+batch_size: 20
+curr_epoch: 430
+lr_scheduler:
+  deconv_trainer:
+    class: lr_scheduler.StepLR
+    param: {gamma: 0.1, step_size: 400}
+  posenet_trainer:
+    class: lr_scheduler.StepLR
+    param: {gamma: 0.5, step_size: 200}
+max_epoch: 10000
 min_value_to_stop: 1000
-num_workers: 8
+saved_files: {best_network: best_network.pth, loss: loss.pth, network_Deconv: network_Deconv.pth,
+  network_Main: network_Main.pth, network_Pose: network_Pose.pth, optimizer_deconv_trainer: optimizer_deconv_trainer.pth,
+  optimizer_posenet_trainer: optimizer_posenet_trainer.pth, val_score: val_score.pth}
+score_file: score_file.pth
 shuffle: true
 sucess_bad_epoch: 2
 testing_mod: [rgb, depth]

@@ -9,6 +9,7 @@ train:
             rgb:
                 - {class: 'datasets.multmodtf.ToTensor', param_class:}
             depth:
+                - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                 - {class: 'datasets.multmodtf.ToTensor', param_class:}
                 - {class: 'datasets.multmodtf.DepthTransform', param_class:}
 test:
@@ -24,6 +25,7 @@ test:
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                 depth:
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                     - {class: 'datasets.multmodtf.DepthTransform', param_class:}
     data:
@@ -37,6 +39,7 @@ test:
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                 depth:
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                     - {class: 'datasets.multmodtf.DepthTransform', param_class:}
 
@@ -52,6 +55,7 @@ val:
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                 depth:
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                     - {class: 'datasets.multmodtf.DepthTransform', param_class:}
     data:
@@ -65,5 +69,6 @@ val:
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                 depth:
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                     - {class: 'datasets.multmodtf.DepthTransform', param_class:}
