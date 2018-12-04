@@ -22,7 +22,7 @@ def outliers_count(variable, **kwargs):
     pc_to_align = kwargs.pop('pc_to_align', None)
     T = kwargs.pop('T', None)
     sigma = kwargs.pop('sigma', 1e-1)
-    beta = kwargs.pop('beta', 0.5)
+    beta = kwargs.pop('beta', 50)
 
     pc_ref = recc_acces(variable, pc_ref)
     pc_to_align = recc_acces(variable, pc_to_align)
@@ -33,8 +33,8 @@ def outliers_count(variable, **kwargs):
 
     return torch.sum(
         torch.sigmoid(
-            (
-                beta * torch.sum(
+            beta * (
+                torch.sum(
                     (pc_ref - T.matmul(pc_to_align)) ** 2,
                     1)
                 - sigma
