@@ -11,6 +11,7 @@ import torchvision as tvis
 import math
 from mpl_toolkits.mplot3d import Axes3D
 import networks.ICPNet as ICPNet
+import pose_utils.RANSACPose as RSCPose
 
 logger = setlog.get_logger(__name__)
 
@@ -365,16 +366,49 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     real_error = dist
     return T, real_error
 
-def ICPwNet(pc_to_align, pc_ref, init_T, *args, **kwargs):
-    iter = kwargs.pop('iter', 10)
+def PoseFromMatching(pc1, pc2):
+    pc2_centroid = torch.mean(pc2[:3, :], -1).unsqueeze(-1)
+    pc2_centred = pc2[:3, :] - pc2_centroid
+
+    pc1_centroid = torch.mean(pc1[:3, :], -1).unsqueeze(-1)
+    pc1_centred = pc1[:3, :] - pc1_centroid
+
+    H = torch.matmul(pc1_centred, pc2_centred.t())
+    logger.debug('SVD on:')
+    logger.debug(H)
+    U, S, V = torch.svd(H)
+    if torch.det(U) * torch.det(V) < 0:
+        V = V * V.new_tensor([[1, 1, -1], [1, 1, -1], [1, 1, -1]])
+
+    R = torch.matmul(V, U.t())
+
+    # translation
+    t = pc2_centroid - torch.matmul(R, pc1_centroid)
+
+    # homogeneous transformation
+    T = pc2.new_zeros(4, 4)
+    T[:3, :3] = R
+    T[:3, 3] = t.squeeze()
+    T[3, 3] = 1
+
+    return {'T':T, 'q': utils.rot_to_quat(R), 't': t}
+
+
+def ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, **kwargs):
     verbose = kwargs.pop('verbose', False)
-    arg_net = kwargs.pop('arg_net',  dict())
+    iter = kwargs.pop('iter', 200)
+    epsilon = kwargs.pop('epsilon', 1e-6)
+    match_function = kwargs.pop('match_function',  None)
+    pose_function = kwargs.pop('pose_function', None)
+    desc_function = kwargs.pop('desc_function', None)
+
+    timing = False
+    if timing:
+        t_beg = time.time()
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    net = ICPNet.CPNet(**arg_net)
-    net.to(pc_ref.device)
     if verbose:
         fig1 = plt.figure(1)
         ax1 = fig1.add_subplot(111, projection='3d')
@@ -383,53 +417,75 @@ def ICPwNet(pc_to_align, pc_ref, init_T, *args, **kwargs):
         pas = 1
 
     T = init_T
-    # Row data
-    row_pc_ref = pc_ref.view(4, -1)
-    row_pc_to_align = pc_to_align.view(4, -1)
+
+    if desc_function is not None:
+        desc_ref = desc_function(pc_ref, desc_ref)
+    else:
+        desc_ref = pc_ref
+
+    match_function.fit(desc_ref[0])
+    teye = torch.eye(4, 4).to(pc_to_align.device)
 
     for i in range(iter):
         logger.debug('Iteration {}'.format(i))
-        #t = time.time()
-        pc_rec = T.matmul(row_pc_to_align)
-        if args:
-            new_T = net(pc_rec.unsqueeze(0), row_pc_ref.unsqueeze(0), args[0].unsqueeze(0), args[1].unsqueeze(0))['T'][0]
+        if timing:
+            t = time.time()
+        pc_rec = T.matmul(pc_to_align)
+
+        if desc_function is not None:
+            desc_ta = desc_function(pc_rec, desc_to_align)
         else:
-            new_T = net(pc_rec.unsqueeze(0), row_pc_ref.unsqueeze(0))['T'][0]
-        T = torch.matmul(new_T, T)
+            desc_ta = pc_rec
+
+        res_match = match_function(pc_rec, pc_ref, desc_ta, desc_ref)
+
+        new_T = pose_function(pc_rec.squeeze(), res_match['nn'].squeeze())
+        T = torch.matmul(new_T['T'], T)
+
+        if timing:
+            print('Iteration on {}s'.format(time.time()-t))
 
         if verbose:
             # Ploting
             ax1.clear()
-            utils.plt_pc(row_pc_ref, ax1, pas, 'b')
-            utils.plt_pc(pc_rec, ax1, pas, 'r')
+            utils.plt_pc(pc_ref[0], ax1, pas, 'b', size=50, marker='*')
+            utils.plt_pc(pc_rec[0], ax1, pas, 'r', size=50, marker='+')
             ax1.set_xlim([-1, 1])
             ax1.set_ylim([-1, 1])
             ax1.set_zlim([-1, 1])
 
             plt.pause(0.1)
 
+        variation = torch.norm(teye - new_T['T'].squeeze())
+        if variation < epsilon:
+            logger.debug('Convergence in {} iterations'.format(i))
+            break
+
     if verbose:
         plt.ioff()
         ax1.clear()
         plt.close()
 
-    return T, 0
+    match_function.unfit()
+
+    if timing:
+        print('ICP converge on {}s'.format(time.time() - t_beg))
+
+    return T
 
 
 if __name__ == '__main__':
     ids = ['frame-000100','frame-000150', 'frame-000150']
 
-    scale = 1/32
+    scale = 1/16
 
-    K = torch.zeros(3, 3)
+    K = torch.eye(3, 3)
     K[0, 0] = 585
     K[0, 2] = 320
     K[1, 1] = 585
     K[1, 2] = 240
 
-    K *= scale
-
-    K[2, 2] = 1
+    K[:2, :] *= scale
 
     root = '/media/nathan/Data/7_Scenes/heads/seq-02/'
     #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
@@ -475,56 +531,53 @@ if __name__ == '__main__':
     rd_trans[:3, :3] = utils.rotation_matrix(torch.Tensor([1, 0, 0]), torch.Tensor([1]))
     rd_trans[:3, :3] = poses[1][:3,:3]
     pc_ref = torch.cat((pcs[0], pcs[2]), 1)
-    pc_ref = pcs[0]
-    print(pc_ref.size())
 
     pc_to_align = rd_trans.matmul(pcs[1])
-    pc_to_align = utils.depth_map_to_pc(depths[1], K, remove_zeros=True)
 
     print('Loading finished')
 
-    fig = plt.figure(1)
+    fig = plt.figure(10)
     ax = fig.add_subplot(111, projection='3d')
+    ax.set_title('Before alignement')
     pas = 1
 
-    utils.plt_pc(pc_ref, ax, pas, 'b')
-    utils.plt_pc(pc_to_align, ax, pas, 'r')
+    utils.plt_pc(pc_ref, ax, pas, 'b', size=50)
+    utils.plt_pc(pc_to_align, ax, pas, 'r', size=50)
 
-    print('Before alignement')
+    #T, d = ICPwNet(pc_ref, pc_to_align, torch.eye(4, 4), iter=20, verbose=True,
+#                   arg_net={'fact': 2, 'reject_ratio': 1, 'pose_solver': 'svd', })
+    match_net_param = {
+        'normalize_desc': False,
+        'knn': 'fast_soft_knn',
+        'n_neighbors': 10
+    }
+    T = ICPwNet(pc_ref.unsqueeze(0), pc_to_align.unsqueeze(0), pc_ref.unsqueeze(0), pc_to_align.unsqueeze(0),
+                   torch.eye(4, 4).unsqueeze(0), iter=200, verbose=True,
+                   match_function=ICPNet.MatchNet(**match_net_param),
+                #pose_function=PoseFromMatching,
+                pose_function=RSCPose.ransac_pose_estimation,
+                   desc_function=None)[0]
 
-    #T, d = soft_icp(pc_to_align, pc_ref, poses[1].inverse(), tolerance=1e-6, iter=100, fact=100, verbose=True, dnorm=False)
-    #T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-5, iter=50, fact=2, verbose=True, dnorm=False, use_hard_nn=True, outlier=True)
-    #T, d = soft_icp(pc_ref, pc_to_align, torch.eye(4, 4), tolerance=1e-10, iter=100, fact=2, verbose=True, outlier=True)
-    T, d = ICPwNet(pc_ref, pc_to_align, torch.eye(4, 4), iter=10, verbose=True,
-                   arg_net={'fact': 2, 'reject_ratio': 1, 'pose_solver': 'svd', })
-    pc_aligned = T.matmul(pc_to_align)
+    pc_aligned = T.inverse().matmul(pc_to_align)
 
     fig = plt.figure(2)
     ax = fig.add_subplot(111, projection='3d')
+    ax.set_title('After alignement')
+
     pas = 1
 
-    utils.plt_pc(pc_ref, ax, pas, 'b')
-    utils.plt_pc(pc_aligned, ax, pas, 'c')
+    utils.plt_pc(pc_aligned, ax, pas, 'b', size=50)
+    utils.plt_pc(pc_ref, ax, pas, 'c', size=50)
 
-    print('After alignement')
 
     fig = plt.figure(3)
     ax = fig.add_subplot(111, projection='3d')
+    ax.set_title('GT')
     pas = 1
 
-    utils.plt_pc(pc_ref, ax, pas, 'b')
-    utils.plt_pc(pcs[1], ax, pas, 'c')
-    print('GT')
+    utils.plt_pc(pc_ref, ax, pas, 'b', size=50)
+    utils.plt_pc(pcs[1], ax, pas, 'c', size=50)
 
     print(torch.matmul(T, poses[1].inverse()))
-    print(d)
-    '''
-    plt.figure(4)
-    d_maps = [error_map(pc_ref.view(3, -1),
-                        pc_aligned.view(3, -1),
-                        fact, int(640 * scale)).unsqueeze(0).detach() for fact in (100,)]
-    grid = tvis.utils.make_grid(torch.cat(d_maps, 0), nrow=2)
-    plt.imshow(grid.numpy().transpose((1, 2, 0))[:, :, 0], cmap=plt.get_cmap('jet'))
-    plt.colorbar()
-    '''
+
     plt.show()
