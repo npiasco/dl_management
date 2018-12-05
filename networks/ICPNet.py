@@ -353,15 +353,16 @@ class MatchNet(nn.Module):
         nn.Module.__init__(self)
 
         self.eps = kwargs.pop('eps', 1e-5)
-        self.fact = kwargs.pop('fact', 1)
+        self.fact = kwargs.pop('fact', 2)
         self.reject_ratio = kwargs.pop('reject_ratio', 1)
+        self.desc_p = kwargs.pop('desc_p', 2)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
         self.outlier_filter = kwargs.pop('outlier_filter', True)
         self.use_dst_pt = kwargs.pop('use_dst_pt', True)
         self.use_dst_desc = kwargs.pop('use_dst_desc', False)
         self.normalize_desc = kwargs.pop('normalize_desc', True)
-        self.desc_p = kwargs.pop('desc_p', 2)
         self.bidirectional = kwargs.pop('bidirectional', False)
+        self.n_neighbors = kwargs.pop('n_neighbors', 10)
         knn = kwargs.pop('knn', 'soft')
 
         if kwargs:
@@ -388,7 +389,6 @@ class MatchNet(nn.Module):
         elif knn == 'fast_soft_knn':
             self.knn = self.fast_soft_knn
             self.outlier_filter = False
-            self.n_neighbors = 10
             self.nn_computor = neighbors.NearestNeighbors(n_neighbors=self.n_neighbors)
         else:
             raise('Unknown knn type {}'.format(knn))
@@ -397,6 +397,19 @@ class MatchNet(nn.Module):
         self.softmax_0d = nn.Softmax(dim=0)
         self.sigmoid = nn.Sigmoid()
         self.pdist = torch.nn.PairwiseDistance(p=1, keepdim=True)
+        self.fitted = False
+
+    def fit(self, data):
+        self.fitted = True
+        data = data.view(-1, data.size(-1))
+        if self.normalize_desc:
+            data = func_nn.normalize(data, dim=0)
+        data = data.detach().t().cpu().numpy()
+
+        self.nn_computor.fit(data)
+
+    def unfit(self):
+        self.fitted = False
 
     @staticmethod
     def custom_metric(u, v):
@@ -528,9 +541,11 @@ class MatchNet(nn.Module):
             d1 = func_nn.normalize(d1, dim=0)
             d2 = func_nn.normalize(d2, dim=0)
         d1_cpu = d1.detach().t().cpu().numpy()
-        d2_cpu = d2.detach().t().cpu().numpy()
 
-        self.nn_computor.fit(d2_cpu)
+        if not self.fitted:
+            self.fit(desc2)
+            self.fitted = False
+
         idx_nn_2 = self.nn_computor.kneighbors(d1_cpu, return_distance=False)
 
         d_matrix = torch.sum((d1.unsqueeze(-1) - d2[:, idx_nn_2]) ** 2, 0)

@@ -174,6 +174,6 @@ if __name__ == '__main__':
                    nf_conv_stn=[64, 64, 128],
                    nf_fc_stn=[128, 64],
                    nf_conv_desc=[64, 64, 4],
-                   nfeat=3+16, nfeat_global=0, nfeat_stn=0, end_relu=False)
+                   nfeat=3+16, nfeat_global=0, nfeat_stn=3, end_relu=False)
     print(net)
     print(net(p1, desc1).size())
