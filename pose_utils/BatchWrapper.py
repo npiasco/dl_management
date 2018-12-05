@@ -5,9 +5,37 @@ import pose_utils.utils as utils
 from trainers.minning_function import recc_acces
 import numpy as np
 import setlog
+import pose_utils.RANSACPose as RSCPose
 
 
 logger = setlog.get_logger(__name__)
+
+
+def global_point_net_forward(pointnet, variables, **kwargs):
+    pc1 = kwargs.pop('pc1', None)
+    pc2 = kwargs.pop('pc2', None)
+    desc1 = kwargs.pop('desc1', None)
+    desc2 = kwargs.pop('desc2', None)
+    detach_inputs = kwargs.pop('detach_inputs', True)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    pc1 = recc_acces(variables, pc1)
+    pc2 = recc_acces(variables, pc2)
+    desc1 = recc_acces(variables, desc1)
+    desc2 = recc_acces(variables, desc2)
+    if detach_inputs:
+        pc1, pc2, desc1, desc2 = pc1.detach(), pc2.detach(), desc1.detach(), desc2.detach()
+
+    s_pc1 = pc1.size(2)
+    s_pc2 = pc2.size(2)
+
+    out = pointnet(torch.cat((pc1, pc2), 2), torch.cat((desc1, desc2), 2))
+
+    pdec1, pdec2 = torch.split(out, (s_pc1, s_pc2), 2)
+
+    return {'desc1': pdec1, 'desc2': pdec2}
 
 
 def corrected_depth_map_getter(variable, **kwargs):
@@ -49,7 +77,6 @@ def corrected_depth_map_getter(variable, **kwargs):
                                                         diffuse=diffuse,
                                                         inliers=inlier,
                                                         **filter_loop_param)
-
     return final_maps
 
 
@@ -109,6 +136,37 @@ def add_random_transform(variable, **kwargs):
         noise_T[i] = noise.matmul(T)
 
     return noise_T
+
+
+def fast_icp(nets, variable, **kwargs):
+    pc_to_align = kwargs.pop('pc_to_align', None)
+    pc_ref = kwargs.pop('pc_ref', None)
+    desc_to_align = kwargs.pop('desc_to_align', None)
+    desc_ref = kwargs.pop('desc_ref', None)
+    init_T = kwargs.pop('init_T', None)
+    param_icp = kwargs.pop('param_icp', dict())
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    pc_to_align = recc_acces(variable, pc_to_align)
+    pc_ref = recc_acces(variable, pc_ref)
+    desc_to_align = recc_acces(variable, desc_to_align)
+    desc_ref = recc_acces(variable, desc_ref)
+    init_T = recc_acces(variable, init_T)
+
+    if init_T.size(0) != 1:
+        raise NotImplementedError('No implementation of batched ICP')
+
+    T = ICP.ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T,
+                    #desc_function=nets[0],
+                    desc_function=None,
+                    match_function=nets[1],
+                    #pose_function=ICP.PoseFromMatching,
+                    pose_function=RSCPose.ransac_pose_estimation,
+                    **param_icp)
+
+    return {'T': T, 'q': utils.rot_to_quat(T[0,:3,:3]).unsqueeze(0), 'p': T[0, :3, 3].unsqueeze(0)}
 
 
 def advanced_local_map_getter(nets, variable, **kwargs):
