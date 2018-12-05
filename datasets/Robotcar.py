@@ -170,10 +170,9 @@ if __name__ == '__main__':
     modtouse = {'rgb': 'dataset.txt'}#, 'mono_depth': 'mono_depth_dataset.txt', 'depth': 'depth_dataset.txt'}#, 'ref': 'mono_ref_dataset.txt'}
     transform = {
         'first': (tf.Resize((420, 420)),),
-        'rgb': (tf.Equalize(), tf.ToTensor(), ),
-        'mono_depth': (tf.ToTensor(),tf.GradNorm()),
-        'depth': (tf.ToTensor(),),
-        'ref': (tf.ToTensor(), tf.Normalize(mean=[0.2164], std=[0.08]))
+        'rgb': (tf.ToTensor(), ),
+        'depth': (tf.ToTensor(), tf.DepthTransform(depth_factor=1e-4, replacing_value=100000, error_value=0), tf.JetTransform(s_lut=1024)),
+        'ref': (tf.ToTensor(), tf.DepthTransform(depth_factor=1e-3), tf.JetTransform(s_lut=1024))
     }
     transform_wo_q = {
         'first': (tf.Resize((224, 224)),),
@@ -198,10 +197,10 @@ if __name__ == '__main__':
         plt.show()
     """
 
-    dataset_1 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_05_19_15/',
-                           modalities={'rgb': 'pruned_dataset.txt'},
-                           coord_file='pruned_coordxImbearing.txt',
-                           transform=transform_wo_q)
+    dataset_1 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_08_28_15/',
+                           modalities={'rgb': 'dataset.txt', 'depth': 'true_depth_dataset.txt', 'ref': 'true_ref_dataset.txt'},
+                           coord_file='coordxImbearing.txt',
+                           transform=transform)
     '''
     dataset_2 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_Night/',
                            modalities=modtouse,
@@ -214,8 +213,8 @@ if __name__ == '__main__':
                            transform=transform_wo_q)
 
 
-    triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_2, ],
-                                     num_triplets=20, num_positives=2, num_negatives=20, ex_shuffle=True)
+    triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_1, ],
+                                     num_triplets=20, num_positives=2, num_negatives=2, ex_shuffle=False)
     #%torch.save(triplet_dataset.triplets, 'night_200_triplets.pth')
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
