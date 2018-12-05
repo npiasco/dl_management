@@ -16,7 +16,7 @@ if __name__ == '__main__':
                              #trainer_file='posenet_trainer.yaml',
                              trainer_file='trainer.yaml',
                             # dataset_file='../datasets/seq_heads.yaml'
-                             dataset_file = '../datasets/minimal_heads.yaml'
+                             dataset_file = '../datasets/heads.yaml'
                              #dataset_file = '../datasets/minimal_heads.yaml'
                              )
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')

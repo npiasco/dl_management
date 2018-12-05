@@ -7,7 +7,7 @@ param_class:
             associated_net: ['PointNet']
             optimizer_type: ADAM
             param:
-                lr: 0.001 # * 0.5
+                lr: 0.0001 # * 0.5
                 weight_decay: 0.001
         posenet_trainer:
             associated_net: ['Pose']
@@ -49,7 +49,7 @@ param_class:
             {
              mode: 'minning',
              func: 'b_wrapper.matmul',
-             param: {m1: ['batch', 'pose', 'T'], m2: ['pc', 'pc']},
+             param: {m1: ['posenet_pose', 'T'], m2: ['pc', 'pc']},
              out_name: 'pc_moved'
             },
             {
@@ -63,8 +63,8 @@ param_class:
              mode: 'mult_forward',
              func: 'b_wrapper.advanced_local_map_getter',
              param: {T: ['batch', 'pose', 'T'], descriptors_size: 64,
-             map_args: {scene: heads/, frame_spacing: 20, output_size: false, no_grad: false,
-             resize: 0.1166666667, num_pc: 4, cnn_depth: false, cnn_descriptor: 'conv1'}},
+             map_args: {scene: heads/, frame_spacing: 15, output_size: 1500, no_grad: false,
+             resize: 0.1166666667, num_pc: 3, cnn_depth: false, cnn_descriptor: 'conv1'}},
              net_name: ['Main', 'Main'],
              out_name: 'model'
             },
@@ -85,17 +85,10 @@ param_class:
              out_name: 'match_to_model'
             },
              #-------------------- Losses ---------------------#
-#            {
-#             mode: 'loss',
-#             name: 'matching_loss',
-#             func: 'loss_func.matching_loss',
-#             args: [['match_to_model', 'nn'], ['pc', 'pc'], ['batch', 'pose', 'T']],
-#             param: {}
-#            },
             {
              mode: 'minning',
              func: 'minning.outliers_count',
-             param: {pc_ref: ['match_to_model', 'nn'], pc_to_align: ['pc', 'pc'], T: ['batch', 'pose', 'T']},
+             param: {pc_ref: ['match_to_model', 'nn'], pc_to_align: ['pc', 'pc'], T: ['batch', 'pose', 'T'], sigma: 0.01},
              out_name: 'outliers'
             },
             {
