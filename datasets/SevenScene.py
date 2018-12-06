@@ -157,6 +157,7 @@ class Train(Base):
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
         pruning = kwargs.pop('pruning', 0.9)
+        sparse_pruning = kwargs.pop('sparse_pruning', False)
         Base.__init__(self,
                       transform=kwargs.pop('transform', default_tf),
                       **kwargs)
@@ -169,9 +170,12 @@ class Train(Base):
 
         self.load_data()
 
-        step = round(1 / (1-pruning))
-        logger.info('Computed step for pruning: {}'.format(step))
-        self.data = [dat for i, dat in enumerate(self.data) if i % step != 0]
+        if sparse_pruning:
+            step = round(1 / (1-pruning))
+            logger.info('Computed step for pruning: {}'.format(step))
+            self.data = [dat for i, dat in enumerate(self.data) if i % step != 0]
+        else:
+            self.data = self.data[:round(len(self.data)*pruning)]
 
 class TrainSequence(Train):
     def __init__(self, **kwargs):
@@ -242,6 +246,8 @@ class Val(Base):
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
         pruning = kwargs.pop('pruning', 0.9)
+        sparse_pruning = kwargs.pop('sparse_pruning', False)
+
         Base.__init__(self,
                       transform=kwargs.pop('transform', default_tf),
                       **kwargs)
@@ -253,9 +259,12 @@ class Val(Base):
 
         self.load_data()
 
-        step = round(1 / (1-pruning))
-        logger.info('Computed step for pruning: {}'.format(step))
-        self.data = [dat for i, dat in enumerate(self.data) if i % step == 0]
+        if sparse_pruning:
+            step = round(1 / (1-pruning))
+            logger.info('Computed step for pruning: {}'.format(step))
+            self.data = [dat for i, dat in enumerate(self.data) if i % step == 0]
+        else:
+            self.data = self.data[round(len(self.data)*pruning):]
 
 
 def show_batch(sample_batched):
@@ -288,7 +297,7 @@ if __name__ == '__main__':
             'first': (tf.Resize(240),),
             'rgb': (tf.ToTensor(),),
         }
-    root = os.environ['SEVENSCENES'] + 'chess/'
+    root = os.environ['SEVENSCENES'] + 'heads/'
 
     train_dataset = Train(root=root,
                           transform=test_tf)
@@ -303,17 +312,20 @@ if __name__ == '__main__':
     print(len(test_dataset))
     print(len(val_dataset))
 
-    train_seq_dataset = TrainSequence(root=root,
-                                      transform=test_tf,
-                                      num_samples=3,
-                                      random=True)
+    train_seq_dataset = Train(root=root,
+                              transform=test_tf,
+                              )
+    val_seq_dataset = Val(root=root,
+                              transform=test_tf,
+                              )
 
     mult_train_seq_dataset = MultiDataset(type='val', root=os.environ['SEVENSCENES'],
                                           folders=['chess/', 'heads/'], transform=test_tf,
                                           general_options={'used_mod': ('rgb',)})
 
     mult_train_seq_dataset.used_mod = ('depth',)
-    dataloader = data.DataLoader(mult_train_seq_dataset, batch_size=16, shuffle=False, num_workers=8)
+    #dataloader = data.DataLoader(mult_train_seq_dataset, batch_size=16, shuffle=False, num_workers=8)
+    dataloader = data.DataLoader(val_seq_dataset, batch_size=16, shuffle=False, num_workers=8)
     '''
     dataloader_wo_tf = data.DataLoader(train_dataset_wo_tf, batch_size=8, shuffle=False, num_workers=2)
     plt.figure(1)
@@ -327,12 +339,13 @@ if __name__ == '__main__':
     plt.ion()
     plt.show()
     fig = plt.figure(1)
-    print(len(mult_train_seq_dataset))
+    print(len(train_seq_dataset))
+    print(len(val_seq_dataset))
     for i, b in enumerate(dataloader):
         #show_seq_batch(b)
         fig.clear()
-        #show_batch(b)
-        show_batch_mono(b)
+        show_batch(b)
+        #show_batch_mono(b)
         print(i)
         plt.pause(0.5)
         del b
