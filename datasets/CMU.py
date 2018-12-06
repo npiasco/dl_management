@@ -1,148 +1,127 @@
 import setlog
-import torch.utils as utils
-import torch.utils.data
-import torchvision as torchvis
-import datasets.multmodtf as tf
 import pandas as pd
-import PIL.Image
-import torch
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-import time
+import pathlib as path
+import re
+import sklearn.neighbors as nn
+from mpl_toolkits.mplot3d import axes3d
 
 
 logger = setlog.get_logger(__name__)
 
 
-class VBLDataset(utils.data.Dataset):
-    def __init__(self, root, coord_file, modalities, **kwargs):
-        self.root = root
-        self.transform = kwargs.pop('transform', 'default')
-        self.bearing = kwargs.pop('bearing', True)
-
-        if kwargs:
-            raise TypeError('Unexpected **kwargs: %r' % kwargs)
-
-        if self.transform == 'default':
-            self.transform = {
-                'first': (tf.Resize((224, 224)), tf.ToTensor())
-            }
-
-        self.coord = pd.read_csv(self.root + coord_file, header=None, sep=',', dtype=np.float64) if self.bearing \
-            else pd.read_csv(self.root + coord_file, header=None, sep='\t', dtype=np.float64)
-
-        self.modalities = dict()
-        for mod_name in modalities:
-            self.modalities[mod_name] = pd.read_csv(self.root + modalities[mod_name], header=None)
-
-        self.used_mod = self.modalities.keys()
-
-    def __len__(self):
-        return self.coord.__len__()
-
-    def __getitem__(self, idx):
-        sample = dict()
-        for mod_name in self.used_mod:
-            file_name = self.root + self.modalities[mod_name].ix[idx, 0]
-            sample[mod_name] = PIL.Image.open(file_name)
-
-        if self.transform:
-            if 'first' in self.transform:
-                sample = torchvis.transforms.Compose(self.transform['first'])(sample)
-            for mod in self.transform:
-                if mod not in ('first',) and mod in self.used_mod:
-                    sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod: sample[mod]})[mod]
-
-        sample['coord'] = self.coord.ix[idx, 0:2].as_matrix().astype('float') if self.bearing \
-            else self.coord.ix[idx, 0:1].as_matrix().astype('float')
-
-        return sample
+def in_range_2pi(angle):
+    if angle>2*np.pi:
+        return angle - 2*np.pi
+    elif angle<0:
+        return 2 * np.pi + angle
+    else:
+        return angle
 
 
-class TripletDataset(utils.data.Dataset):
-    def __init__(self, **kwargs):
+def prune_path(path, tolerance=1):
+    def sdistance_pts(p1, p2):
+        return (p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2
 
-        self.main = kwargs.pop('main', None)
-        self.examples = kwargs.pop('examples', None)
-        self.num_positive = kwargs.pop('num_positives', 4)
-        self.num_negative = kwargs.pop('num_negatives', 20)
-        self.num_triplets = kwargs.pop('num_triplets', 1000)
-        self.max_pose_dist = kwargs.pop('max_pose_dist', 7)        # meters
-        self.min_neg_dist = kwargs.pop('min_neg_dist', 700)         # meters
-        self.max_angle = kwargs.pop('max_angle', 0.174533)          # radians, 20 degrees
-        self.ex_shuffle = kwargs.pop('ex_shuffle', True)
-        load_triplets = kwargs.pop('load_triplets', None)
-        self._used_mod = kwargs.pop('used_mod', ['rgb'])
+    idx = np.ones(path.shape[0])
 
-        if kwargs:
-            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+    cursor = 0
+    squarred_t = tolerance**2
 
-        if load_triplets:
-            self.triplets = torch.load(os.environ['DATASET'] + load_triplets)
+    for i, point in enumerate(path[1:, :]):
+        if sdistance_pts(point, path[cursor]) < squarred_t:
+            idx[i] = 0
         else:
-            logger.info('Creating {} triplets...'.format(self.num_triplets))
-            self.triplets = self.build_triplets()
+            cursor = i
 
-    def __len__(self):
-        return self.triplets.__len__()
+    return idx
 
-    def build_triplets(self):
-        triplets = list()
-        for i in np.random.choice(range(len(self.main.coord)), size=len(self.main.coord), replace=False):
-            q = self.main.coord.values[i]
-            triplet = {
-                'positives': [],
-                'negatives': []
-            }
-            for num_ex, example in enumerate(self.examples):
-                for idx, ex in enumerate(example.coord.values):
-                    dist = np.linalg.norm([q[0] - ex[0], q[1] - ex[1]])
-                    if dist > self.min_neg_dist:
-                        triplet['negatives'].append([num_ex, idx])
-                    elif dist < self.max_pose_dist:
-                        ang = abs(q[2] - ex[2])
-                        if ang < self.max_angle:
-                            triplet['positives'].append([num_ex, idx])
 
-            if triplet['positives'] and triplet['negatives'] \
-                    and len(triplet['positives']) >= self.num_positive \
-                    and len(triplet['negatives']) >= self.num_negative:
-                triplet['query'] = i
-                np.random.shuffle(triplet['negatives'])  # Random shuffling to have diversity when calling
-                np.random.shuffle(triplet['positives'])  # Random shuffling to have diversity when calling
-                triplets.append(triplet)
-                logger.debug('New triplet with {} positives and {} negatives'.format(len(triplet['positives']),
-                                                                                     len(triplet['negatives'])))
-                logger.debug('Total number of triplets {}'.format(len(triplets)))
-                if len(triplets) == self.num_triplets:
-                    break
+def load_data(folder):
+    logger.info('Loading file names')
 
-        return triplets
+    p = path.Path(folder)
+    data = list()
+    data.append(list())
+    data.append(list())
+    for file in p.iterdir():
+        if file.is_file() and '.jpg' in file.name:
+            c = int(re.search('(?<=c)\d', file.name).group(0))
+            data[c].append({'file': 'imgs/' + file.name,
+                            'time': float(re.search('\d*(?=us)', file.name).group(0))*1e-6})
 
-    def __getitem__(self, idx):
-        if self.ex_shuffle:
-            np.random.shuffle(self.triplets[idx]['positives'])
-            np.random.shuffle(self.triplets[idx]['negatives'])
-        sample = {
-            'query': self.main[self.triplets[idx]['query']],
-            'positives': [self.examples[self.triplets[idx]['positives'][i][0]][self.triplets[idx]['positives'][i][1]]
-                          for i in range(self.num_positive)],
-            'negatives': [self.examples[self.triplets[idx]['negatives'][i][0]][self.triplets[idx]['negatives'][i][1]]
-                          for i in range(self.num_negative)]
-        }
-        return sample
+    return data
 
-    @property
-    def used_mod(self):
-        return self._used_mod
 
-    @used_mod.setter
-    def used_mod(self, mods):
-        self.main.used_mod = mods
-        for data in self.examples:
-            data.used_mod = mods
-        self._used_mod = mods
+def find_closest_imgs(timestamps, data, threshold=1):
+
+    t_cam_0 = np.array([d['time'] for d in data[0]])
+    t_cam_1 = np.array([d['time'] for d in data[1]])
+
+    t_cam_0 = t_cam_0.reshape((t_cam_0.shape[0], 1))
+    t_cam_1 = t_cam_1.reshape((t_cam_1.shape[0], 1))
+    timestamps = timestamps.reshape((timestamps.shape[0], 1))
+
+    nn_searcher = nn.NearestNeighbors(n_neighbors=1)
+
+    nn_searcher.fit(t_cam_0)
+    distance_0, nn_cam_0 = nn_searcher.kneighbors(timestamps, return_distance=True)
+    nn_searcher.fit(t_cam_1)
+    distance_1, nn_cam_1 = nn_searcher.kneighbors(timestamps, return_distance=True)
+
+    return np.concatenate((nn_cam_0, nn_cam_1), 1), (distance_1+distance_0 < 2*threshold)[:, 0]
+
+
+def prepar_data(collection_folder, pivot=None, camera_bearing=None, prune_tolerance=1):
+    if camera_bearing is None:
+        camera_bearing = (np.pi/3, -np.pi/3)
+
+    root_to_folders = os.environ['CMU'] + collection_folder
+    coord = pd.read_csv(root_to_folders + 'GPS.txt', sep='\t', usecols=[1, 4, 10, 11, 14])
+
+    timestamps = coord.ix[:, 0].as_matrix()
+    quality = coord.ix[:, 1].as_matrix().astype('int')
+    north = coord.ix[:, 2].as_matrix().astype('float')
+    south = coord.ix[:, 3].as_matrix().astype('float')
+    bearing = coord.ix[:, 4].as_matrix().astype('float')
+
+    north = north[quality == 1]
+    south = south[quality == 1]
+    bearing = bearing[quality == 1]
+    timestamps = timestamps[quality == 1]
+
+    idx = prune_path(np.concatenate((north.reshape((north.shape[0], 1)), south.reshape((north.shape[0], 1))), 1))
+
+    north = north[idx == 1]
+    south = south[idx == 1]
+    bearing = bearing[idx == 1]
+    timestamps = timestamps[idx == 1]
+
+    if pivot is None:
+        pivot = (589292.967387208, 4477474.976132023) # data_collection_20100915: (589292.967387208, 4477474.976132023)
+
+    north -= pivot[0]
+    south -= pivot[1]
+
+    data = load_data(root_to_folders + 'imgs')
+    nn, time_outliers = find_closest_imgs(timestamps, data)
+
+    nn = nn[time_outliers, :]
+    bearing = bearing[time_outliers]
+    south = south[time_outliers]
+    north = north[time_outliers]
+
+    files_name = list()
+    coord_file = list()
+    for i, inn in enumerate(nn):
+        files_name.append(data[0][inn[0]]['file'])
+        files_name.append(data[1][inn[1]]['file'])
+        coord_file.append( (north[i], south[i], in_range_2pi(bearing[i] + camera_bearing[0])) )
+        coord_file.append( (north[i], south[i], in_range_2pi(bearing[i] + camera_bearing[1])) )
+
+    return files_name, coord_file
 
 
 def show_batch(sample_batched):
@@ -163,67 +142,69 @@ def show_batch(sample_batched):
 
     plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
+def saveas_txt(data, file):
+    with open(file, 'w') as f:
+        for d in data:
+            if isinstance(d, (list, tuple)):
+                line = ''
+                for sd in d:
+                    line += '{},'.format(sd)
+                line = line[:-1] + '\n'
+
+            else:
+                line = '{}\n'.format(d)
+            f.write(line)
 
 if __name__ == '__main__':
-    root_to_folders = os.environ['ROBOTCAR'] + 'training/TrainDataset_02_10_15/'
+    fig = plt.figure(1)
+    ax = fig.add_subplot(111, projection='3d')
 
-    modtouse = {'rgb': 'dataset.txt'}#, 'mono_depth': 'mono_depth_dataset.txt', 'depth': 'depth_dataset.txt'}#, 'ref': 'mono_ref_dataset.txt'}
-    transform = {
-        'first': (tf.Resize((420, 420)),),
-        'rgb': (tf.Equalize(), tf.ToTensor(), ),
-        'mono_depth': (tf.ToTensor(),tf.GradNorm()),
-        'depth': (tf.ToTensor(),),
-        'ref': (tf.ToTensor(), tf.Normalize(mean=[0.2164], std=[0.08]))
-    }
-    transform_wo_q = {
-        'first': (tf.Resize((224, 224)),),
-        'rgb': (tf.ToTensor(),),
-        'mono_depth': (tf.ToTensor(), tf.DepthTransform(depth_factor=1.0, error_value=0.0, replacing_value=1.0), tf.Normalize(mean=[0.2291], std=[1]), tf.JetTransform()),
-        'depth': (tf.ToTensor(),),
-        'ref': (tf.ToTensor(), tf.Normalize(mean=[0.2164], std=[0.08]))
-    }
+    os.environ['CMU'] = "/mnt/anakim/data/"
+
+    files_name, coord_file = prepar_data('data_collection_20101221/')
+    print("Saving files")
+    saveas_txt(files_name, 'dataset.txt')
+    saveas_txt(coord_file, 'coordxImbearing.txt')
 
     """
-    dataset = VBLDataset(root=root_to_folders,
-                         modalities=modtouse,
-                         coord_file='coordxImbearing.txt',
-                         transform=transform)
+    root_to_folders = os.environ['CMU'] + 'data_collection_20100915/'
+    coord_file = 'GPS.txt'
+    coord = pd.read_csv(root_to_folders + coord_file, sep='\t', usecols=[1, 4, 10, 11, 14])
 
-    dataloader = utils.data.DataLoader(dataset, batch_size=4, shuffle=True, num_workers=4)
+    timestamp = coord.ix[:, 0].as_matrix()
+    quality = coord.ix[:, 1].as_matrix().astype('int')
+    north = coord.ix[:, 2].as_matrix().astype('float')
+    south = coord.ix[:, 3].as_matrix().astype('float')
+    bearing = coord.ix[:, 4].as_matrix().astype('float')
 
-    for b in dataloader:
-        plt.figure(1)
-        show_batch(b)
-        print(b['coord'])
-        plt.show()
+    south = south[quality == 1]
+    north = north[quality == 1]
+    bearing = bearing[quality == 1]
+
+    pivot_south = south[0]
+    pivot_north = north[0]
+    south -= pivot_south
+    north -= pivot_north
+
+    ax.scatter(south, north, bearing, depthshade=True, s=100, marker='.')
+
+    root_to_folders = os.environ['CMU'] + 'data_collection_20101221/'
+    coord_file = 'GPS.txt'
+    coord = pd.read_csv(root_to_folders + coord_file, sep='\t', usecols=[4, 10, 11, 14], dtype=np.float64)
+
+    quality = coord.ix[:, 0].as_matrix().astype('int')
+    north = coord.ix[:, 1].as_matrix().astype('float')
+    south = coord.ix[:, 2].as_matrix().astype('float')
+    bearing = coord.ix[:, 3].as_matrix().astype('float')
+
+    south = south[quality == 1]
+    north = north[quality == 1]
+    bearing = bearing[quality == 1]
+
+    south -= pivot_south
+    north -= pivot_north
+
+    ax.scatter(south, north, bearing, color='r',depthshade=True, s=100, marker='*')
+
+    plt.show()
     """
-
-    dataset_1 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_05_19_15/',
-                           modalities={'rgb': 'pruned_dataset.txt'},
-                           coord_file='pruned_coordxImbearing.txt',
-                           transform=transform_wo_q)
-    '''
-    dataset_2 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_Night/',
-                           modalities=modtouse,
-                           coord_file='coordxImbearing.txt',
-                           transform=transform_wo_q)
-    '''
-    dataset_2 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_Snow/',
-                           modalities=modtouse,
-                           coord_file='coordxImbearing.txt',
-                           transform=transform_wo_q)
-
-
-    triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_2, ],
-                                     num_triplets=20, num_positives=2, num_negatives=20, ex_shuffle=True)
-    #%torch.save(triplet_dataset.triplets, 'night_200_triplets.pth')
-    dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
-
-    for b in dtload:
-        plt.figure(1)
-        show_batch(b['query'])
-        plt.figure(2)
-        show_batch(b['positives'][0])
-        plt.figure(3)
-        show_batch(b['negatives'][0])
-        plt.show()
