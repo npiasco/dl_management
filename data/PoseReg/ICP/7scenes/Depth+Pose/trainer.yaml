@@ -39,57 +39,29 @@ param_class:
                 net_name: 'Deconv',
                 out_name: 'maps'
             },
-            #-------------------------------------------------#
-
-            #-------------------- ICP --------------------#
             {
-             mode: 'minning',
-             func: 'b_wrapper.batched_local_map_getter',
-             param: {T: [batch, pose, T], map_args: {scene: minimal_heads/, frame_spacing: 1, output_size: 2000}},
-             out_name: 'model'
-            },
-            {
-             mode: 'minning',
-             func: 'b_wrapper.add_random_transform',
-             param: {original_T: [batch, pose, T], noise_factor: 0.1},
-             out_name: 'noise_T'
-            },
-            {
-             mode: 'minning',
-             func: 'b_wrapper.batched_depth_map_to_pc',
-             param: {depth_maps: [maps], K: [batch, K], remove_zeros: false},
-             out_name: 'pc'
-            },
-            {
-             mode: 'minning',
-             func: 'b_wrapper.batched_pc_pruning',
-             param: {pc: [pc], mode: 'random', pruning_fact: 0.1},
-             out_name: 'pc'
-            },
-            {
-             mode: 'minning',
-             func: 'b_wrapper.batched_icp',
-             param: {pc_ref: [model], pc_to_align: [pc], init_T: [noise_T], detach_init_pose: True, T_gt: [batch, pose, T],
-                     param_icp: {iter: 5, fact: 2, outlier: false}},
-             out_name: 'icp'
+                mode: minning,
+                func: b_wrapper.inverse,
+                param: {data_to_inv: [maps, ]},
+                out_name: 'depth_maps'
             },
             #-------------------------------------------------#
 
             #-------------------- Losses ---------------------#
             {
              mode: 'loss',
-             name: 'min_max_pq_loss',
-             func: 'loss_func.T_loss',
-             args: [['icp', 'poses', 'T'], ['batch', 'pose', 'T']],
-             param: {}
+             name: 'L1_loss',
+             func: 'loss_func.l1_modal_loss',
+             args: [['depth_maps'], ['batch', 'depth']],
+             param: {no_zeros: true, p: 1, listed_maps: false}
             },
-            {
-             mode: 'loss',
-             name: 'regularization',
-             func: 'loss_func.reg_loss',
-             args: [['maps'], ],
-             param: {fact: 0.01}
-            },
+            #{
+            # mode: 'loss',
+            # name: 'regularization',
+            # func: 'loss_func.reg_loss',
+            # args: [['maps'], ['batch', 'rgb']],
+            # param: {fact: 0.01, reduce_factor: 0.25}
+            #},
             {
              mode: 'backprop',
              name: 'deconv_backprop',
@@ -132,7 +104,7 @@ param_class:
                 {
                     mode: forward,
                     func: minning.custom_forward,
-                    param: {multiples_instance: false, input_targets: [['fw_main'], ]},
+                    param: {multiples_instance: false, input_targets: [['fw_main' ], ]},
                     net_name: 'Deconv',
                     out_name: 'maps'
                 },
@@ -143,33 +115,8 @@ param_class:
                 net_name: 'Pose',
                 out_name: 'posenet_pose'
                 },
-                {
-                 mode: 'minning',
-                 func: 'b_wrapper.batched_local_map_getter',
-                 param: {T: [posenet_pose, T], map_args: {scene: minimal_heads/, frame_spacing: 1, output_size: 2000}},
-                 out_name: 'model'
-                },
-                {
-                 mode: 'minning',
-                 func: 'b_wrapper.batched_depth_map_to_pc',
-                 param: {depth_maps: [maps], K: [batch, K], remove_zeros: false},
-                 out_name: 'pc'
-                },
-                {
-                 mode: 'minning',
-                 func: 'b_wrapper.batched_pc_pruning',
-                 param: {pc: [pc], mode: 'regular', pruning_fact: 0.1},
-                 out_name: 'pruned_pc'
-                },
-                {
-                 mode: 'minning',
-                 func: 'b_wrapper.batched_icp',
-                 param: {pc_ref: [model], pc_to_align: [pruned_pc], init_T: [posenet_pose, T], param_icp: {iter: 1, tolerance: 0.001, fact: 2, verbose: false, outlier: true}},
-                 out_name: 'icp'
-                },
             ]
-    access_pose: ['icp', 'poses']
-    #access_pose: ['posenet_pose']
+    access_pose: ['posenet_pose']
     build_model_func: torch.cat
 
 eval_class: 'score.Functions.GlobalPoseError'

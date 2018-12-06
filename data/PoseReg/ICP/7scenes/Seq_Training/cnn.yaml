@@ -46,6 +46,7 @@ MatchNet:
         use_dst_desc: true
         desc_p: 2
         knn: hard
+        bidirectional: false
 
 #init_weights:
 #    Main:
