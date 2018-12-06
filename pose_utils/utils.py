@@ -10,6 +10,7 @@ import PIL.Image
 import numpy as np
 from plyfile import PlyData, PlyElement
 import math
+import time
 
 
 logger = setlog.get_logger(__name__)
@@ -126,16 +127,24 @@ def depth_map_to_pc(depth_map, K, remove_zeros=False):
     p_d = (p * depth_map).view(3, -1)
 
     if remove_zeros:
-        p_d = p_d[:, depth_map.view(1, -1).squeeze() != 0]
+        indexor = depth_map.view(1, -1).squeeze() != 0
+        p_d = p_d[:, indexor ]
 
     x = inv_K.matmul(p_d)
     x_homo = x.new_ones(4, x.nelement()//3)
     x_homo[:3, :] = x
-    return x_homo
+
+    if remove_zeros:
+        return x_homo, indexor
+    else:
+        return x_homo
 
 
 def toSceneCoord(depth, pose, K, remove_zeros=False):
-    x = depth_map_to_pc(depth, K, remove_zeros=remove_zeros)
+    if remove_zeros:
+        x, _ = depth_map_to_pc(depth, K, remove_zeros=remove_zeros)
+    else:
+        x = depth_map_to_pc(depth, K, remove_zeros=remove_zeros)
 
     X = pose.matmul(x)
     return X
@@ -248,32 +257,45 @@ def get_local_map(**kwargs):
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    # Loading files...
-    env_var = os.environ[dataset]
-    folders = list()
-    with open(env_var + scene + sequences, 'r') as f:
-        for line in f:
-            fold = 'seq-{:02d}/'.format(int(re.search('(?<=sequence)\d', line).group(0)))
-            folders.append(env_var + scene + fold)
-    data = list()
-    for i, folder in enumerate(folders):
-        p = path.Path(folder)
-        data += [(i, re.search('(?<=-)\d+', file.name).group(0))
-                 for file in p.iterdir()
-                 if file.is_file() and '.txt' in file.name]
-    poses = list()
-    for fold, seq_num in data:
-        pose_file = folders[fold] + 'frame-' + seq_num + '.pose.txt'
-        pose = np.ndarray((4, 4), dtype=np.float32)
-        with open(pose_file, 'r') as pose_file_pt:
-            for i, line in enumerate(pose_file_pt):
-                for j, c in enumerate(line.split('\t')):
-                    try:
-                        pose[i, j] = float(c)
-                    except ValueError:
-                        pass
-        poses.append(pose)
+    timing = False
 
+    if timing:
+        tt = time.time()
+
+    # Loading files...
+    if hasattr(get_local_map, 'data') is False:
+        env_var = os.environ[dataset]
+        get_local_map.folders = list()
+        with open(env_var + scene + sequences, 'r') as f:
+            for line in f:
+                fold = 'seq-{:02d}/'.format(int(re.search('(?<=sequence)\d', line).group(0)))
+                get_local_map.folders.append(env_var + scene + fold)
+
+
+        get_local_map.data = list()
+        for i, folder in enumerate(get_local_map.folders):
+            p = path.Path(folder)
+            get_local_map.data += [(i, re.search('(?<=-)\d+', file.name).group(0))
+                                   for file in p.iterdir()
+                                   if file.is_file() and '.txt' in file.name]
+
+        get_local_map.poses = list()
+        for fold, seq_num in get_local_map.data:
+            pose_file = get_local_map.folders[fold] + 'frame-' + seq_num + '.pose.txt'
+            pose = np.ndarray((4, 4), dtype=np.float32)
+            with open(pose_file, 'r') as pose_file_pt:
+                for i, line in enumerate(pose_file_pt):
+                    for j, c in enumerate(line.split('\t')):
+                        try:
+                            pose[i, j] = float(c)
+                        except ValueError:
+                            pass
+            get_local_map.poses.append(pose)
+
+
+    if timing:
+        print('Files loading in {}s'.format(time.time() - tt))
+        t = time.time()
     # Nearest pose search
     '''
     eye_mat = T.new_zeros(4, 4)
@@ -282,9 +304,13 @@ def get_local_map(**kwargs):
     '''
     InvnpT = np.linalg.inv(T.cpu().numpy())
     eye_mat = np.eye(4, 4)
-    d_poses = [np.linalg.norm(eye_mat - np.matmul(pose, InvnpT)) for pose in poses]
+    d_poses = [np.linalg.norm(eye_mat - np.matmul(pose, InvnpT)) for pose in get_local_map.poses]
 
     nearest_idx = sorted(range(len(d_poses)), key=lambda k: d_poses[k])
+    if timing:
+        print('NN search in {}s'.format(time.time() - t))
+        t = time.time()
+
     # Computing local pc
     K = T.new_tensor(K)
     K[:2, :] *= resize_fact
@@ -292,9 +318,9 @@ def get_local_map(**kwargs):
     if cnn_descriptor:
         descs = list()
     for i in range(0, num_pc*frame_spacing, frame_spacing):
-        fold, num = data[nearest_idx[i]]
+        fold, num = get_local_map.data[nearest_idx[i]]
         if cnn_descriptor or cnn_depth:
-            file_name = folders[fold] + 'frame-' + num + '.color.png'
+            file_name = get_local_map.folders[fold] + 'frame-' + num + '.color.png'
             im = PIL.Image.open(file_name)
             new_h = int(min(im.size) * resize_fact * 2) # 2 time depth map by default
             im = func.to_tensor(
@@ -321,11 +347,12 @@ def get_local_map(**kwargs):
 
             depth = torch.reciprocal(depth.clamp(min=1e-8)) - 1  # Need to inverse the depth
             pcs.append(
-                toSceneCoord(depth, torch.from_numpy(poses[nearest_idx[i]]).to(T.device), K, remove_zeros=False))
+                toSceneCoord(depth, torch.from_numpy(get_local_map.poses[nearest_idx[i]]).to(T.device),
+                             K, remove_zeros=False))
             if cnn_descriptor:
                 descs.append(desc)
         else:
-            file_name = folders[fold] + 'frame-' + num + '.depth.png'
+            file_name = get_local_map.folders[fold] + 'frame-' + num + '.depth.png'
             depth = PIL.Image.open(file_name)
             new_h = int(min(depth.size)*resize_fact)
             if new_h/2 != min(K[0, 2].item(), K[1, 2].item()):
@@ -343,20 +370,28 @@ def get_local_map(**kwargs):
             if cnn_descriptor:
                 desc = desc[:, depth.view(1, -1).squeeze() != 0]
                 descs.append(desc)
-            pcs.append(toSceneCoord(depth, torch.from_numpy(poses[nearest_idx[i]]).to(T.device), K, remove_zeros=True))
+            pcs.append(toSceneCoord(depth, torch.from_numpy(get_local_map.poses[nearest_idx[i]]).to(T.device),
+                                    K, remove_zeros=True))
+
+    if timing:
+        print('PC creation in {}s'.format(time.time() - t))
+        t = time.time()
 
     # Pruning step
     final_pc = torch.cat(pcs, 1)
     if cnn_descriptor:
         cnn_desc_out = torch.cat(descs, 1)
     logger.debug('Final points before pruning cloud has {} points'.format(final_pc.size(1)))
-    if isinstance(output_size, int):
+    if not isinstance(output_size, bool):
         indexor = torch.randperm(final_pc.size(1))
         final_pc = final_pc[:, indexor]
         final_pc = final_pc[:, :output_size]
         if cnn_descriptor:
             cnn_desc_out = cnn_desc_out[:, indexor]
             cnn_desc_out = cnn_desc_out[:, :output_size]
+
+    if timing:
+        print('Pruning in {}s'.format(time.time() - t))
 
     if cnn_descriptor:
         return final_pc, cnn_desc_out

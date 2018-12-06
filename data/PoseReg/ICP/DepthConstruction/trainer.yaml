@@ -96,7 +96,7 @@ param_class:
                 {
                  mode: 'minning',
                  func: 'b_wrapper.batched_icp',
-                 param: {pc_ref: [model], pc_to_align: [pc], init_T: [batch, pose, T], param_icp: {iter: 0, tolerance: 0.001, fact: 2000, dnorm: False, verbose: false, fixed_fact: true}},
+                 param: {pc_ref: [model], pc_to_align: [pc],  init_T: [batch, pose, T], param_icp: {iter: 100, tolerance: 0.00001, fact: 200, dnorm: False, verbose: true, outlier: true}},
                  out_name: 'icp'
                 },
             ]

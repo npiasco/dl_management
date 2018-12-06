@@ -300,12 +300,12 @@ class Deconv(nn.Module):
 
 
 if __name__ == '__main__':
-    tensor_input = torch.rand([10, 3, 224, 224]).cuda()
-    net = Feat(unet=True, indices=True).cuda()
+    tensor_input = torch.rand([10, 3, 60, 80])
+    net = Feat(unet=True, indices=True)
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['feat'].size(),feat_output['res_1'].size(),feat_output['res_2'].size())
     import networks.ResNet as RNet
-    deconv = RNet.Deconv(size_res_1=192, alexnet_entry=True).cuda()
+    deconv = RNet.Deconv(size_res_1=192, alexnet_entry=False)
     map = deconv(feat_output['feat'], feat_output['res_1'], feat_output['res_2'])
     print(map.size())
     '''

@@ -4,13 +4,13 @@ param_class:
     val_num_workers: 8
     optimizers_params:
         deconv_trainer:
-            associated_net: ['Deconv','Main']
+            associated_net: ['Deconv',]
             optimizer_type: ADAM
             param:
                 lr: 0.00005 # * 0.5
                 weight_decay: 0.001
         posenet_trainer:
-            associated_net: ['Pose']
+            associated_net: ['Main', 'Pose']
             optimizer_type: ADAM
             param:
                 lr: 0.0001 # * 0.5
@@ -36,28 +36,28 @@ param_class:
             {
                 mode: forward,
                 func: minning.custom_forward,
-                param: {multiples_instance: false, input_targets: [['fw_main_0'], ], detach_inputs: false, dict: True},
+                param: {multiples_instance: false, input_targets: [['fw_main_0'], ], detach_inputs: true, dict: True},
                 net_name: 'Deconv',
                 out_name: 'maps_0'
             },
             {
                 mode: forward,
                 func: minning.custom_forward,
-                param: {multiples_instance: false, input_targets: [['fw_main_1'], ], detach_inputs: false, dict: True},
+                param: {multiples_instance: false, input_targets: [['fw_main_1'], ], detach_inputs: true, dict: True},
                 net_name: 'Deconv',
                 out_name: 'maps_1'
             },
             {
                 mode: forward,
                 func: minning.custom_forward,
-                param: {multiples_instance: false, input_targets: [['fw_main_0', 'conv7']], detach_inputs: true},
+                param: {multiples_instance: false, input_targets: [['fw_main_0', 'conv7']], detach_inputs: false},
                 net_name: 'Pose',
                 out_name: 'posenet_pose_0'
             },
             {
                 mode: forward,
                 func: minning.custom_forward,
-                param: {multiples_instance: false, input_targets: [['fw_main_1', 'conv7']], detach_inputs: true},
+                param: {multiples_instance: false, input_targets: [['fw_main_1', 'conv7']], detach_inputs: false},
                 net_name: 'Pose',
                 out_name: 'posenet_pose_1'
             },
@@ -68,12 +68,13 @@ param_class:
              param: {depth_maps: [maps_0], K: [batch, 0, K], remove_zeros: false}, #, scale_factor: 0.5},
              out_name: 'pc_0_r0'
             },
-            #            {
-            #             mode: 'minning',
-            #             func: 'b_wrapper.resize',
-            #             param: {inputs: [fw_main_0, conv1], scale_factor: 0.5},
-            #             out_name: 'desc_0'
-            #            },
+
+#            {
+#             mode: 'minning',
+#             func: 'b_wrapper.resize',
+#             param: {inputs: [fw_main_0, conv1], scale_factor: 0.5},
+#             out_name: 'desc_0'
+#            },
             {
              mode: 'minning',
              func: 'minning.detach_input',

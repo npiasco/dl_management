@@ -17,18 +17,19 @@ if __name__ == '__main__':
         machine.train()
     elif action == 'e':
         machine.test()
+        machine.plot(print_loss=False, print_val=False)
     elif action == 'p':
         machine.plot(print_loss=False, print_val=False)
     elif action == 'P':
         machine.plot()
     elif action == 'm':
-        machine.map_print(batch_size=1)
+        machine.map_print(batch_size=4)
     elif action == 'mf':
-        machine.map_print(final=True, batch_size=1)
+        machine.map_print(final=True, batch_size=4)
     elif action == 'pose':
-        machine.view_localization(pas=5)
+        machine.view_localization(pas=2)
     elif action == 'posef':
-        machine.view_localization(pas=5, final=False)
+        machine.view_localization(pas=2, final=False)
     elif action == '':
         machine.train()
         machine.test()

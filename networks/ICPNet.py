@@ -1,5 +1,3 @@
-from _weakref import CallableProxyType
-
 import torch.nn as nn
 import torch.nn.functional as func_nn
 import torch
@@ -357,13 +355,14 @@ class MatchNet(nn.Module):
         self.eps = kwargs.pop('eps', 1e-5)
         self.fact = kwargs.pop('fact', 2)
         self.reject_ratio = kwargs.pop('reject_ratio', 1)
+        self.desc_p = kwargs.pop('desc_p', 2)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
         self.outlier_filter = kwargs.pop('outlier_filter', True)
         self.use_dst_pt = kwargs.pop('use_dst_pt', True)
         self.use_dst_desc = kwargs.pop('use_dst_desc', False)
         self.normalize_desc = kwargs.pop('normalize_desc', True)
-        self.desc_p = kwargs.pop('desc_p', 2)
         self.bidirectional = kwargs.pop('bidirectional', False)
+        self.n_neighbors = kwargs.pop('n_neighbors', 10)
         knn = kwargs.pop('knn', 'soft')
 
         if kwargs:
@@ -387,6 +386,10 @@ class MatchNet(nn.Module):
             else:
                 self.nn_computor = neighbors.NearestNeighbors(n_neighbors=1)
                                                           #metric=self.custom_metric)
+        elif knn == 'fast_soft_knn':
+            self.knn = self.fast_soft_knn
+            self.outlier_filter = False
+            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=self.n_neighbors)
         else:
             raise('Unknown knn type {}'.format(knn))
 
@@ -394,6 +397,19 @@ class MatchNet(nn.Module):
         self.softmax_0d = nn.Softmax(dim=0)
         self.sigmoid = nn.Sigmoid()
         self.pdist = torch.nn.PairwiseDistance(p=1, keepdim=True)
+        self.fitted = False
+
+    def fit(self, data):
+        self.fitted = True
+        data = data.view(-1, data.size(-1))
+        if self.normalize_desc:
+            data = func_nn.normalize(data, dim=0)
+        data = data.detach().t().cpu().numpy()
+
+        self.nn_computor.fit(data)
+
+    def unfit(self):
+        self.fitted = False
 
     @staticmethod
     def custom_metric(u, v):
@@ -473,7 +489,6 @@ class MatchNet(nn.Module):
             self.nn_computor.fit(pc1_cpu)
             idx_nn_1 = self.nn_computor.kneighbors(pc2_cpu, return_distance=False)
 
-
         for i in range(pc1.size(1)):
             idx_1 = idx_nn_2[i][0]
             if self.bidirectional:
@@ -487,6 +502,10 @@ class MatchNet(nn.Module):
         return pc_nearest, indexor
 
     def hard_knn(self, pc1, pc2, *args):
+        '''
+        Deprecated func
+        '''
+        logger.warning('Deprectated method.')
         distance = 1
         if self.use_dst_pt:
             distance *= torch.reciprocal(self.spatial_distance(pc1, pc2).clamp(min=self.eps))
@@ -514,6 +533,26 @@ class MatchNet(nn.Module):
                 pc_nearest[:, i] = pc2[:, idx_1]
 
         return pc_nearest, indexor
+
+    def fast_soft_knn(self, pc1, pc2, desc1, desc2):
+        d1 = desc1.view(desc1.size(0), -1)
+        d2 = desc2.view(desc2.size(0), -1)
+        if self.normalize_desc:
+            d1 = func_nn.normalize(d1, dim=0)
+            d2 = func_nn.normalize(d2, dim=0)
+        d1_cpu = d1.detach().t().cpu().numpy()
+
+        if not self.fitted:
+            self.fit(desc2)
+            self.fitted = False
+
+        idx_nn_2 = self.nn_computor.kneighbors(d1_cpu, return_distance=False)
+
+        d_matrix = torch.sum((d1.unsqueeze(-1) - d2[:, idx_nn_2]) ** 2, 0)
+        d_matrix = self.softmax_1d(-self.fact * d_matrix)
+
+        pc_nearest = torch.sum(pc2[:, idx_nn_2] * d_matrix, -1)
+        return pc_nearest
 
     def soft_knn(self, pc1, pc2, *args):
         distance = 1
@@ -589,7 +628,7 @@ if __name__ == '__main__':
     torch.manual_seed(10)
     device = 'cpu'
     batch = 1
-    nb_pt = 300
+    nb_pt = 5000
     p1 = torch.rand(batch, 4, nb_pt).to(device)
     p1[:, 3, :] = 1
     T = torch.zeros(4, 4).to(device)
@@ -598,7 +637,7 @@ if __name__ == '__main__':
     T[3, 3] = 1
     p2 = T.matmul(p1)
     #p2 = torch.rand(2, 4, nb_pt).to(device)
-    desc1 = torch.rand(batch, 32, nb_pt).to(device)
+    desc1 = torch.rand(batch, 16, nb_pt).to(device)
     desc2 = desc1
     '''
     print(T)
@@ -609,16 +648,17 @@ if __name__ == '__main__':
     T = net(p1, p2, desc1, desc2)
     print(T['T'])
     '''
-    net = MatchNet(use_dst_desc=True, use_dst_pt=False, knn='hard', fact=20000)
-    net_cpu = MatchNet(use_dst_desc=True, use_dst_pt=False, knn='hard_cpu')
+    net = MatchNet(use_dst_desc=True, use_dst_pt=True, knn='hard', fact=20000)
+    #net_cpu = MatchNet(use_dst_desc=True, use_dst_pt=False, knn='hard_cpu')
+    net_cpu = MatchNet(use_dst_desc=True, use_dst_pt=False, knn='fast_soft_knn', fact=1)
 
     t1 = time.time()
     nearest = net(p1, p2, desc1, desc2)
-    print(nearest['nn'] - T.matmul(p1))
     t2 = time.time()
-    print('In {}'.format(t2 - t1))
-
-    nearest = net_cpu(p1, p2, desc1, desc2)
     print(nearest['nn'] - T.matmul(p1))
+    print('In {}'.format(t2 - t1))
+    t2 = time.time()
+    nearest = net_cpu(p1, p2, desc1, desc2)
     t3 = time.time()
+    print(nearest['nn'] - T.matmul(p1))
     print('In {}'.format(t3 - t2))

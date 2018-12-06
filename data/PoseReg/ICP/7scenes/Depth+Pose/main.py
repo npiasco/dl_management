@@ -17,7 +17,7 @@ if __name__ == '__main__':
                              trainer_file='trainer_depth.yaml',
                              dataset_file='../datasets/heads.yaml'
                              #dataset_file = '../datasets/minimal_heads.yaml'
-                             )
+                            )
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':
         machine.train()
@@ -32,9 +32,13 @@ if __name__ == '__main__':
     elif action == 'P':
         machine.plot()
     elif action == 'm':
-        machine.map_print(batch_size=1)
+        machine.map_print(batch_size=2)
     elif action == 'mf':
         machine.map_print(final=True, batch_size=2)
+    elif action == 's':
+        machine.serialize_net()
+    elif action == 'sf':
+        machine.serialize_net(final=True)
     elif action == 'pose':
         machine.view_localization(pas=3)
     elif action == 'posef':
