@@ -275,8 +275,8 @@ class MultNet(Default):
         mode = 'queries'
         self.data[dataset][mode].used_mod = [mod, aux_mod]
 
-        #dtload = data.DataLoader(self.data[dataset][mode], batch_size=batch_size, shuffle=True)
-        dtload = data.DataLoader(self.data['train'], batch_size=batch_size, shuffle=True)
+        dtload = data.DataLoader(self.data[dataset][mode], batch_size=batch_size, shuffle=True)
+        #dtload = data.DataLoader(self.data['train'], batch_size=batch_size, shuffle=True)
         ccmap = plt.get_cmap('jet', lut=1024)
 
         for b in dtload:
