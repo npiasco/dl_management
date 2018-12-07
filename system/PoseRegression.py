@@ -222,7 +222,7 @@ class MultNet(Default):
         std /= n_ex
         logger.info('Mean = {}\nSTD = {}'.format(mean, std))
 
-    def creat_model(self, fake_depth=False, scene='heads/', test=False, final=False):
+    def creat_model(self, fake_depth=False, scene='heads/', test=False, final=False, reduce_fact=2):
 
         nets_to_test = self.trainer.networks
         if not final:
@@ -251,6 +251,7 @@ class MultNet(Default):
             'cnn_enc': nets_to_test['Main'].cpu(),
             'cnn_dec': nets_to_test['Deconv'].cpu(),
             'no_grad': True,
+            'reduce_fact': reduce_fact
         }
         file_name = 'fake_depth_model.ply' if fake_depth else 'depth_model.ply'
         file_name = 'test_' + file_name if test else file_name

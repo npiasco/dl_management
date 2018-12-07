@@ -245,6 +245,7 @@ def get_local_map(**kwargs):
     sequences = kwargs.pop('sequences',  'TrainSplit.txt')
     num_pc = kwargs.pop('num_pc',  8)
     resize_fact = kwargs.pop('resize',  1/16)
+    reduce_fact = kwargs.pop('reduce_fact',  2)
     K = kwargs.pop('K', [[585, 0.0, 240], [0.0, 585, 240], [0.0, 0.0, 1.0]])
     frame_spacing = kwargs.pop('frame_spacing', 20)
     output_size = kwargs.pop('output_size', 5000)
@@ -322,7 +323,7 @@ def get_local_map(**kwargs):
         if cnn_descriptor or cnn_depth:
             file_name = get_local_map.folders[fold] + 'frame-' + num + '.color.png'
             im = PIL.Image.open(file_name)
-            new_h = int(min(im.size) * resize_fact * 2) # 2 time depth map by default
+            new_h = int(min(im.size) * resize_fact * reduce_fact) # 2 time depth map by default
             im = func.to_tensor(
                 func.center_crop(
                     func.resize(im, new_h, interpolation=PIL.Image.BILINEAR),
