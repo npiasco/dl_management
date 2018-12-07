@@ -8,6 +8,7 @@ import types
 import torch.nn as nn
 import torch.nn.functional as func
 import collections as coll
+import copy
 
 
 logger = setlog.get_logger(__name__)
@@ -163,9 +164,24 @@ class Deconv(nn.Module):
         input_size = kwargs.pop('input_size', 256)
         self.up_factor = kwargs.pop('up_factor', 1)
         alexnet_entry = kwargs.pop('alexnet_entry', False)
+        final_activation = kwargs.pop('final_activation', 'tanh')
+        reduce_factor = kwargs.pop('reduce_factor', 1)
+        norm_layer = kwargs.pop('norm_layer', 'batch')
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        if final_activation == 'tanh':
+            f_act = ('tanh', nn.Tanh())
+        elif final_activation == 'sig':
+            f_act = ('sig', nn.Sigmoid())
+        else:
+            raise AttributeError('No end activation named {}'.format(final_activation))
+
+        if norm_layer == 'group':
+            norm_layer_func = lambda x: copy.deepcopy(nn.GroupNorm(x // 2, x))
+        elif norm_layer == 'batch':
+            norm_layer_func = lambda x: copy.deepcopy(nn.BatchNorm2d(x))
 
         out_pad = 1 if alexnet_entry else 0
 
@@ -174,31 +190,44 @@ class Deconv(nn.Module):
                 [
                     ('deconv4', nn.ConvTranspose2d(input_size, 256, kernel_size=4, stride=2, padding=1,
                                                    output_padding=out_pad)),
-                    ('norm4', nn.BatchNorm2d(256)),
+                    ('norm4', norm_layer_func(256)),
                     ('relu4', nn.LeakyReLU(inplace=True, negative_slope=0.02)),  # 2
                     ('conv3', nn.Conv2d(256, 384, kernel_size=3, padding=1)),  # 3
-                    ('norm3', nn.BatchNorm2d(384)),
+                    ('norm3', norm_layer_func(384)),
                     ('relu3', nn.LeakyReLU(inplace=True, negative_slope=0.02)),  # 4
                     ('conv2', nn.Conv2d(384, size_res_1, kernel_size=3, padding=1)),  # 5
-                    ('norm2', nn.BatchNorm2d(size_res_1)),
+                    ('norm2', norm_layer_func(size_res_1)),
                     ('relu2', nn.LeakyReLU(inplace=True, negative_slope=0.02)),  # 6
                 ],
             2:
                 [
                     ('deconv1', nn.ConvTranspose2d(2 * size_res_1, 64, kernel_size=4, stride=2, padding=1,
                                                    output_padding=out_pad)),
-                    ('norm1', nn.BatchNorm2d(64)),
+                    ('norm1', norm_layer_func(64)),
                     ('relu1', nn.LeakyReLU(inplace=True, negative_slope=0.02)),  # 9
                 ],
-            3:
-                [
-                    ('deconv0', nn.ConvTranspose2d(2 * size_res_2, modality_ch, kernel_size=6, stride=2, padding=2-out_pad)),
-                    ('deconvf', nn.ConvTranspose2d(modality_ch, modality_ch, kernel_size=6, stride=2, padding=2,
-                                                   output_padding=0)),
-                    ('tanh', nn.Tanh()),
-
-                ]
         }
+        if reduce_factor == 1:
+            base_archi[3] =  [
+                ('deconv0', nn.ConvTranspose2d(2 * size_res_2, modality_ch, kernel_size=6, stride=2, padding=2-out_pad)),
+                ('deconvf', nn.ConvTranspose2d(modality_ch, modality_ch, kernel_size=6, stride=2, padding=2,
+                                               output_padding=0)),
+                f_act,
+                ]
+        elif reduce_factor == 2:
+            base_archi[3] = [
+                ('deconv0',
+                 nn.ConvTranspose2d(2 * size_res_2, modality_ch, kernel_size=6, stride=2, padding=(6-1)//2 - out_pad)),
+                ('deconvf', nn.Conv2d(modality_ch, modality_ch, kernel_size=6+1, stride=1, padding=(6+1)//2)),
+                f_act,
+            ]
+        elif reduce_factor == 4:
+            base_archi[3] = [
+                ('deconv0', nn.Conv2d(2 * size_res_2, modality_ch, kernel_size=6, stride=1, padding=(6 + 1) // 2)),
+                ('deconvf', nn.Conv2d(modality_ch, modality_ch, kernel_size=6 + 1, stride=1, padding=(6 + 1) // 2)),
+                f_act,
+            ]
+
         self.base_archi = dict()
         self.base_archi[1] = coll.OrderedDict(base_archi[1])
         self.base_archi[2] = coll.OrderedDict(base_archi[2])
@@ -265,6 +294,6 @@ if __name__ == '__main__':
     print(net.get_training_layers('up_to_conv4'))
 
     #deconvnet = Deconv(size_res_1=256, input_size=512, up_factor=2)
-    deconvnet = Deconv(size_res_1=128, input_size=256, up_factor=1)
+    deconvnet = Deconv(size_res_1=128, input_size=256, up_factor=1, reduce_factor=4, norm_layer='group')
     map = deconvnet(feat_output['feat'], feat_output['res_1'], feat_output['res_2'])
     print(map.size())

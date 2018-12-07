@@ -30,17 +30,23 @@ class Feat(nn.Module):
         jet_tf_is_trainable = kwargs.pop('jet_tf_is_trainable', False)
         mean_pooling = kwargs.pop('mean_pooling', False)
         leaky_relu = kwargs.pop('leaky_relu', False)
+        norm_layer = kwargs.pop('norm_layer', 'batch')
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
         polling_layer_param = {
             'kernel_size': 3,
             'stride': 2,
         }
+
         polling_layer = nn.AvgPool2d(**polling_layer_param) if mean_pooling else \
             nn.MaxPool2d(**polling_layer_param, return_indices=self.indices)
         relu_type = nn.LeakyReLU(inplace=True, negative_slope=0.02) if leaky_relu else nn.ReLU(inplace=True)
-
-        if kwargs:
-            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+        if norm_layer == 'group':
+            norm_layer_func = lambda x: copy.deepcopy(nn.GroupNorm(x // 2, x))
+        elif norm_layer == 'batch':
+            norm_layer_func = lambda x: copy.deepcopy(nn.BatchNorm2d(x))
 
         base_archi = [
             ('conv0', nn.Conv2d(i_channel, 64, kernel_size=11, stride=4, padding=2)),   # 0
@@ -57,10 +63,10 @@ class Feat(nn.Module):
             ]
 
         if batch_norm:
-            base_archi.insert(9, ('norm3', nn.BatchNorm2d(256)))
-            base_archi.insert(7, ('norm2', nn.BatchNorm2d(384)))
-            base_archi.insert(4, ('norm1', nn.BatchNorm2d(192)))
-            base_archi.insert(1, ('norm0', nn.BatchNorm2d(64)))
+            base_archi.insert(9, ('norm3', norm_layer_func(256)))
+            base_archi.insert(7, ('norm2', norm_layer_func(384)))
+            base_archi.insert(4, ('norm1', norm_layer_func(192)))
+            base_archi.insert(1, ('norm0', norm_layer_func(64)))
 
         if end_relu:
             base_archi.append(('relu4', copy.deepcopy(relu_type)))
@@ -300,12 +306,12 @@ class Deconv(nn.Module):
 
 
 if __name__ == '__main__':
-    tensor_input = torch.rand([10, 3, 60, 80])
-    net = Feat(unet=True, indices=True)
+    tensor_input = torch.rand([10, 3, 224, 224])
+    net = Feat(unet=True, indices=True, norm_layer='group')
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['feat'].size(),feat_output['res_1'].size(),feat_output['res_2'].size())
     import networks.ResNet as RNet
-    deconv = RNet.Deconv(size_res_1=192, alexnet_entry=False)
+    deconv = RNet.Deconv(size_res_1=192, alexnet_entry=True, reduce_factor=4, norm_layer='group', final_activation='sig')
     map = deconv(feat_output['feat'], feat_output['res_1'], feat_output['res_2'])
     print(map.size())
     '''
