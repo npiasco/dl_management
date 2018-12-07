@@ -233,7 +233,7 @@ class JetTransform:
 
     def __call__(self, sample):
         for name, mod in sample.items():
-            mod = mod - torch.min(mod)
+            #mod = mod - torch.min(mod)
             sample[name] = torch.Tensor(
                     self.cmap(mod.numpy()).transpose((0,3,1,2))
             )[:,0:3,:,:].squeeze()
