@@ -222,7 +222,7 @@ class MultNet(Default):
         std /= n_ex
         logger.info('Mean = {}\nSTD = {}'.format(mean, std))
 
-    def creat_model(self, fake_depth=False, scene='heads/', test=False, final=False, reduce_fact=2):
+    def creat_model(self, fake_depth=False, scene='heads/', test=False, final=False, reduce_fact=2, cuda=True):
 
         nets_to_test = self.trainer.networks
         if not final:
@@ -238,7 +238,7 @@ class MultNet(Default):
         size_dataset = len(self.data['test']['queries']) if test else len(self.data['train'])
         sequences = 'TestSplit.txt' if test else 'TrainSplit.txt'
         map_args = {
-            'T': torch.eye(4, 4),
+            'T': torch.eye(4, 4).cuda() if cuda else torch.eye(4, 4),
             'dataset': 'SEVENSCENES',
             'scene': scene,
             'sequences': sequences,
@@ -248,8 +248,8 @@ class MultNet(Default):
             'output_size': None,
             'cnn_descriptor': False,
             'cnn_depth': fake_depth,
-            'cnn_enc': nets_to_test['Main'].cpu(),
-            'cnn_dec': nets_to_test['Deconv'].cpu(),
+            'cnn_enc': nets_to_test['Main'].cuda() if cuda else nets_to_test['Main'].cup(),
+            'cnn_dec': nets_to_test['Deconv'].cuda() if cuda else nets_to_test['Deconv'].cup(),
             'no_grad': True,
             'reduce_fact': reduce_fact
         }
