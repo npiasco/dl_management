@@ -311,7 +311,7 @@ if __name__ == '__main__':
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['feat'].size(),feat_output['res_1'].size(),feat_output['res_2'].size())
     import networks.ResNet as RNet
-    deconv = RNet.Deconv(size_res_1=192, alexnet_entry=True, reduce_factor=4, norm_layer='group', final_activation='sig')
+    deconv = RNet.Deconv(size_res_1=192, alexnet_entry=True, reduce_factor=4, norm_layer='group', final_activation='sig', extended_size=True)
     map = deconv(feat_output['feat'], feat_output['res_1'], feat_output['res_2'])
     print(map.size())
     '''
