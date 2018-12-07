@@ -1,19 +1,13 @@
 class: 'trainers.PoseTrainers.MultNetTrainer'
 param_class:
-    cuda_on: True
+    cuda_on: False
     val_num_workers: 8
     optimizers_params:
         deconv_trainer:
             associated_net: ['Main', 'Deconv']
             optimizer_type: ADAM
             param:
-                lr: 0.00005 # * 0.5
-                weight_decay: 0.001
-        posenet_trainer:
-            associated_net: ['Pose', ]
-            optimizer_type: ADAM
-            param:
-                lr: 0.0001 # * 0.1 * 0.5
+                lr: 0.0001 # * 0.5
                 weight_decay: 0.001
     training_pipeline:
         [
@@ -24,13 +18,6 @@ param_class:
                 param: {multiples_instance: false, input_targets: [['batch', 'rgb' ], ]},
                 net_name: 'Main',
                 out_name: 'fw_main'
-            },
-            {
-                mode: forward,
-                func: minning.custom_forward,
-                param: {multiples_instance: false, input_targets: [['fw_main', 'conv7'], ], detach_inputs: true},
-                net_name: 'Pose',
-                out_name: 'posenet_pose'
             },
             {
                 mode: forward,
@@ -64,18 +51,6 @@ param_class:
              mode: 'backprop',
              name: 'deconv_backprop',
              trainer: 'deconv_trainer'
-            },
-            {
-             mode: 'loss',
-             name: 'min_max_posenet_loss',
-             func: 'loss_func.minmax_pose_loss',
-             args: [['posenet_pose', 'p'], ['posenet_pose', 'q'], ['batch', 'pose', 'position'], ['batch', 'pose', 'orientation']],
-             param: {pose_factor: 1, ori_factor: 1, min_factor: 0.1, max_factor: 0.9}
-            },
-            {
-             mode: 'backprop',
-             name: 'posenet_backprop',
-             trainer: 'posenet_trainer'
             },
             #-------------------------------------------------#
         ]

@@ -68,6 +68,7 @@ param_class:
              param: {depth_maps: [maps_0], K: [batch, 0, K], remove_zeros: false}, #, scale_factor: 0.5},
              out_name: 'pc_0_r0'
             },
+
 #            {
 #             mode: 'minning',
 #             func: 'b_wrapper.resize',
