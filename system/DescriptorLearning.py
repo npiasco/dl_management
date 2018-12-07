@@ -27,8 +27,6 @@ class Default(BaseClass.Base):
         self.dataset_file = kwargs.pop('dataset_file', 'dataset.yaml')
         BaseClass.Base.__init__(self, **kwargs)
 
-        env_var = os.environ['ROBOTCAR']
-
         with open(self.root + self.dataset_file, 'rt') as f:
             dataset_params = yaml.safe_load(f)
             logger.debug('dataset param files {} is:'.format(self.root + self.dataset_file))
@@ -36,21 +34,37 @@ class Default(BaseClass.Base):
 
         self.data = dict()
         training_param = dict()
-        training_param['main'] = self.creat_dataset(dataset_params['train']['param_class']['main'], env_var)
+        training_param['main'] = self.creat_dataset(dataset_params['train']['param_class']['main'],
+                                                    os.environ[dataset_params['train']['param_class'].get(
+                                                        'area', 'ROBOTCAR')
+                                                    ])
         dataset_params['train']['param_class'].pop('main')
-        training_param['examples'] = [self.creat_dataset(d, env_var)
+        training_param['examples'] = [self.creat_dataset(d, os.environ[dataset_params['train']['param_class'].get(
+                                                        'area', 'ROBOTCAR')])
                                       for d in dataset_params['train']['param_class']['examples']]
         dataset_params['train']['param_class'].pop('examples')
         self.data['train'] = eval(dataset_params['train']['class'])(**training_param,
                                                                     **dataset_params['train']['param_class'])
 
         self.data['test'] = dict()
-        self.data['test']['queries'] = self.creat_dataset(dataset_params['test']['queries'], env_var)
-        self.data['test']['data'] = self.creat_dataset(dataset_params['test']['data'], env_var)
+        self.data['test']['queries'] = self.creat_dataset(dataset_params['test']['queries'],
+                                                    os.environ[dataset_params['test']['queries']['param_class'].get(
+                                                        'area', 'ROBOTCAR')
+                                                    ])
+        self.data['test']['data'] = self.creat_dataset(dataset_params['test']['data'],
+                                                    os.environ[dataset_params['test']['data']['param_class'].get(
+                                                        'area', 'ROBOTCAR')
+                                                    ])
 
         self.data['val'] = dict()
-        self.data['val']['queries'] = self.creat_dataset(dataset_params['val']['queries'], env_var)
-        self.data['val']['data'] = self.creat_dataset(dataset_params['val']['data'], env_var)
+        self.data['val']['queries'] = self.creat_dataset(dataset_params['val']['queries'],
+                                                    os.environ[dataset_params['val']['queries']['param_class'].get(
+                                                        'area', 'ROBOTCAR')
+                                                    ])
+        self.data['val']['data'] = self.creat_dataset(dataset_params['val']['data'],
+                                                    os.environ[dataset_params['val']['data']['param_class'].get(
+                                                        'area', 'ROBOTCAR')
+                                                    ])
 
 
         net = self.creat_network(self.network_params)
@@ -401,7 +415,8 @@ class MultNet(Default):
             network.eval()
 
         #self.data['train'].used_mod = self.training_mod
-        self.data['test']['queries'].used_mod = ['rgb', 'mono_ref', 'mono_depth']
+        #self.data['test']['queries'].used_mod = ['rgb', 'mono_ref', 'mono_depth']
+        self.data['test']['queries'].used_mod = ['rgb', ]
         #dtload = data.DataLoader(self.data['train'], batch_size=batch_size)
         dtload = data.DataLoader(self.data['test']['queries'], batch_size=batch_size)
         plt.figure(1)
@@ -410,8 +425,8 @@ class MultNet(Default):
 
         for b in dtload:
             main_mod = b[mod].contiguous().view(batch_size, 3, 224, 224)
-            true_img = b['mono_ref'].contiguous().view(batch_size, 3, 224, 224)
-            modality = b[aux_mod].contiguous().view(batch_size, -1, 224, 224)
+            #true_img = b['mono_ref'].contiguous().view(batch_size, 3, 224, 224)
+            #modality = b[aux_mod].contiguous().view(batch_size, -1, 224, 224)
             #main_mod = b[mod].contiguous().view(batch_size, 3, 224, 224)
             #modality = b[aux_mod].contiguous().view(batch_size, -1, 224, 224)
 
@@ -428,9 +443,10 @@ class MultNet(Default):
             images_batch = torch.cat((modality.cpu(), pruned_maps.data.cpu(), output['maps'].data.cpu()))
             '''
 
-            diff_map = torch.abs(modality.cpu()-output.data.cpu())
+            #diff_map = torch.abs(modality.cpu()-output.data.cpu())
             #images_batch = torch.cat((modality.cpu(), output.data.cpu(), diff_map))
-            images_batch = torch.cat((modality.cpu(), output.data.cpu()))
+            #images_batch = torch.cat((modality.cpu(), output.data.cpu()))
+            images_batch = output.data.cpu()
 
             grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
             plt.figure(1)
@@ -440,8 +456,8 @@ class MultNet(Default):
                 plt.imshow(grid.numpy().transpose(1, 2, 0))
             #plt.colorbar()
             plt.figure(2)
-            #grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=batch_size)
-            grid = torchvis.utils.make_grid(true_img.cpu(), nrow=batch_size)
+            grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=batch_size)
+            #grid = torchvis.utils.make_grid(true_img.cpu(), nrow=batch_size)
             plt.imshow(grid.numpy().transpose(1, 2, 0))
             """
             plt.figure(3)
