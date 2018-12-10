@@ -177,22 +177,32 @@ if __name__ == '__main__':
         'ref': (tf.ToTensor(), tf.DepthTransform(depth_factor=1e-3), tf.JetTransform(s_lut=1024))
     }
     transform_wo_q = {
-        'first': (tf.Resize((224, 224)),),
+        'first': (tf.Resize(480),),
         'rgb': (tf.ToTensor(),),
         'mono_depth': (tf.ToTensor(), tf.DepthTransform(depth_factor=1.0, error_value=0.0, replacing_value=1.0), tf.Normalize(mean=[0.2291], std=[1]), tf.JetTransform()),
         'depth': (tf.ToTensor(),),
         'ref': (tf.ToTensor(), tf.Normalize(mean=[0.2164], std=[0.08]))
     }
 
-    '''
+
     os.environ['CMU'] = "/mnt/anakim/data/"
 
-    dataset_1 = VBLDataset(root=os.environ['CMU'] + 'data_collection_20100915/',
+    dataset_1 = VBLDataset(root=os.environ['CMU'] + 'sunny/',
                            modalities={'rgb': 'dataset.txt'},
                            coord_file='coordxImbearing.txt',
                            transform=transform_wo_q)
 
-    dataset_2 = VBLDataset(root=os.environ['CMU'] + 'data_collection_20101221/',
+    dataset_2 = VBLDataset(root=os.environ['CMU'] + 'snow/',
+                           modalities={'rgb': 'dataset.txt'},
+                           coord_file='coordxImbearing.txt',
+                           transform=transform_wo_q)
+
+    dataset_3 = VBLDataset(root=os.environ['CMU'] + 'autumn/',
+                           modalities={'rgb': 'dataset.txt'},
+                           coord_file='coordxImbearing.txt',
+                           transform=transform_wo_q)
+
+    dataset_4 = VBLDataset(root=os.environ['CMU'] + 'long_term/',
                            modalities={'rgb': 'dataset.txt'},
                            coord_file='coordxImbearing.txt',
                            transform=transform_wo_q)
@@ -210,17 +220,27 @@ if __name__ == '__main__':
                                        'mono_depth': 'mono_depth_dataset.txt'},
                            coord_file='coordxImbearing.txt',
                            transform=transform)
-
-    triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_2, ],
-                                     num_triplets=20, num_positives=2, num_negatives=2, ex_shuffle=True)
+    '''
+    triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_4],
+                                     num_triplets=20, num_positives=3, num_negatives=3, ex_shuffle=True)
     #%torch.save(triplet_dataset.triplets, 'night_200_triplets.pth')
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
     for b in dtload:
+        '''
         plt.figure(1)
         show_batch(b['query'])
         plt.figure(2)
         show_batch(b['positives'][0])
-        plt.figure(3)
-        show_batch(b['negatives'][0])
+        show_batch(b['positives'][1])
+        '''
+        plt.figure(0)
+        images_batch = torch.cat((b['query']['rgb'],
+                                  b['positives'][0]['rgb'],
+                                  b['positives'][1]['rgb'],
+                                  b['positives'][2]['rgb'],), 0)
+        grid = torchvis.utils.make_grid(images_batch, nrow=4)
+
+        plt.imshow(grid.numpy().transpose((1, 2, 0)))
+
         plt.show()
