@@ -167,6 +167,7 @@ class Deconv(nn.Module):
         final_activation = kwargs.pop('final_activation', 'tanh')
         reduce_factor = kwargs.pop('reduce_factor', 1)
         norm_layer = kwargs.pop('norm_layer', 'batch')
+        dropout = kwargs.pop('dropout', False)
         extended_size = kwargs.pop('extended_size', False)
 
         if kwargs:
@@ -202,6 +203,9 @@ class Deconv(nn.Module):
                     ('relu2', nn.LeakyReLU(inplace=True, negative_slope=0.02)),  # 6
                 ],
         }
+        if dropout:
+            base_archi[1].insert(6, ('dp2', nn.Dropout2d(dropout, inplace=True)))
+            base_archi[1].insert(3, ('dp3', nn.Dropout2d(dropout, inplace=True)))
         if extended_size:
             base_archi[2] = [
                 ('deconv1', nn.ConvTranspose2d(2 * size_res_1, 256, kernel_size=4, stride=2, padding=1,
@@ -212,6 +216,9 @@ class Deconv(nn.Module):
                 ('norm1', norm_layer_func(64)),
                 ('relu1', nn.LeakyReLU(inplace=True, negative_slope=0.02)),
             ]
+            if dropout:
+                base_archi[2].insert(3, ('dp1_5', nn.Dropout2d(dropout, inplace=True)))
+                base_archi[2].insert(0, ('dp1', nn.Dropout2d(dropout, inplace=True)))
         else:
             base_archi[2]=[
                 ('deconv1', nn.ConvTranspose2d(2 * size_res_1, 64, kernel_size=4, stride=2, padding=1,
@@ -219,6 +226,8 @@ class Deconv(nn.Module):
                 ('norm1', norm_layer_func(64)),
                 ('relu1', nn.LeakyReLU(inplace=True, negative_slope=0.02)),
             ]
+            if dropout:
+                base_archi[2].insert(0, ('dp1', nn.Dropout2d(dropout, inplace=True)))
 
         if reduce_factor == 1:
             base_archi[3] =  [
@@ -317,7 +326,13 @@ if __name__ == '__main__':
     print(net.get_training_layers('up_to_conv3'))
     print(net.get_training_layers('up_to_conv4'))
 
-    deconvnet = Deconv(size_res_1=256, input_size=512, up_factor=2,reduce_factor=4, norm_layer='group', extended_size=True)
+    deconvnet = Deconv(size_res_1=256,
+                       input_size=512,
+                       up_factor=2,
+                       reduce_factor=4,
+                       norm_layer='group',
+                       extended_size=True,
+                       final_activation='sig',)
     #deconvnet = Deconv(size_res_1=128, input_size=256, up_factor=1, reduce_factor=4, norm_layer='group')
     map = deconvnet(feat_output['feat'], feat_output['res_1'], feat_output['res_2'])
     print(map.size())
