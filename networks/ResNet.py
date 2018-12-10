@@ -204,8 +204,9 @@ class Deconv(nn.Module):
                 ],
         }
         if dropout:
-            base_archi[1].insert(6, ('dp2', nn.Dropout2d(dropout, inplace=True)))
-            base_archi[1].insert(3, ('dp3', nn.Dropout2d(dropout, inplace=True)))
+            base_archi[1].append(('dp1', nn.Dropout2d(dropout)))
+            base_archi[1].insert(6, ('dp2', nn.Dropout2d(dropout)))
+            base_archi[1].insert(3, ('dp3', nn.Dropout2d(dropout)))
         if extended_size:
             base_archi[2] = [
                 ('deconv1', nn.ConvTranspose2d(2 * size_res_1, 256, kernel_size=4, stride=2, padding=1,
@@ -217,8 +218,7 @@ class Deconv(nn.Module):
                 ('relu1', nn.LeakyReLU(inplace=True, negative_slope=0.02)),
             ]
             if dropout:
-                base_archi[2].insert(3, ('dp1_5', nn.Dropout2d(dropout, inplace=True)))
-                base_archi[2].insert(0, ('dp1', nn.Dropout2d(dropout, inplace=True)))
+                base_archi[2].insert(3, ('dp1_5', nn.Dropout2d(dropout)))
         else:
             base_archi[2]=[
                 ('deconv1', nn.ConvTranspose2d(2 * size_res_1, 64, kernel_size=4, stride=2, padding=1,
@@ -226,8 +226,6 @@ class Deconv(nn.Module):
                 ('norm1', norm_layer_func(64)),
                 ('relu1', nn.LeakyReLU(inplace=True, negative_slope=0.02)),
             ]
-            if dropout:
-                base_archi[2].insert(0, ('dp1', nn.Dropout2d(dropout, inplace=True)))
 
         if reduce_factor == 1:
             base_archi[3] =  [
@@ -332,7 +330,8 @@ if __name__ == '__main__':
                        reduce_factor=4,
                        norm_layer='group',
                        extended_size=True,
-                       final_activation='sig',)
+                       final_activation='sig',
+                       dropout=0.5)
     #deconvnet = Deconv(size_res_1=128, input_size=256, up_factor=1, reduce_factor=4, norm_layer='group')
     map = deconvnet(feat_output['feat'], feat_output['res_1'], feat_output['res_2'])
     print(map.size())

@@ -151,6 +151,8 @@ class Feat(nn.Module):
                                     list(self.feature.children())[
                                         list(self.base_archi.keys()).index('jet_tf')
                                     ].parameters()}]
+        elif layers_to_train == 'no_layer':
+            training_params = []
         else:
             raise KeyError('No behaviour for layers_to_train = {}'.format(layers_to_train))
 
