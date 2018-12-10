@@ -1,16 +1,30 @@
 Main:
-    class: 'networks.CustomArchi.PixEncoder'
+    class: 'networks.Alexnet.Feat'
     param_class:
         layers_to_train: 'all'
-        k_size: 4
-        d_fact: 1
+        load_imagenet: True
+        unet: True
+        indices: True
+        batch_norm: true
+        norm_layer: group
+#    class: 'networks.ResNet.Feat'
+#    param_class:
+#        layers_to_train: 'all'
+#        num_layer: 18
+#        unet: True
+#        load_imagenet: True
 
 Deconv:
-    class: 'networks.CustomArchi.PixDecoder'
+    class: 'networks.ResNet.Deconv'
     param_class:
         layers_to_train: 'all'
-        k_size: 4
-        d_fact: 1
-        out_channel: 1
-        div_fact: 2
+        size_res_1: 192
+        alexnet_entry: True
+        #size_res_1: 256
+        #input_size: 512
+        #up_factor: 2
+        reduce_factor: 4
+        norm_layer: group
+        final_activation: sig
+        extended_size: true
 

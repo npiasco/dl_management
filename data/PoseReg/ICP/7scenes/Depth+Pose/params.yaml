@@ -1,9 +1,9 @@
-batch_size: 2
-curr_epoch: 260
+batch_size: 4
+curr_epoch: 50
 lr_scheduler:
   deconv_trainer:
     class: lr_scheduler.StepLR
-    param: {gamma: 0.25, step_size: 100}
+    param: {gamma: 0.5, step_size: 20}
 max_epoch: 10000
 min_value_to_stop: 1000
 saved_files: {best_network: best_network.pth, loss: loss.pth, network_Deconv: network_Deconv.pth,

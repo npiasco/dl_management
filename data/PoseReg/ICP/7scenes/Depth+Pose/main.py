@@ -15,7 +15,7 @@ if __name__ == '__main__':
     machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])],
                              #trainer_file='posenet_trainer.yaml',
                              trainer_file='trainer_depth.yaml',
-                             dataset_file='../datasets/heads.yaml'
+                             dataset_file='../datasets/heads224.yaml'
                              #dataset_file = '../datasets/minimal_heads.yaml'
                             )
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')

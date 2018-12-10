@@ -1,6 +1,6 @@
 class: 'trainers.PoseTrainers.MultNetTrainer'
 param_class:
-    cuda_on: False
+    cuda_on: True
     val_num_workers: 8
     optimizers_params:
         deconv_trainer:
@@ -22,7 +22,8 @@ param_class:
             {
                 mode: forward,
                 func: minning.custom_forward,
-                param: {multiples_instance: false, input_targets: [['fw_main'], ], detach_inputs: false, dict: True},
+                param: {multiples_instance: false, detach_inputs: false, dict: True,
+                input_targets: [['fw_main', 'feat'], ['fw_main', 'res_1'], ['fw_main', 'res_2']]},
                 net_name: 'Deconv',
                 out_name: 'maps'
             },
@@ -50,7 +51,8 @@ param_class:
             {
              mode: 'backprop',
              name: 'deconv_backprop',
-             trainer: 'deconv_trainer'
+             trainer: 'deconv_trainer',
+             clip_grad: {networks: ['Main'], val_max: 0.1}
             },
             #-------------------------------------------------#
         ]
@@ -77,7 +79,8 @@ param_class:
                 {
                     mode: forward,
                     func: minning.custom_forward,
-                    param: {multiples_instance: false, input_targets: [['fw_main'], ]},
+                    param: {multiples_instance: false,
+                    input_targets: [['fw_main', 'feat'], ['fw_main', 'res_1'], ['fw_main', 'res_2']]},
                     net_name: 'Deconv',
                     out_name: 'maps'
                 },
