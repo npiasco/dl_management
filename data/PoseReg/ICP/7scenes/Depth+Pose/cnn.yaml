@@ -27,4 +27,5 @@ Deconv:
         norm_layer: group
         final_activation: sig
         extended_size: true
+        dropout: 0.5
 

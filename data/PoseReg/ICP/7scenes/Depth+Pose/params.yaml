@@ -1,5 +1,5 @@
 batch_size: 4
-curr_epoch: 50
+curr_epoch: 0
 lr_scheduler:
   deconv_trainer:
     class: lr_scheduler.StepLR
