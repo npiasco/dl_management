@@ -3,13 +3,13 @@ Main:
     param_class:
         layers_to_train: 'all'
         k_size: 4
-        d_fact: 4
+        d_fact: 2
 
 Deconv:
     class: 'networks.CustomArchi.PixDecoder'
     param_class:
         layers_to_train: 'all'
         k_size: 4
-        d_fact: 4
+        d_fact: 2
         out_channel: 1
-        out_pad: 1
+        div_fact: 2

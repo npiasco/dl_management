@@ -5,9 +5,37 @@ import pose_utils.utils as utils
 from trainers.minning_function import recc_acces
 import numpy as np
 import setlog
+import pose_utils.RANSACPose as RSCPose
 
 
 logger = setlog.get_logger(__name__)
+
+
+def global_point_net_forward(pointnet, variables, **kwargs):
+    pc1 = kwargs.pop('pc1', None)
+    pc2 = kwargs.pop('pc2', None)
+    desc1 = kwargs.pop('desc1', None)
+    desc2 = kwargs.pop('desc2', None)
+    detach_inputs = kwargs.pop('detach_inputs', True)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    pc1 = recc_acces(variables, pc1)
+    pc2 = recc_acces(variables, pc2)
+    desc1 = recc_acces(variables, desc1)
+    desc2 = recc_acces(variables, desc2)
+    if detach_inputs:
+        pc1, pc2, desc1, desc2 = pc1.detach(), pc2.detach(), desc1.detach(), desc2.detach()
+
+    s_pc1 = pc1.size(2)
+    s_pc2 = pc2.size(2)
+
+    out = pointnet(torch.cat((pc1, pc2), 2), torch.cat((desc1, desc2), 2))
+
+    pdec1, pdec2 = torch.split(out, (s_pc1, s_pc2), 2)
+
+    return {'desc1': pdec1, 'desc2': pdec2}
 
 
 def corrected_depth_map_getter(variable, **kwargs):
@@ -49,7 +77,6 @@ def corrected_depth_map_getter(variable, **kwargs):
                                                         diffuse=diffuse,
                                                         inliers=inlier,
                                                         **filter_loop_param)
-
     return final_maps
 
 
@@ -111,6 +138,37 @@ def add_random_transform(variable, **kwargs):
     return noise_T
 
 
+def fast_icp(nets, variable, **kwargs):
+    pc_to_align = kwargs.pop('pc_to_align', None)
+    pc_ref = kwargs.pop('pc_ref', None)
+    desc_to_align = kwargs.pop('desc_to_align', None)
+    desc_ref = kwargs.pop('desc_ref', None)
+    init_T = kwargs.pop('init_T', None)
+    param_icp = kwargs.pop('param_icp', dict())
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    pc_to_align = recc_acces(variable, pc_to_align)
+    pc_ref = recc_acces(variable, pc_ref)
+    desc_to_align = recc_acces(variable, desc_to_align)
+    desc_ref = recc_acces(variable, desc_ref)
+    init_T = recc_acces(variable, init_T)
+
+    if init_T.size(0) != 1:
+        raise NotImplementedError('No implementation of batched ICP')
+
+    T = ICP.ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T,
+                    #desc_function=nets[0],
+                    desc_function=None,
+                    match_function=nets[1],
+                    #pose_function=ICP.PoseFromMatching,
+                    pose_function=RSCPose.ransac_pose_estimation,
+                    **param_icp)
+
+    return {'T': T, 'q': utils.rot_to_quat(T[0,:3,:3]).unsqueeze(0), 'p': T[0, :3, 3].unsqueeze(0)}
+
+
 def advanced_local_map_getter(nets, variable, **kwargs):
     Ts = kwargs.pop('T', False)
     descriptors_size = kwargs.pop('descriptors_size', 32)
@@ -123,16 +181,16 @@ def advanced_local_map_getter(nets, variable, **kwargs):
     size_pc = map_args.get('output_size', 2000)
     cnn_descriptor = map_args.get('cnn_descriptor', False)
 
-    if isinstance(size_pc, int):
+    if not isinstance(size_pc, bool):
         batched_local_maps = Ts.new_zeros(Ts.size(0), 4, size_pc)
         if cnn_descriptor:
             encoders = Ts.new_zeros(Ts.size(0), descriptors_size, size_pc)
-    elif Ts.size(0) != 0:
-        raise AttributeError('Can generate full pc when batch size != 0.')
+    elif Ts.size(0) != 1:
+        raise AttributeError('Can generate full pc when batch size != 1.')
 
     for i, T in enumerate(Ts):
         if cnn_descriptor:
-            if isinstance(size_pc, int):
+            if not isinstance(size_pc, bool):
                 batched_local_maps[i], encoders[i] = utils.get_local_map(T=T, **map_args, cnn_enc=nets[0], cnn_dec=nets[1])
             else:
                 batched_local_maps, encoders = utils.get_local_map(T=T, **map_args, cnn_enc=nets[0],
@@ -205,12 +263,26 @@ def batched_depth_map_to_pc(variable, **kwargs):
         if inverse_depth:
             depth_maps = torch.reciprocal(depth_maps.clamp(min=eps)) - 1
         if remove_zeros:
-            batched_pc = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros).unsqueeze(0)
+            batched_pc, indexor = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros)
+            batched_pc = {'pc': batched_pc.unsqueeze(0), 'index': indexor}
         else:
             batched_pc[i, :, :] = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros)
 
     return batched_pc
 
+def index(variable, **kwargs):
+    inputs = kwargs.pop('inputs', None)
+    index = kwargs.pop('index', None)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    inputs = recc_acces(variable, inputs)
+    index = recc_acces(variable, index)
+    inputs = inputs.view(1, inputs.size(1), -1)
+    inputs = inputs[:, :, index]
+
+    return inputs
 
 def resize(variable, **kwargs):
     inputs = kwargs.pop('inputs', None)

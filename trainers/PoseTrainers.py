@@ -15,6 +15,7 @@ import datasets.SevenScene as SevenScene
 from trainers.minning_function import recc_acces
 import pose_utils.BatchWrapper as b_wrapper
 import trainers.minning_function as minning
+import time
 
 
 logger = setlog.get_logger(__name__)
@@ -251,6 +252,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         self.build_model = eval(build_model_func)
 
     def train(self, batch):
+        timing = False
         for network in self.networks.values():
             network.train().to(self.device)
             for params in network.get_training_layers():
@@ -262,6 +264,8 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         variables = {'batch': self.batch_to_device(batch)}
         summed_loss = 0
         for n_action, action in enumerate(self.training_pipeline):
+            if timing:
+                t = time.time()
 
             variables = self._sequential_forward(action, variables, self.networks)
 
@@ -320,6 +324,8 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             else:
                 if action['mode'] not in ('batch_forward', 'forward', 'minning', 'mult_forward'):
                     raise NameError('Unknown action {}'.format(action['mode']))
+            if timing:
+                print('Elapsed {}s for action {}'.format(time.time() - t, action))
 
         del summed_loss, variables
 

@@ -20,7 +20,6 @@ class VBLDataset(utils.data.Dataset):
         self.root = root
         self.transform = kwargs.pop('transform', 'default')
         self.bearing = kwargs.pop('bearing', True)
-        self.CMU = kwargs.pop('CMU', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -177,7 +176,7 @@ if __name__ == '__main__':
         'ref': (tf.ToTensor(), tf.DepthTransform(depth_factor=1e-3), tf.JetTransform(s_lut=1024))
     }
     transform_wo_q = {
-        'first': (tf.Resize(480),),
+        'first': (tf.Resize((224, 224)),),
         'rgb': (tf.ToTensor(),),
         'mono_depth': (tf.ToTensor(), tf.DepthTransform(depth_factor=1.0, error_value=0.0, replacing_value=1.0), tf.Normalize(mean=[0.2291], std=[1]), tf.JetTransform()),
         'depth': (tf.ToTensor(),),

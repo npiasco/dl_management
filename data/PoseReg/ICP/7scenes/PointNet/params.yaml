@@ -1,16 +1,16 @@
-batch_size: 20
-curr_epoch: 1
+batch_size: 1
+curr_epoch: 11
 lr_scheduler:
   deconv_trainer:
     class: lr_scheduler.StepLR
-    param: {gamma: 0.5, step_size: 100}
+    param: {gamma: 0.5, step_size: 25}
   posenet_trainer:
     class: lr_scheduler.StepLR
-    param: {gamma: 0.5, step_size: 100}
-max_epoch: 2000
-min_value_to_stop: 30
-saved_files: {best_network: best_network.pth, loss: loss.pth, network_CPNet: network_CPNet.pth,
-  network_Deconv: network_Deconv.pth, network_Main: network_Main.pth, network_MatchNet: network_MatchNet.pth,
+    param: {gamma: 0.5, step_size: 50}
+max_epoch: 1000
+min_value_to_stop: 100
+saved_files: {best_network: best_network.pth, loss: loss.pth, network_Main: network_Main.pth,
+  network_MatchNet: network_MatchNet.pth, network_PointNet: network_PointNet.pth,
   network_Pose: network_Pose.pth, optimizer_deconv_trainer: optimizer_deconv_trainer.pth,
   optimizer_posenet_trainer: optimizer_posenet_trainer.pth, val_score: val_score.pth}
 score_file: score_file.pth

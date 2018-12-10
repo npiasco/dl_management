@@ -7,13 +7,7 @@ param_class:
             associated_net: ['Main', 'Deconv']
             optimizer_type: ADAM
             param:
-                lr: 0.00005 # * 0.5
-                weight_decay: 0.001
-        posenet_trainer:
-            associated_net: ['Pose', ]
-            optimizer_type: ADAM
-            param:
-                lr: 0.0001 # * 0.1 * 0.5
+                lr: 0.0001 # * 0.5
                 weight_decay: 0.001
     training_pipeline:
         [
@@ -28,14 +22,8 @@ param_class:
             {
                 mode: forward,
                 func: minning.custom_forward,
-                param: {multiples_instance: false, input_targets: [['fw_main', 'conv7'], ], detach_inputs: true},
-                net_name: 'Pose',
-                out_name: 'posenet_pose'
-            },
-            {
-                mode: forward,
-                func: minning.custom_forward,
-                param: {multiples_instance: false, input_targets: [['fw_main'], ], detach_inputs: false, dict: True},
+                param: {multiples_instance: false, detach_inputs: false, dict: True,
+                input_targets: [['fw_main', 'feat'], ['fw_main', 'res_1'], ['fw_main', 'res_2']]},
                 net_name: 'Deconv',
                 out_name: 'maps'
             },
@@ -63,19 +51,8 @@ param_class:
             {
              mode: 'backprop',
              name: 'deconv_backprop',
-             trainer: 'deconv_trainer'
-            },
-            {
-             mode: 'loss',
-             name: 'min_max_posenet_loss',
-             func: 'loss_func.minmax_pose_loss',
-             args: [['posenet_pose', 'p'], ['posenet_pose', 'q'], ['batch', 'pose', 'position'], ['batch', 'pose', 'orientation']],
-             param: {pose_factor: 1, ori_factor: 1, min_factor: 0.1, max_factor: 0.9}
-            },
-            {
-             mode: 'backprop',
-             name: 'posenet_backprop',
-             trainer: 'posenet_trainer'
+             trainer: 'deconv_trainer',
+             clip_grad: {networks: ['Main'], val_max: 0.1}
             },
             #-------------------------------------------------#
         ]
@@ -102,7 +79,8 @@ param_class:
                 {
                     mode: forward,
                     func: minning.custom_forward,
-                    param: {multiples_instance: false, input_targets: [['fw_main'], ]},
+                    param: {multiples_instance: false,
+                    input_targets: [['fw_main', 'feat'], ['fw_main', 'res_1'], ['fw_main', 'res_2']]},
                     net_name: 'Deconv',
                     out_name: 'maps'
                 },

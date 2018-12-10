@@ -51,7 +51,7 @@ param_class:
             {
              mode: 'minning',
              func: 'b_wrapper.batched_pc_pruning',
-             param: {pc: [pc], mode: 'random', pruning_fact: 0.1},
+             param: {pc: [pc], mode: 'random', pruning_fact: 0.05},
              out_name: 'pc'
             },
             {
@@ -63,7 +63,7 @@ param_class:
             {
              mode: 'minning',
              func: 'b_wrapper.batched_icp',
-             param: {pc_ref: [model], pc_to_align: [pc], init_T: [batch, pose, T], detach_init_pose: True, param_icp: {iter: 5, fact: 2, outlier: true}},
+             param: {pc_ref: [model], pc_to_align: [pc], init_T: [batch, pose, T], detach_init_pose: True, param_icp: {iter: 1, fact: 2, outlier: true}},
              out_name: 'icp'
             },
             #-------------------------------------------------#
@@ -138,7 +138,7 @@ param_class:
                 {
                  mode: 'minning',
                  func: 'b_wrapper.batched_pc_pruning',
-                 param: {pc: [pc], mode: 'regular', pruning_fact: 0.1},
+                 param: {pc: [pc], mode: 'regular', pruning_fact: 0.05},
                  out_name: 'pruned_pc'
                 },
                 {
@@ -150,7 +150,7 @@ param_class:
                 {
                  mode: 'minning',
                  func: 'b_wrapper.batched_icp',
-                 param: {pc_ref: [model], pc_to_align: [pruned_pc], init_T: [posenet_pose, T], param_icp: {iter: 5, tolerance: 0.001, fact: 2, verbose: false, outlier: true}},
+                 param: {pc_ref: [model], pc_to_align: [pruned_pc], init_T: [posenet_pose, T], param_icp: {iter: 3, tolerance: 0.001, fact: 2, verbose: false, outlier: true}},
                  out_name: 'icp'
                 },
             ]

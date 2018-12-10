@@ -31,10 +31,14 @@ if __name__ == '__main__':
         machine.plot(print_loss=False, print_val=False)
     elif action == 'P':
         machine.plot()
+    elif action == 's':
+        machine.serialize_net()
+    elif action == 'sf':
+        machine.serialize_net(final=True)
     elif action == 'm':
-        machine.map_print(batch_size=2)
+        machine.map_print(batch_size=1)
     elif action == 'mf':
-        machine.map_print(final=True, batch_size=2)
+        machine.map_print(final=True, batch_size=1)
     elif action == 'pose':
         machine.view_localization(pas=2)
     elif action == 'posef':
