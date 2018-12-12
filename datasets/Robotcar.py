@@ -171,7 +171,7 @@ if __name__ == '__main__':
     transform = {
         'first': (tf.Resize((420, 420)),),
         'rgb': (tf.ToTensor(), ),
-        'depth': (tf.ToTensor(), tf.DepthTransform(depth_factor=1e-4, replacing_value=100000, error_value=0), tf.JetTransform(s_lut=1024)),
+        'depth': (tf.ToTensor(), tf.DepthTransform(depth_factor=1e-4, replacing_value=100000, error_value=0, inverse=True), tf.JetTransform(s_lut=1024)),
         'mono_depth': (tf.ToTensor(), tf.JetTransform(s_lut=1024)),
         'ref': (tf.ToTensor(), tf.DepthTransform(depth_factor=1e-3), tf.JetTransform(s_lut=1024))
     }
@@ -183,7 +183,7 @@ if __name__ == '__main__':
         'ref': (tf.ToTensor(), tf.Normalize(mean=[0.2164], std=[0.08]))
     }
 
-
+    '''
     os.environ['CMU'] = "/mnt/anakim/data/"
 
     dataset_1 = VBLDataset(root=os.environ['CMU'] + 'sunny/',
@@ -206,32 +206,32 @@ if __name__ == '__main__':
                            coord_file='coordxImbearing.txt',
                            transform=transform_wo_q)
     '''
-    os.environ['ROBOTCAR'] = "/mnt/anakim/data/training/"
 
-    dataset_1 = VBLDataset(root=os.environ['ROBOTCAR'] + 'TrainDataset_Night/',
+    dataset_1 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_05_19_15/',
+                           modalities={'rgb': 'pruned_dataset.txt', 'depth': 'pruned_true_depth_dataset.txt',
+                                        'ref': 'pruned_true_ref_dataset.txt'},
+                           coord_file='pruned_coordxImbearing.txt',
+                           transform=transform)
+
+    dataset_2 = VBLDataset(root=os.environ['ROBOTCAR'] + 'training/TrainDataset_05_19_15/',
                            modalities={'rgb': 'dataset.txt', 'depth': 'true_depth_dataset.txt',
-                                       'mono_depth': 'mono_depth_dataset.txt'},
+                                       'ref': 'true_ref_dataset.txt'},
                            coord_file='coordxImbearing.txt',
                            transform=transform)
 
-    dataset_2 = VBLDataset(root=os.environ['ROBOTCAR'] + 'TrainDataset_Snow/',
-                           modalities={'rgb': 'dataset.txt', 'depth': 'true_depth_dataset.txt',
-                                       'mono_depth': 'mono_depth_dataset.txt'},
-                           coord_file='coordxImbearing.txt',
-                           transform=transform)
-    '''
-    triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_4],
+    triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_2],
                                      num_triplets=20, num_positives=3, num_negatives=3, ex_shuffle=True)
     #%torch.save(triplet_dataset.triplets, 'night_200_triplets.pth')
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
     for b in dtload:
-        '''
+
         plt.figure(1)
         show_batch(b['query'])
         plt.figure(2)
         show_batch(b['positives'][0])
-        show_batch(b['positives'][1])
+        plt.figure(3)
+        show_batch(b['negatives'][1])
         '''
         plt.figure(0)
         images_batch = torch.cat((b['query']['rgb'],
@@ -241,5 +241,5 @@ if __name__ == '__main__':
         grid = torchvis.utils.make_grid(images_batch, nrow=4)
 
         plt.imshow(grid.numpy().transpose((1, 2, 0)))
-
+        '''
         plt.show()
