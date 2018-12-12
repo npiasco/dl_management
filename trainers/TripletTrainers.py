@@ -14,6 +14,7 @@ import networks.Descriptor as Desc
 import numpy as np
 import tqdm
 import copy
+import time
 import score.Functions as ScoreFunc
 
 
@@ -250,6 +251,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             self.eval_forwards['queries'][-1]['func'] = eval(forward['func'])
 
     def train(self, batch):
+        timing = True
         for network in self.networks.values():
             network.train()
             for params in network.get_training_layers():
@@ -260,6 +262,8 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         variables = {'batch': self.batch_to_device(batch)}
         sumed_loss = 0
         for action in self.training_pipeline:
+            if timing:
+                t = time.time()
 
             variables = self._sequential_forward(action, variables, self.networks)
 
@@ -297,6 +301,9 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             else:
                 if action['mode'] not in ('batch_forward', 'forward', 'minning'):
                     raise NameError('Unknown action {}'.format(action['mode']))
+            if timing:
+                print('Elapsed {}s for action {}'.format(time.time() - t, action))
+
 
     def _sequential_forward(self, action, variables, networks):
         if action['mode'] == 'batch_forward':
