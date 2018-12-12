@@ -1,11 +1,12 @@
 class: 'networks.Descriptor.Main'
 param_class:
-    end_relu: False
-    batch_norm: False
     agg_method: 'RMAC'
     agg_method_param:
         norm: True
         R: 1
     base_archi: 'Alexnet'
-    load_imagenet: True
+    base_archi_param:
+        load_imagenet: False
+        end_relu: False
+        batch_norm: False
     layers_to_train: 'all'

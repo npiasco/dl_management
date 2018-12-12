@@ -1,0 +1,59 @@
+Main:
+    class: 'networks.CustomArchi.PixEncoder'
+    param_class:
+        layers_to_train: 'all'
+        k_size: 4
+        d_fact: 2
+
+Deconv:
+    class: 'networks.CustomArchi.PixDecoder'
+    param_class:
+        layers_to_train: 'all'
+        k_size: 4
+        d_fact: 2
+        out_channel: 1
+        div_fact: 2
+
+Pose:
+    class: 'networks.Pose.PoseRegressor'
+    param_class:
+        layers_to_train: 'all'
+        input_size: 12544 # 256 * 7 * 7
+        size_layer: 512
+        num_inter_layers: 1
+
+CPNet:
+    class: 'networks.ICPNet.CPNet'
+    param_class:
+        layers_to_train: 'all'
+        reject_ratio: 1
+        outlier_filter: false
+        fact: 2
+        use_dst_pt: true
+        use_dst_desc: true
+        desc_p: 2
+        pose_solver: 'svd'
+        knn: hard
+
+MatchNet:
+    class: 'networks.ICPNet.MatchNet'
+    param_class:
+        layers_to_train: 'all'
+        reject_ratio: 1.5
+        outlier_filter: false
+        fact: 2000
+        use_dst_pt: false
+        use_dst_desc: true
+        normalize_desc: false
+        desc_p: 2
+        knn: hard
+        bidirectional: false
+
+#init_weights:
+    #/mnt/anakim/data/Seq_Training/
+#    Main:
+#        feature: '../Depth+Pose/Main_feature.pth'
+#    Deconv:
+#        feature: '../Depth+Pose/Deconv_feature.pth'
+#    Pose:
+#        regressor: '../Depth+Pose/Pose_regressor.pth'

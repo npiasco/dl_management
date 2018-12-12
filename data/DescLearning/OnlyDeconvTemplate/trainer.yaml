@@ -7,17 +7,23 @@ param_class:
     optimizer_type: ADAM
     val_num_workers: 16
     triplet_loss:
-        func: 'loss_func.triplet_margin_loss'
+        func: 'loss_func.mult_triplet_margin_loss'
         param:
-            margin: 0.25
+            margin: 0.1
             swap: False
-            factor: 0
+            factor:
+                full: 0
     modal_loss:
         func: 'loss_func.l1_modal_loss'
         param:
             p: 1
             factor: 1
-    minning_func: 'trainers.minning_function.random'
+    minning_func:
+        func: 'minning.hard_minning'
+        param:
+            n_ex:
+                positives: 1
+                negatives: 1
     mod: 'rgb'
     aux_mod: 'mono_depth'
 

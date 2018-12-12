@@ -3,6 +3,5 @@ curr_epoch: 0
 max_epoch: 20
 min_value_to_stop: 10
 num_workers: 8
-score_file: score_file.pth
 shuffle: True
 sucess_bad_epoch: 2

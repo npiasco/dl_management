@@ -1,5 +1,5 @@
 batch_size: 5
-curr_epoch: 6
+curr_epoch: 0
 max_epoch: 50
 min_value_to_stop: 10
 num_workers: 16

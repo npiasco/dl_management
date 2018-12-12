@@ -12,6 +12,10 @@ import tqdm
 import copy
 import score.Functions as ScoreFunc
 import datasets.SevenScene as SevenScene
+from trainers.minning_function import recc_acces
+import pose_utils.BatchWrapper as b_wrapper
+import trainers.minning_function as minning
+import time
 
 
 logger = setlog.get_logger(__name__)
@@ -215,6 +219,274 @@ class Deconv(Trainer):
         self.loss_log['modal_loss'].append(modal_loss.data[0])
 
         logger.debug('Total loss is {}'.format(loss.data[0]))
+
+
+class MultNetTrainer(Base.BaseMultNetTrainer):
+    """
+    Pytorch 0.4
+    """
+    def __init__(self, **kwargs):
+        training_pipeline = kwargs.pop('training_pipeline', list())
+        eval_forwards = kwargs.pop('eval_forwards', dict())
+        build_model_func = kwargs.pop('build_model_func', None)
+        self.access_pose = kwargs.pop('access_pose', ['pose'])
+
+        Base.BaseMultNetTrainer.__init__(self, **kwargs)
+
+        self.training_pipeline = list()
+        for action in training_pipeline:
+            self.training_pipeline.append(action)
+            if 'func' in self.training_pipeline[-1].keys():
+                self.training_pipeline[-1]['func'] = eval(action['func'])
+            if self.training_pipeline[-1]['mode'] in ('loss', 'loop_loss'):
+                self.loss_log[action['name']] = list()
+
+        self.eval_forwards = {'data': list(), 'queries': list()}
+        for forward in eval_forwards['data']:
+            self.eval_forwards['data'].append(forward)
+            self.eval_forwards['data'][-1]['func'] = eval(forward['func'])
+        for forward in eval_forwards['queries']:
+            self.eval_forwards['queries'].append(forward)
+            self.eval_forwards['queries'][-1]['func'] = eval(forward['func'])
+
+        self.build_model = eval(build_model_func)
+
+    def train(self, batch):
+        timing = False
+        for network in self.networks.values():
+            network.train().to(self.device)
+            for params in network.get_training_layers():
+                for param in params['params']:
+                    param.requires_grad = True
+
+        # Forward pass
+        # TODO: .to to move on device
+        variables = {'batch': self.batch_to_device(batch)}
+        summed_loss = 0
+        for n_action, action in enumerate(self.training_pipeline):
+            if timing:
+                t = time.time()
+
+            variables = self._sequential_forward(action, variables, self.networks)
+
+            if action['mode'] == 'loss':
+                input_args = [recc_acces(variables, name) for name in action['args']]
+                val = action['func'](*input_args, **action['param'])
+                summed_loss += val
+                self.loss_log[action['name']].append(val.detach().item())
+                logger.debug(action['name'] + ' loss is {}'.format(val.detach().item()))
+            elif action['mode'] == 'backprop':
+                self.optimizers[action['trainer']].zero_grad()
+
+                summed_loss.backward()
+                if 'clip_grad' in action.keys():
+                    for nets_name in action['clip_grad']['networks']:
+                        for params in self.networks[nets_name].get_training_layers():
+                            for param in params['params']:
+                                torch.nn.utils.clip_grad_value_(param,
+                                                                action['clip_grad']['val_max'])
+                self.optimizers[action['trainer']].step()
+                self.optimizers[action['trainer']].zero_grad()
+                summed_loss = 0
+                for name in self.optimizers_params[action['trainer']]['associated_net']:
+                    for params in self.networks[name].get_training_layers():
+                        for param in params['params']:
+                            param.requires_grad = False
+            elif action['mode'] == 'no_grad':
+                for name in self.optimizers_params[action['trainer']]['associated_net']:
+                    for params in self.networks[name].get_training_layers('all'):
+                        for param in params['params']:
+                            param.requires_grad = False
+                for name in self.optimizers_params[action['trainer']]['associated_net']:
+                    for params in self.networks[name].get_training_layers():
+                        for param in params['params']:
+                            param.requires_grad = True
+            elif action['mode'] == 'loop':
+                n_iters = action['iters']
+                n_first_action = n_action+1
+                for i in range(n_iters):
+                    loop_action = self.training_pipeline[n_first_action]
+                    cursor = n_first_action
+                    while loop_action['mode'] != 'end_loop':
+                        variables = self._sequential_forward(loop_action, variables, self.networks)
+                        if loop_action['mode'] == 'loop_loss':
+                            input_args = [recc_acces(variables, name) for name in loop_action['args']]
+                            val = loop_action['func'](*input_args, **loop_action['param'])
+                            summed_loss += val
+                            if i == 0:
+                                self.loss_log[loop_action['name']].append(val.detach().item())
+                            else:
+                                self.loss_log[loop_action['name']][-1] += val.detach().item()
+                        cursor += 1
+                        loop_action = self.training_pipeline[cursor]
+            elif action['mode'] in ('loop_loss', 'end_loop'):
+                continue
+            else:
+                if action['mode'] not in ('batch_forward', 'forward', 'minning', 'mult_forward'):
+                    raise NameError('Unknown action {}'.format(action['mode']))
+            if timing:
+                print('Elapsed {}s for action {}'.format(time.time() - t, action))
+
+        del summed_loss, variables
+
+    def _sequential_forward(self, action, variables, networks):
+        if action['mode'] == 'batch_forward':
+            variables[action['out_name']] = action['func'](
+                networks[action['net_name']],
+                variables,
+                cuda_func=self.cuda_func,
+                **action['param']
+            )
+        elif action['mode'] == 'forward':
+            variables[action['out_name']] = action['func'](
+                networks[action['net_name']],
+                variables,
+                **action['param']
+            )
+        elif action['mode'] == 'mult_forward':
+            variables[action['out_name']] = action['func'](
+                [networks[net_name] for net_name in action['net_name']],
+                variables,
+                **action['param']
+            )
+        elif action['mode'] == 'minning':
+            variables[action['out_name']] = action['func'](
+                variables,
+                **action['param']
+            )
+
+        return variables
+
+    def eval(self, **kwargs):
+        with torch.no_grad():
+            dataset = kwargs.pop('dataset', None)
+            score_function = kwargs.pop('score_function', None)
+            ep = kwargs.pop('ep', None)
+            if kwargs:
+                logger.error('Unexpected **kwargs: %r' % kwargs)
+                raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+            if len(self.val_score) <= ep:
+                if isinstance(score_function, ScoreFunc.Reconstruction_Error):
+                    errors = self._compute_rerror(self.networks, dataset['queries'], dataset['data'])
+                else:
+                    errors = self._compute_errors(self.networks, dataset['queries'], dataset['data'])
+
+                score = score_function(errors)
+
+                self.val_score.append(score)
+                if score_function.rank_score(score, self.best_net[0]):
+                    self._save_current_net(score)
+
+            logger.info('Score is: {}'.format(self.val_score[ep]))
+
+    def test(self, **kwargs):
+        with torch.no_grad():
+            dataset = kwargs.pop('dataset', None)
+            score_functions = kwargs.pop('score_functions', None)
+            final = kwargs.pop('final', False)
+
+            if kwargs:
+                logger.error('Unexpected **kwargs: %r' % kwargs)
+                raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+            nets_to_test = dict()
+
+            if not final:
+                for name, network in self.networks.items():
+                    nets_to_test[name] = copy.deepcopy(network)
+                    nets_to_test[name].load_state_dict(self.best_net[1][name])
+            else:
+                nets_to_test = self.networks
+
+            if True in [isinstance(score_function, ScoreFunc.Reconstruction_Error)
+                        for score_function in score_functions.values()]:
+                errors = self._compute_rerror(nets_to_test, dataset['queries'], dataset['data'])
+            else:
+                errors = self._compute_errors(nets_to_test, dataset['queries'], dataset['data'])
+            results = dict()
+            for function_name, score_func in score_functions.items():
+                results[function_name] = score_func(errors)
+            return results
+
+    def _compute_rerror(self, networks, queries, dataset):
+        dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
+        queries_loader = utils.data.DataLoader(queries, batch_size=1, num_workers=self.val_num_workers)
+
+        for network in networks.values():
+            network.train()
+
+        errors = list()
+        # Forward pass
+        logger.info('Computing dataset/queries reconstruction error')
+        for dataloader in (dataset_loader, queries_loader):
+            for batch in tqdm.tqdm(dataloader):
+                variables = {'batch': self.batch_to_device(batch)}
+                for action in self.eval_forwards['queries']:
+                    variables = self._sequential_forward(action, variables, networks)
+
+                errors.append(
+                    loss_func.l1_modal_loss(
+                        recc_acces(variables, self.access_pose[0]),
+                        recc_acces(variables, self.access_pose[1]),
+                        listed_maps=False,
+                        no_zeros=True
+                    ).cpu().item()
+                )
+
+        return errors
+
+    def _compute_errors(self, networks, queries, dataset):
+        for network in networks.values():
+            network.eval()
+
+        dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
+        queries_loader = utils.data.DataLoader(queries, batch_size=1, num_workers=self.val_num_workers)
+
+        logger.info('Computing reference model')
+        model = None
+        for batch in tqdm.tqdm(dataset_loader):
+            variables = {'batch': self.batch_to_device(batch)}
+            for action in self.eval_forwards['data']:
+                variables = self._sequential_forward(action, variables, networks)
+
+            if model is None:
+                model =  recc_acces(variables, ['model',])
+            else:
+                model = self.build_model((model, recc_acces(variables, ['model',])))
+
+        errors = {
+            'position': list(),
+            'orientation': list()
+        }
+        logger.info('Computing position and orientation errors')
+        for query in tqdm.tqdm(queries_loader):
+            variables = {'batch': self.batch_to_device(query)}
+            variables['model'] = model
+            for action in self.eval_forwards['queries']:
+                variables = self._sequential_forward(action, variables, networks)
+
+            pose = recc_acces(variables, self.access_pose)
+            errors['position'].append(np.linalg.norm(pose['p'].cpu().detach().numpy() -
+                                                     query['pose']['position'].cpu().numpy()))
+            errors['orientation'].append(self.distance_between_q(pose['q'].cpu().detach().numpy()[0],
+                                                                 query['pose']['orientation'].cpu().numpy()[0]))
+        return errors
+
+    @staticmethod
+    def distance_between_q(q1, q2):
+        """
+        Compute angle between 2 quaternions
+        :param q1:
+        :param q2:
+        :return: angle (in degree)
+        """
+        #q2[1:] *= -1 # Inverse computation
+
+        w3 = np.abs(np.dot(q1, q2))
+        angle = 2 * np.arccos(w3)
+
+        return np.rad2deg(angle)
 
 
 if __name__ == '__main__':

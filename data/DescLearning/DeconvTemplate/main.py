@@ -30,7 +30,7 @@ if __name__ == '__main__':
         machine.plot()
     elif action == 'm':
         machine.map_print()
-    elif action == 'm':
+    elif action == 's':
         machine.serialize_net()
     elif action == '':
         machine.train()

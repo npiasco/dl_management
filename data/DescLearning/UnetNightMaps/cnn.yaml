@@ -11,17 +11,23 @@ param_class:
     layers_to_train: 'only_deconv'
     # Specific to Deconv
     feat_agg_method: 'Concat'
+    feat_agg_param:
+        main_ratio: 0
+        aux_ratio: 1
     res: false
     unet: True
     # feat_agg_params:
-    aux_agg: 'RMAC'
+    aux_agg: 'Encoder'
     aux_agg_param:
-        norm: True
-        R: 1
+        base_archi: Alexnet.Feat
+        base_archi_param:
+            mono: True
+            jet_tf: False
+            load_imagenet: False
+        agg: 'RMAC'
+        agg_param: {}
     auxilary_feat: maps
-    hallpp: true
     return_all_desc: true
 
-decoder_weight: '../DescLearning/Unet/deconv.pth'
+decoder_weight: '../DescLearning/UnetNightMaps/deconv.pth'
 encoder_weight: 'RGB/MAC/feature.pth'
-aux_desc_weight: '../DescLearning/Unet/aux_descriptor.pth'

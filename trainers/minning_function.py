@@ -17,6 +17,32 @@ def recc_acces(var, names):
         return recc_acces(var[names[0]], sub_name)
 
 
+def outliers_count(variable, **kwargs):
+    pc_ref = kwargs.pop('pc_ref', None)
+    pc_to_align = kwargs.pop('pc_to_align', None)
+    T = kwargs.pop('T', None)
+    sigma = kwargs.pop('sigma', 1e-1)
+    beta = kwargs.pop('beta', 50)
+
+    pc_ref = recc_acces(variable, pc_ref)
+    pc_to_align = recc_acces(variable, pc_to_align)
+    T = recc_acces(variable, T)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    return torch.sum(
+        torch.sigmoid(
+            beta * (
+                torch.sum(
+                    (pc_ref - T.matmul(pc_to_align)) ** 2,
+                    1)
+                - sigma
+            )
+        )
+    )/(pc_ref.size(0)*pc_ref.size(-1))
+
+
 def default(network, batch, mode, **kwargs):
     cuda_func = kwargs.pop('cuda_func', lambda x: x.cuda())
     mod = kwargs.pop('mod', None)
@@ -160,6 +186,18 @@ def batch_forward(net, batch, **kwargs):
     return forward
 
 
+def detach_input(variables, **kwargs):
+    inputs = kwargs.pop('inputs', None)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    inputs = recc_acces(variables, inputs)
+    inputs = inputs.detach()
+
+    return inputs
+
+
 def batch_to_var(net, batch, **kwargs):
     # TODO: Automatically inside the training loop
     mode = kwargs.pop('mode', None)
@@ -200,6 +238,7 @@ def custom_forward(net, outputs, **kwargs):
     input_targets = kwargs.pop('input_targets', list())
     multiples_instance = kwargs.pop('multiples_instance', False)
     detach_inputs = kwargs.pop('detach_inputs', False)
+    is_dict = kwargs.pop('dict', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -226,7 +265,16 @@ def custom_forward(net, outputs, **kwargs):
 
     else:
         if detach_inputs:
-            inputs = [inp.detach() for inp in inputs]
+            if is_dict:
+                new_inputs = list()
+                for inp in inputs:
+                    for name, value in inp.items():
+                        inp[name] = value.detach()
+                    new_inputs.append(inp)
+                inputs = new_inputs
+            else:
+                inputs = [inp.detach() for inp in inputs]
+
         forward = net(*inputs)
 
     return forward
@@ -367,4 +415,5 @@ def examples_selection(outputs, **kwargs):
                 selected_exemples[batch_num] = examples[j][i].unsqueeze(0)
             else:
                 selected_exemples[batch_num] = torch.cat((selected_exemples[batch_num], examples[j][i].unsqueeze(0)), dim=0)
+
     return selected_exemples

@@ -257,7 +257,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                     param.requires_grad = True
 
         # Forward pass
-        variables = {'batch': batch}
+        variables = {'batch': self.batch_to_device(batch)}
         sumed_loss = 0
         for action in self.training_pipeline:
 
@@ -273,6 +273,12 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 self.optimizers[action['trainer']].zero_grad()
                 sumed_loss.backward()
                 # sumed_loss.backward(retain_graph=True)
+                if 'clip_grad' in action.keys():
+                    for nets_name in action['clip_grad']['networks']:
+                        for params in self.networks[nets_name].get_training_layers():
+                            for param in params['params']:
+                                torch.nn.utils.clip_grad_value_(param,
+                                                                action['clip_grad']['val_max'])
                 self.optimizers[action['trainer']].step()
                 sumed_loss = 0
                 for name in self.optimizers_params[action['trainer']]['associated_net']:
@@ -315,46 +321,48 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         return variables
 
     def eval(self, **kwargs):
-        dataset = kwargs.pop('dataset', None)
+        with torch.no_grad():
+            dataset = kwargs.pop('dataset', None)
 
-        score_function = kwargs.pop('score_function', None)
-        ep = kwargs.pop('ep', None)
-        if kwargs:
-            logger.error('Unexpected **kwargs: %r' % kwargs)
-            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+            score_function = kwargs.pop('score_function', None)
+            ep = kwargs.pop('ep', None)
+            if kwargs:
+                logger.error('Unexpected **kwargs: %r' % kwargs)
+                raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-        if len(self.val_score) <= ep:
-            if isinstance(score_function, ScoreFunc.Reconstruction_Error):
-                ranked = self._compute_rerror(self.networks, dataset['queries'], dataset['data'])
-            else:
-                ranked = self._compute_sim(self.networks, dataset['queries'], dataset['data'])
+            if len(self.val_score) <= ep:
+                if isinstance(score_function, ScoreFunc.Reconstruction_Error):
+                    ranked = self._compute_rerror(self.networks, dataset['queries'], dataset['data'])
+                else:
+                    ranked = self._compute_sim(self.networks, dataset['queries'], dataset['data'])
 
-            score = score_function(ranked)
-            self.val_score.append(score)
-            if score_function.rank_score(score, self.best_net[0]):
-                self._save_current_net(score)
+                score = score_function(ranked)
+                self.val_score.append(score)
+                if score_function.rank_score(score, self.best_net[0]):
+                    self._save_current_net(score)
 
-        logger.info('Score is: {}'.format(self.val_score[ep]))
+            logger.info('Score is: {}'.format(self.val_score[ep]))
 
     def test(self, **kwargs):
-        dataset = kwargs.pop('dataset', None)
-        score_functions = kwargs.pop('score_functions', None)
-        if kwargs:
-            logger.error('Unexpected **kwargs: %r' % kwargs)
-            raise TypeError('Unexpected **kwargs: %r' % kwargs)
-        nets_to_test = dict()
-        for name, network in self.networks.items():
-            nets_to_test[name] = copy.deepcopy(network)
-            nets_to_test[name].load_state_dict(self.best_net[1][name])
+        with torch.no_grad():
+            dataset = kwargs.pop('dataset', None)
+            score_functions = kwargs.pop('score_functions', None)
+            if kwargs:
+                logger.error('Unexpected **kwargs: %r' % kwargs)
+                raise TypeError('Unexpected **kwargs: %r' % kwargs)
+            nets_to_test = dict()
+            for name, network in self.networks.items():
+                nets_to_test[name] = copy.deepcopy(network)
+                nets_to_test[name].load_state_dict(self.best_net[1][name])
 
-        if True in [isinstance(score_function, ScoreFunc.Reconstruction_Error)
-                    for score_function in score_functions.values()]:
-            ranked = self._compute_rerror(nets_to_test, dataset['queries'], dataset['data'])
-        else:
-            ranked = self._compute_sim(nets_to_test, dataset['queries'], dataset['data'])
-        results = dict()
-        for function_name, score_func in score_functions.items():
-            results[function_name] = score_func(ranked)
+            if True in [isinstance(score_function, ScoreFunc.Reconstruction_Error)
+                        for score_function in score_functions.values()]:
+                ranked = self._compute_rerror(nets_to_test, dataset['queries'], dataset['data'])
+            else:
+                ranked = self._compute_sim(nets_to_test, dataset['queries'], dataset['data'])
+            results = dict()
+            for function_name, score_func in score_functions.items():
+                results[function_name] = score_func(ranked)
         return results
 
     def _compute_rerror(self, networks, queries, dataset):
@@ -377,8 +385,9 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                     loss_func.l1_modal_loss(
                         recc_acces(variables, self.eval_final_desc[0]),
                         recc_acces(variables, self.eval_final_desc[1]),
-                        listed_maps=False
-                    ).cpu().data[0]
+                        listed_maps=False,
+                        no_zeros = True
+                    ).cpu().item()
                 )
 
         return errors

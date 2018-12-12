@@ -4,7 +4,7 @@ param_class:
     batch_norm: False
     agg_method: 'RMAC'
     agg_method_param:
-        desc_norm: True
+        norm: True
         R: 1
     base_archi: 'Alexnet'
     load_imagenet: True
@@ -15,6 +15,8 @@ param_class:
     # feat_agg_params:
     aux_agg: 'RMAC'
     aux_agg_param:
-        desc_norm: True
+        norm: True
         R: 1
     auxilary_feat: 'conv1'
+    return_all_desc: true
+

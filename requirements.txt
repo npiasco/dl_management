@@ -1,0 +1,7 @@
+colorlog
+Pillow
+torchvision
+tqdm
+pyyaml
+matpltolib
+pandas

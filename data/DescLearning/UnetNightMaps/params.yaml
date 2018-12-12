@@ -1,4 +1,4 @@
-batch_size: 5
+batch_size: 15
 curr_epoch: 0
 max_epoch: 60
 min_value_to_stop: 20

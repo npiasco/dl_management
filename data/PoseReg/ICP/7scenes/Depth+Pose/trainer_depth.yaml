@@ -1,0 +1,116 @@
+class: 'trainers.PoseTrainers.MultNetTrainer'
+param_class:
+    cuda_on: True
+    val_num_workers: 8
+    optimizers_params:
+        deconv_trainer:
+            associated_net: ['Main', 'Deconv']
+            optimizer_type: ADAM
+            param:
+                lr: 0.0001 # * 0.5
+                weight_decay: 0.001
+    training_pipeline:
+        [
+            #------------------ Main Forward -----------------#
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['batch', 'rgb' ], ]},
+                net_name: 'Main',
+                out_name: 'fw_main'
+            },
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, detach_inputs: false, dict: True,
+                input_targets: [['fw_main', 'feat'], ['fw_main', 'res_1'], ['fw_main', 'res_2']]},
+                net_name: 'Deconv',
+                out_name: 'maps'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.inverse,
+                param: {data_to_inv: ['maps'], },
+                out_name: 'fake_depth'
+            },
+            #-------------------- Losses ---------------------#
+            {
+             mode: 'loss',
+             name: 'l1loss',
+             func: 'loss_func.l1_modal_loss',
+             args: [['fake_depth'], ['batch', 'depth']],
+             param: {no_zeros: True, listed_maps: False}
+            },
+            #{
+            # mode: 'loss',
+            # name: 'regularization',
+            # func: 'loss_func.reg_loss',
+            # args: [['maps'], ['batch', 'rgb']],
+            # param: {fact: 0.01}
+            #},
+            {
+             mode: 'backprop',
+             name: 'deconv_backprop',
+             trainer: 'deconv_trainer',
+             clip_grad: {networks: ['Main'], val_max: 0.1}
+            },
+            #-------------------------------------------------#
+        ]
+    eval_forwards:
+        data:
+            [
+                {
+                 mode: 'minning',
+                 func: 'b_wrapper.add_variable',
+                 param: {value: [[0], [0]], load: false, source: ['batch', 'rgb' ]},
+                 out_name: 'model'
+                },
+            ]
+        queries:
+            [
+                #------------------ Main Forward -----------------#
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false, input_targets: [['batch', 'rgb' ], ]},
+                    net_name: 'Main',
+                    out_name: 'fw_main'
+                },
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false,
+                    input_targets: [['fw_main', 'feat'], ['fw_main', 'res_1'], ['fw_main', 'res_2']]},
+                    net_name: 'Deconv',
+                    out_name: 'maps'
+                },
+                {
+                    mode: minning,
+                    func: b_wrapper.inverse,
+                    param: {data_to_inv: ['maps'], },
+                    out_name: 'fake_depth'
+                },
+            ]
+    access_pose: [['fake_depth'], ['batch', 'depth']]
+    #access_pose: ['posenet_pose']
+    build_model_func: torch.cat
+
+#eval_class: 'score.Functions.GlobalPoseError'
+eval_class: 'score.Functions.Reconstruction_Error'
+param_eval_class:
+#    data_type: 'position'
+    pooling_type: 'mean'
+test_func:
+#    med_pos:
+#        class: 'score.Functions.GlobalPoseError'
+    med_err:
+        class: 'score.Functions.Reconstruction_Error'
+        param_class:
+#            data_type: 'position'
+            pooling_type: 'median'
+#    med_ori:
+    mean_err:
+        class: 'score.Functions.Reconstruction_Error'
+        param_class:
+#          data_type: 'orientation'
+          pooling_type: 'mean'

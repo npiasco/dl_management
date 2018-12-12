@@ -4,10 +4,10 @@ train:
         load_triplets: 'pruned_400triplets.pth'
         # In case of load_triplets: None
         ex_shuffle: True
-#        num_positives: 1
-        num_positives: 4
-#        num_negatives: 4
-        num_negatives: 20
+        num_positives: 1
+#        num_positives: 4
+        num_negatives: 10
+#        num_negatives: 20
         num_triplets: 1000
         max_pose_dist: 10  # metre
         min_neg_dist: 500  # metre

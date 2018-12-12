@@ -1,8 +1,8 @@
-batch_size: 5
-curr_epoch: 0
+batch_size: 3
+curr_epoch: 1
 max_epoch: 20
 min_value_to_stop: 10
-num_workers: 8
+num_workers: 1
 saved_files: {best_network: best_network.pth, loss: loss.pth, network_Agg: network_Agg.pth,
   network_Aux: network_Aux.pth, network_Hall: network_Hall.pth, network_Main: network_Main.pth,
   optimizer_aux_trainer: optimizer_aux_trainer.pth, optimizer_main_trainer: optimizer_main_trainer.pth,

@@ -32,6 +32,8 @@ if __name__ == '__main__':
         machine.serialize_net(final=False)
     elif action == 'sf':
         machine.serialize_net(final=True)
+    elif action == 's_nojet':
+        machine.serialize_net(final=False, discard_tf=True)
     elif action == 'm':
         machine.map_print('Main', final=False)
     elif action == 'mf':

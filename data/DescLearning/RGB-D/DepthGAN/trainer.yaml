@@ -21,14 +21,14 @@ param_class:
                 mode: 'batch_forward',
                 func: minning.batch_to_var,
                 param: {mode: 'query', target: ['query', 'rgb']},
-                net_name: 'Adver',
+                net_name: 'Main',
                 out_name: 'var_rgb_query'
             },
             {
                 mode: 'batch_forward',
                 func: minning.batch_to_var,
                 param: {mode: 'query', target: ['query', 'mono_depth']},
-                net_name: 'Adver',
+                net_name: 'Main',
                 out_name: 'var_depth_query'
             },
 
@@ -42,7 +42,7 @@ param_class:
             {
                 mode: 'minning',
                 func: minning.random_prunning,
-                param: {multiples_instance: false, target: ['forwarded_main_query', 'maps'], prob: 0.95},
+                param: {multiples_instance: false, target: ['forwarded_main_query', 'maps'], target_density_map: ['var_depth_query']},
                 out_name: 'forwarded_main_query_pruned'
             },
             {
@@ -116,10 +116,17 @@ param_class:
                     out_name: 'depth_gt'
                 },
                 {
+                    mode: 'batch_forward',
                     func: 'minning.batch_forward',
                     param: {mode: 'query', target: ['rgb',]},
                     net_name: 'Main',
                     out_name: 'output'
+                },
+                {
+                    mode: 'minning',
+                    func: minning.random_prunning,
+                    param: {multiples_instance: false, target: ['output', 'maps'], mask: ['depth_gt']},
+                    out_name: 'pruned_map'
                 },
             ]
         queries:
@@ -132,13 +139,20 @@ param_class:
                     out_name: 'depth_gt'
                 },
                 {
+                    mode: 'batch_forward',
                     func: 'minning.batch_forward',
                     param: {mode: 'query', target: ['rgb',]},
                     net_name: 'Main',
                     out_name: 'output'
                 },
+                {
+                    mode: 'minning',
+                    func: minning.random_prunning,
+                    param: {multiples_instance: false, target: ['output', 'maps'], mask: ['depth_gt']},
+                    out_name: 'pruned_map'
+                },
             ]
-    eval_final_desc: [['output', 'maps'], ['depth_gt']]
+    eval_final_desc: [['pruned_map'], ['depth_gt']]
 
 eval_class: 'score.Functions.Reconstruction_Error'
 param_eval_class:

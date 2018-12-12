@@ -1,25 +1,7 @@
 class: 'networks.Descriptor.Deconv'
 param_class:
-    end_relu: False
-    batch_norm: False
-    agg_method: 'RMAC'
-    agg_method_param:
-        norm: True
-        R: 1
-    base_archi: 'Alexnet'
-    load_imagenet: True
+    unet: True
     layers_to_train: 'only_deconv'
-    # Specific to Deconv
-    res: false
-    feat_agg_method: 'Concat'
-    feat_agg_params:
-        norm: False
-    aux_agg: 'RMAC'
-    aux_agg_param:
-        norm: True
-        R: 1
-    auxilary_feat: 'conv1'
-    return_all_desc: true
 
-encoder_weight: 'OldSetupSwap/feature.pth'
-decoder_weight: 'RGB-D/OnlyDeconvDefault/deconv.pth'
+encoder_weight: '../DescLearning/RGB-D/DepthGAN/Main_feature.pth'
+decoder_weight: '../DescLearning/RGB-D/DepthGAN/Main_deconv.pth'

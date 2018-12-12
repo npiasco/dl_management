@@ -15,7 +15,8 @@ handlers:
     class: logging.handlers.RotatingFileHandler
     formatter: precise
     mode: a
-    maxBytes: 25000
+    maxBytes: 2500000
+    backupCount: 1
 root:
   level: DEBUG
   handlers:  [console, file]
