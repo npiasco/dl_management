@@ -1,0 +1,13 @@
+batch_size: 1
+curr_epoch: 0
+max_epoch: 200
+min_value_to_stop: 25
+num_workers: 8
+saved_files: {best_network: best_network.pth, loss: loss.pth, network_Aux: network_Aux.pth,
+  network_Deconv: network_Deconv.pth, network_Fuse: network_Fuse.pth, network_Main: network_Main.pth,
+  optimizer_deconv_trainer: optimizer_deconv_trainer.pth, optimizer_main_trainer: optimizer_main_trainer.pth,
+  val_score: val_score.pth}
+score_file: score_file.pth
+sucess_bad_epoch: 2
+testing_mod: [rgb]
+training_mod: [rgb, mono_depth]
