@@ -239,7 +239,7 @@ class BaseMultNetTrainer:
                 batch[i] = self.batch_to_device(elem)
         else:
             for name, values in batch.items():
-                if isinstance(values, dict):
+                if isinstance(values, (dict, list)):
                     batch[name] = self.batch_to_device(values)
                 else:
                     batch[name] = values.to(self.device)

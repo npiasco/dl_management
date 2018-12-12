@@ -379,7 +379,7 @@ def general_hard_minning(outputs, **kwargs):
     forwarded_ex = [None for _ in range(n_ex)]
 
     for i, desc_anchor in enumerate(desc_anchors):
-        diff = [func.pairwise_distance(desc_anchor.unsqueeze(0), x[i:i+1]).data.cpu().numpy()[0, 0] for x in examples]
+        diff = [func.pairwise_distance(desc_anchor.unsqueeze(0), x[i:i+1]).item() for x in examples]
         sort_index = np.argsort(diff)
         if mode == 'positives':
             idx = sort_index[-1*n_ex:]

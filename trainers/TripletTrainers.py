@@ -268,7 +268,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 val = action['func'](*input_args, **action['param'])
                 sumed_loss += val
                 self.loss_log[action['name']].append(val.data[0])
-                logger.debug(action['name'] + ' loss is {}'.format(val.data[0]))
+                logger.debug(action['name'] + ' loss is {}'.format(val.item()))
             elif action['mode'] == 'backprop':
                 self.optimizers[action['trainer']].zero_grad()
                 sumed_loss.backward()
@@ -408,7 +408,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 variables = self._sequential_forward(action, variables, networks)
 
             final_desc = recc_acces(variables, self.eval_final_desc)
-            dataset_feats.append((final_desc[0].cpu().data.numpy(), batch['coord'].cpu().numpy()))
+            dataset_feats.append((final_desc[0].cpu().numpy(), batch['coord'].cpu().numpy()))
 
         logger.info('Computing similarity')
         ranked = list()
