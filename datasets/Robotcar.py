@@ -54,8 +54,8 @@ class VBLDataset(utils.data.Dataset):
                 if mod not in ('first',) and mod in self.used_mod:
                     sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod: sample[mod]})[mod]
 
-        sample['coord'] = self.coord.ix[idx, 0:2].as_matrix().astype('float') if self.bearing \
-            else self.coord.ix[idx, 0:1].as_matrix().astype('float')
+        sample['coord'] = self.coord.ix[idx, 0:2].values if self.bearing \
+            else self.coord.ix[idx, 0:1].values
 
         return sample
 
