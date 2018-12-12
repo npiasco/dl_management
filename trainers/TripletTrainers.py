@@ -267,7 +267,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 input_args = [recc_acces(variables, name) for name in action['args']]
                 val = action['func'](*input_args, **action['param'])
                 sumed_loss += val
-                self.loss_log[action['name']].append(val.data[0])
+                self.loss_log[action['name']].append(val.item())
                 logger.debug(action['name'] + ' loss is {}'.format(val.item()))
             elif action['mode'] == 'backprop':
                 self.optimizers[action['trainer']].zero_grad()
