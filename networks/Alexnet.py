@@ -27,7 +27,7 @@ class Feat(nn.Module):
         mono = kwargs.pop('mono', False)
         i_channel = kwargs.pop('input_channels', 3)
         jet_tf = kwargs.pop('jet_tf', False)
-        jet_tf_is_trainable = kwargs.pop('jet_tf_is_trainable', False)
+        jet_tf_param = kwargs.pop('jet_tf_param', dict())
         mean_pooling = kwargs.pop('mean_pooling', False)
         leaky_relu = kwargs.pop('leaky_relu', False)
         norm_layer = kwargs.pop('norm_layer', 'batch')
@@ -75,9 +75,7 @@ class Feat(nn.Module):
             base_archi.append(('pool3', copy.deepcopy(polling_layer)))
 
         if jet_tf:
-            base_archi = [('jet_tf', custom.IndexEmbedding(num_embedding=256,
-                                                           size_embedding=i_channel,
-                                                           trainable=jet_tf_is_trainable))] + base_archi
+            base_archi = [('jet_tf', custom.IndexEmbedding(**jet_tf_param))] + base_archi
 
         self.base_archi = coll.OrderedDict(base_archi)
         self.feature = nn.Sequential(self.base_archi)

@@ -169,6 +169,7 @@ class Deconv(nn.Module):
         norm_layer = kwargs.pop('norm_layer', 'batch')
         dropout = kwargs.pop('dropout', False)
         extended_size = kwargs.pop('extended_size', False)
+        self.inv_output =  kwargs.pop('inv_output', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -292,6 +293,9 @@ class Deconv(nn.Module):
         x = self.deconv_2(x)
         x = torch.cat((x, res1), dim=1)
         map = self.deconv_3(x)
+
+        if self.inv_output:
+            map = torch.reciprocal(map.clamp(min=1e-8)) - 1
 
         return map
 
