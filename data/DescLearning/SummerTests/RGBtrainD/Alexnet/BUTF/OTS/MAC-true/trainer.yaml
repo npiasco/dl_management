@@ -1,6 +1,6 @@
 class: 'trainers.TripletTrainers.MultNetTrainer'
 param_class:
-    #cuda_on: False
+    cuda_on: True
     val_num_workers: 8
     optimizers_params:
         main_trainer:
@@ -27,13 +27,6 @@ param_class:
             {
              mode: 'batch_forward',
              func: minning.batch_to_var,
-             param: {mode: 'query', target: ['query'], mult_mod: True},
-             net_name: 'Main',
-             out_name: 'var_query'
-            },
-            {
-             mode: 'batch_forward',
-             func: minning.batch_to_var,
              param: {mode: 'positives', target: [], mult_mod: True},
              net_name: 'Main',
              out_name: 'var_pos'
@@ -51,7 +44,7 @@ param_class:
             {
              mode: 'forward',
              func: minning.custom_forward,
-             param: {input_targets: [['var_query', 'rgb'], ]},
+             param: {input_targets: [['batch', 'query', 'rgb'], ]},
              net_name: 'Main',
              out_name: 'main_forwd_query'
             },
@@ -96,7 +89,37 @@ param_class:
              out_name: 'maps_neg'
             },
             # ---------------------------------------------- #
-            
+
+            # ---------------- Loss modality --------------- #
+            # L1
+            {
+                mode: loss,
+                name: 'l1_loss_pos',
+                func: 'loss_func.l1_modal_loss',
+                args: [['maps_pos'], ['var_pos', 'mono_depth']],
+                param:{p: 1, listed_maps: True, factor: 1}
+            },
+            {
+                mode: loss,
+                name: 'l1_loss_neg',
+                func: 'loss_func.l1_modal_loss',
+                args: [['maps_neg'], ['var_neg', 'mono_depth']],
+                param:{p: 1, listed_maps: True, factor: 1}
+            },
+            {
+                mode: loss,
+                name: 'l1_loss_query',
+                func: 'loss_func.l1_modal_loss',
+                args: [['maps_query'], ['batch', 'query', 'mono_depth']],
+                param:{p: 1, listed_maps: False, factor: 1}
+            },
+            {
+                mode: backprop,
+                name: 'deconv_backprop',
+                trainer: 'deconv_trainer'
+            },
+            # ---------------------------------------------- #
+
             # -------------------AUX FWD-------------------- #
             {
              mode: 'forward',
@@ -222,33 +245,6 @@ param_class:
                 mode: backprop,
                 name: 'main_backprop',
                 trainer: 'main_trainer'
-            },
-            # L1
-            {
-                mode: loss,
-                name: 'l1_loss_pos',
-                func: 'loss_func.l1_modal_loss',
-                args: [['maps_pos'], ['var_pos', 'mono_depth']],
-                param:{p: 1, listed_maps: True, factor: 1}
-            },
-            {
-                mode: loss,
-                name: 'l1_loss_neg',
-                func: 'loss_func.l1_modal_loss',
-                args: [['maps_neg'], ['var_neg', 'mono_depth']],
-                param:{p: 1, listed_maps: True, factor: 1}
-            },
-            {
-                mode: loss,
-                name: 'l1_loss_query',
-                func: 'loss_func.l1_modal_loss',
-                args: [['maps_query'], ['var_query', 'mono_depth']],
-                param:{p: 1, listed_maps: False, factor: 1}
-            },
-            {
-                mode: backprop,
-                name: 'deconv_backprop',
-                trainer: 'deconv_trainer'
             },
             # ---------------------------------------------- #
         ]
