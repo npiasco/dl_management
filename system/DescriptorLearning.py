@@ -35,11 +35,11 @@ class Default(BaseClass.Base):
         self.data = dict()
         training_param = dict()
         training_param['main'] = self.creat_dataset(dataset_params['train']['param_class']['main'],
-                                                    os.environ[dataset_params['train']['param_class'].get(
+                                                    os.environ[dataset_params['train'].get(
                                                         'area', 'ROBOTCAR')
                                                     ])
         dataset_params['train']['param_class'].pop('main')
-        training_param['examples'] = [self.creat_dataset(d, os.environ[dataset_params['train']['param_class'].get(
+        training_param['examples'] = [self.creat_dataset(d, os.environ[dataset_params['train'].get(
                                                         'area', 'ROBOTCAR')])
                                       for d in dataset_params['train']['param_class']['examples']]
         dataset_params['train']['param_class'].pop('examples')
@@ -48,21 +48,21 @@ class Default(BaseClass.Base):
 
         self.data['test'] = dict()
         self.data['test']['queries'] = self.creat_dataset(dataset_params['test']['queries'],
-                                                    os.environ[dataset_params['test']['queries']['param_class'].get(
+                                                    os.environ[dataset_params['test']['queries'].get(
                                                         'area', 'ROBOTCAR')
                                                     ])
         self.data['test']['data'] = self.creat_dataset(dataset_params['test']['data'],
-                                                    os.environ[dataset_params['test']['data']['param_class'].get(
+                                                    os.environ[dataset_params['test']['data'].get(
                                                         'area', 'ROBOTCAR')
                                                     ])
 
         self.data['val'] = dict()
         self.data['val']['queries'] = self.creat_dataset(dataset_params['val']['queries'],
-                                                    os.environ[dataset_params['val']['queries']['param_class'].get(
+                                                    os.environ[dataset_params['val']['queries'].get(
                                                         'area', 'ROBOTCAR')
                                                     ])
         self.data['val']['data'] = self.creat_dataset(dataset_params['val']['data'],
-                                                    os.environ[dataset_params['val']['data']['param_class'].get(
+                                                    os.environ[dataset_params['val']['data'].get(
                                                         'area', 'ROBOTCAR')
                                                     ])
 
