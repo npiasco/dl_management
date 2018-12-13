@@ -251,7 +251,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             self.eval_forwards['queries'][-1]['func'] = eval(forward['func'])
 
     def train(self, batch):
-        timing = True
+        timing = False
         for network in self.networks.values():
             network.train()
             for params in network.get_training_layers():
