@@ -214,22 +214,22 @@ def batch_to_var(net, batch, **kwargs):
         if mult_mod:
             forward = dict()
             for name_mod, mod in recc_acces(batch, target).items():
-                forward[name_mod] = auto.Variable(cuda_func(mod), requires_grad=False)
+                forward[name_mod] = mod
         else:
-            forward = auto.Variable(cuda_func(recc_acces(batch, target)), requires_grad=False)
+            forward = recc_acces(batch, target)
     else:
         if mult_mod:
             forward = dict()
             for sub_batch in batch[mode]:
                 for name_mod, mod in recc_acces(sub_batch, target).items():
                     if name_mod in forward.keys():
-                        forward[name_mod].append(auto.Variable(cuda_func(mod), requires_grad=False))
+                        forward[name_mod].append(mod)
                     else:
-                        forward[name_mod] = [auto.Variable(cuda_func(mod), requires_grad=False)]
+                        forward[name_mod] = [mod]
         else:
             forward = list()
             for sub_batch in batch[mode]:
-                forward.append(auto.Variable(cuda_func(recc_acces(sub_batch, target)), requires_grad=False))
+                forward.append(recc_acces(sub_batch, target))
 
     return forward
 

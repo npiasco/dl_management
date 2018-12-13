@@ -384,7 +384,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         logger.info('Computing dataset/queries reconstruction error')
         for dataloader in (dataset_loader, queries_loader):
             for batch in tqdm.tqdm(dataloader):
-                variables = {'batch': batch}
+                variables = {'batch': self.batch_to_device(batch)}
                 for action in self.eval_forwards['dataset']:
                     variables = self._sequential_forward(action, variables, networks)
 
@@ -410,7 +410,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         # Forward pass
         logger.info('Computing dataset feats')
         for batch in tqdm.tqdm(dataset_loader):
-            variables = {'batch': batch}
+            variables = {'batch': self.batch_to_device(batch)}
             for action in self.eval_forwards['dataset']:
                 variables = self._sequential_forward(action, variables, networks)
 
