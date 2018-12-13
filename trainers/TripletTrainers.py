@@ -16,6 +16,7 @@ import tqdm
 import copy
 import time
 import score.Functions as ScoreFunc
+import sklearn.neighbors as skn
 
 
 logger = setlog.get_logger(__name__)
@@ -400,13 +401,15 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         return errors
 
     def _compute_sim(self, networks, queries, dataset):
-        dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
-        queries_loader = utils.data.DataLoader(queries, batch_size=1, num_workers=self.val_num_workers)
+        batch_size = 30
+        k_nn = 50
+        dataset_loader = utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=self.val_num_workers)
+        queries_loader = utils.data.DataLoader(queries, batch_size=batch_size, num_workers=self.val_num_workers)
 
         for network in networks.values():
             network.eval()
 
-        dataset_feats = list()
+        dataset_feats = {'feats': None, 'poses': None}
         # Forward pass
         logger.info('Computing dataset feats')
         for batch in tqdm.tqdm(dataset_loader):
@@ -415,21 +418,35 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 variables = self._sequential_forward(action, variables, networks)
 
             final_desc = recc_acces(variables, self.eval_final_desc)
-            dataset_feats.append((final_desc[0].cpu().numpy(), batch['coord'].cpu().numpy()))
+            if dataset_feats['feats'] is None:
+                dataset_feats['feats'] = final_desc
+                dataset_feats['poses'] = batch['coord']
+            else:
+                dataset_feats['feats'] = torch.cat((dataset_feats['feats'], final_desc))
+                dataset_feats['poses'] = torch.cat((dataset_feats['poses'], batch['coord']))
 
         logger.info('Computing similarity')
-        ranked = list()
+        queries_feats = {'feats': None, 'poses': list()}
         for query in tqdm.tqdm(queries_loader):
-            variables = {'batch': query}
+            variables = {'batch': self.batch_to_device(query)}
             for action in self.eval_forwards['queries']:
                 variables = self._sequential_forward(action, variables, networks)
 
-            feat = recc_acces(variables, self.eval_final_desc)[0].cpu().data.numpy()
+            feat = recc_acces(variables, self.eval_final_desc)
+            if queries_feats['feats'] is None:
+                queries_feats['feats'] = feat
+                queries_feats['poses'] = query['coord']
+            else:
+                queries_feats['feats'] = torch.cat((queries_feats['feats'], feat))
+                queries_feats['poses'] = torch.cat((queries_feats['poses'], query['coord']))
 
-            gt_pos = query['coord'].cpu().numpy()
-            diff = [(np.dot(feat, d_feat[0]), np.linalg.norm(gt_pos - d_feat[1])) for d_feat in dataset_feats]
-            sorted_index = list(np.argsort([d[0] for d in diff]))
-            ranked.append([diff[idx][1] for idx in reversed(sorted_index)])
+        nn_computor = skn.NearestNeighbors(n_neighbors=k_nn, metric='cosine')
+
+        nn_computor.fit(dataset_feats['feats'].cpu().numpy())
+        idx = nn_computor.kneighbors(queries_feats['feats'].cpu().numpy(), return_distance=False)
+
+        ranked = [list(np.linalg.norm(queries_feats['poses'][i, :].cpu().numpy() - dataset_feats['poses'][id, :].cpu().numpy(), axis=1))
+                  for i, id in enumerate(idx)]
 
         return ranked
 
