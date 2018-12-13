@@ -445,7 +445,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         nn_computor.fit(dataset_feats['feats'].cpu().numpy())
         idx = nn_computor.kneighbors(queries_feats['feats'].cpu().numpy(), return_distance=False)
 
-        ranked = [list(np.linalg.norm(queries_feats['poses'][i, :].cpu().numpy() - dataset_feats['poses'][id, :].cpu().numpy(), axis=1))
+        ranked = [list(np.linalg.norm(queries_feats['poses'][i, :2].cpu().numpy() - dataset_feats['poses'][id, :2].cpu().numpy(), axis=1))
                   for i, id in enumerate(idx)]
 
         return ranked
