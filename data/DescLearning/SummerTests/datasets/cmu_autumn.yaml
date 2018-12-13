@@ -132,9 +132,9 @@ val:
     queries:
         class: datasets.Robotcar.VBLDataset
         param_class:
-            root: 'training/TrainDataset3v2/'
-            modalities: {rgb: 'val_dataset.txt', mono_ref: 'val_mono_ref_dataset.txt', mono_depth: 'val_mono_depth_dataset.txt'}
-            coord_file: 'val_coordxIm.txt'
+            root: 'Robotcar_D1/Query/'
+            modalities: {rgb: 'query.txt', mono_ref: 'mono_ref_query.txt', mono_depth: 'mono_depth_query.txt'}
+            coord_file: 'coordxIm.txt'
             bearing: False
             transform:
                 first:
@@ -152,9 +152,9 @@ val:
     data:
         class: datasets.Robotcar.VBLDataset
         param_class:
-            root: 'training/TrainDataset2v2/'
-            modalities: {rgb: 'val_dataset.txt', mono_ref: 'val_mono_ref_dataset.txt', mono_depth: 'val_mono_depth_dataset.txt'}
-            coord_file: 'val_coordxIm.txt'
+            root: 'Robotcar_D1/Dataset/'
+            modalities: {rgb: 'dataset.txt', mono_ref: 'mono_ref_dataset.txt', mono_depth: 'mono_depth_dataset.txt'}
+            coord_file: 'coordxIm.txt'
             bearing: False
             transform:
                 first:
