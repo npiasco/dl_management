@@ -415,19 +415,20 @@ class MultNet(Default):
         for network in nets_to_test.values():
             network.eval()
 
-        #self.data['train'].used_mod = self.training_mod
+        self.data['train'].used_mod = self.training_mod
         #self.data['test']['queries'].used_mod = ['rgb', 'mono_ref', 'mono_depth']
-        self.data['test']['queries'].used_mod = ['rgb', ]
-        #dtload = data.DataLoader(self.data['train'], batch_size=batch_size)
-        dtload = data.DataLoader(self.data['test']['queries'], batch_size=batch_size)
+        #self.data['test']['queries'].used_mod = ['rgb', ]
+        dtload = data.DataLoader(self.data['train'], batch_size=batch_size)
+        #dtload = data.DataLoader(self.data['test']['queries'], batch_size=batch_size)
         plt.figure(1)
         plt.figure(2)
         ccmap = plt.get_cmap('jet', lut=1024)
 
         for b in dtload:
+            b = b['query']
             main_mod = b[mod].contiguous().view(batch_size, 3, 224, 224)
             #true_img = b['mono_ref'].contiguous().view(batch_size, 3, 224, 224)
-            #modality = b[aux_mod].contiguous().view(batch_size, -1, 224, 224)
+            modality = b[aux_mod].contiguous().view(batch_size, -1, 224, 224)
             #main_mod = b[mod].contiguous().view(batch_size, 3, 224, 224)
             #modality = b[aux_mod].contiguous().view(batch_size, -1, 224, 224)
 
@@ -446,8 +447,8 @@ class MultNet(Default):
 
             #diff_map = torch.abs(modality.cpu()-output.data.cpu())
             #images_batch = torch.cat((modality.cpu(), output.data.cpu(), diff_map))
-            #images_batch = torch.cat((modality.cpu(), output.data.cpu()))
-            images_batch = output.data.cpu()
+            images_batch = torch.cat((modality.cpu(), output.data.cpu()))
+            #images_batch = output.data.cpu()
 
             grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
             plt.figure(1)
