@@ -21,7 +21,7 @@ Deconv:
         input_size: 256
         up_factor: 1
         alexnet_entry: True
-        extended_size: True
+        extended_size: False
         norm_layer: group
         reduce_factor: 1
         final_activation: 'sig'
@@ -41,7 +41,7 @@ Aux:
             batch_norm: False
             jet_tf: True
             jet_tf_param:
-                num_embedding: 1024
+                num_embedding: 256
                 size_embedding: 3
                 trainable: false
                 amplitude: 1

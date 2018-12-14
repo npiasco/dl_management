@@ -92,7 +92,8 @@ def prepar_data(collection_folder, pivot=None, camera_bearing=None, prune_tolera
     bearing = bearing[quality == 1]
     timestamps = timestamps[quality == 1]
 
-    idx = prune_path(np.concatenate((north.reshape((north.shape[0], 1)), south.reshape((north.shape[0], 1))), 1))
+    idx = prune_path(np.concatenate((north.reshape((north.shape[0], 1)), south.reshape((north.shape[0], 1))), 1),
+                     tolerance=prune_tolerance)
 
     north = north[idx == 1]
     south = south[idx == 1]
@@ -161,10 +162,10 @@ if __name__ == '__main__':
 
     os.environ['CMU'] = "/mnt/anakim/data/"
 
-    files_name, coord_file = prepar_data('data_collection_20101221/')
+    files_name, coord_file = prepar_data('data_collection_20101221/', prune_tolerance=30)
     print("Saving files")
-    saveas_txt(files_name, 'dataset.txt')
-    saveas_txt(coord_file, 'coordxImbearing.txt')
+    saveas_txt(files_name, 'test.txt')
+    saveas_txt(coord_file, 'test_coordxImbearing.txt')
 
     """
     root_to_folders = os.environ['CMU'] + 'data_collection_20100915/'
