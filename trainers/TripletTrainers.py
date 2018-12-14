@@ -425,7 +425,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 dataset_feats['feats'] = torch.cat((dataset_feats['feats'], final_desc))
                 dataset_feats['poses'] = torch.cat((dataset_feats['poses'], batch['coord']))
 
-        logger.info('Computing similarity')
+        logger.info('Computing query feats')
         queries_feats = {'feats': None, 'poses': list()}
         for query in tqdm.tqdm(queries_loader):
             variables = {'batch': self.batch_to_device(query)}
@@ -440,6 +440,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 queries_feats['feats'] = torch.cat((queries_feats['feats'], feat))
                 queries_feats['poses'] = torch.cat((queries_feats['poses'], query['coord']))
 
+        logger.info('Computing similarity')
         nn_computor = skn.NearestNeighbors(n_neighbors=k_nn, metric='cosine')
 
         nn_computor.fit(dataset_feats['feats'].cpu().numpy())
