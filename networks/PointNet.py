@@ -111,15 +111,19 @@ class PointNet(nn.Module):
         self.fcs = nn.Sequential(*modules)
 
         modules = []
-        for i in range(len(nf_conv_desc)):
-            modules.append(nn.Conv1d(nf_conv_desc[i - 1] if i > 0 else nf_conv[-1] + nf_fc[-1], nf_conv_desc[i], 1))
-            modules.append(norm_layer_func(nf_conv_desc[i]))
-            modules.append(nn.ReLU(True))
+        if len(nf_conv_desc)>0:
+            for i in range(len(nf_conv_desc)):
+                modules.append(nn.Conv1d(nf_conv_desc[i - 1] if i > 0 else nf_conv[-1] + nf_fc[-1], nf_conv_desc[i], 1))
+                modules.append(norm_layer_func(nf_conv_desc[i]))
+                modules.append(nn.ReLU(True))
 
-        if not end_relu:
-            modules.pop()
+            if not end_relu:
+                modules.pop()
 
-        self.convs_desc = nn.Sequential(*modules)
+            self.convs_desc = nn.Sequential(*modules)
+        else:
+            self.convs_desc = None
+
 
     def forward(self, input_p, input_f, input_global=None):
         if self.normalize_p:
@@ -142,9 +146,12 @@ class PointNet(nn.Module):
         if input_global is not None:
             max_input = torch.cat([max_input, input_global.view(-1,1)], 1)
         global_desc = self.fcs(max_input).unsqueeze(-1)
-        # in the original paper, concatenation is done on max_input & input
-        input = torch.cat((input, global_desc.repeat(1, 1, input.size(-1))), 1)
-        return self.convs_desc(input)
+        if self.convs_desc is not None:
+            # in the original paper, concatenation is done on max_input & input
+            input = torch.cat((input, global_desc.repeat(1, 1, input.size(-1))), 1)
+            return self.convs_desc(input)
+        else:
+            return global_desc.squeeze(-1)
 
     def get_training_layers(self, layers_to_train=None):
         if layers_to_train is None:
@@ -173,7 +180,7 @@ if __name__ == '__main__':
                    nf_fc=[256,64,32],
                    nf_conv_stn=[64, 64, 128],
                    nf_fc_stn=[128, 64],
-                   nf_conv_desc=[64, 64, 4],
+                   nf_conv_desc=[],
                    nfeat=3+16, nfeat_global=0, nfeat_stn=3, end_relu=False)
     print(net)
     print(net(p1, desc1).size())
