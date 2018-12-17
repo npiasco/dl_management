@@ -23,7 +23,7 @@ Deconv:
         alexnet_entry: True
         extended_size: False
         norm_layer: group
-        reduce_factor: 4
+        reduce_factor: 2
         final_activation: 'sig'
         inv_output: false
 
