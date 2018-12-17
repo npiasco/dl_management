@@ -425,6 +425,8 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 dataset_feats['feats'] = torch.cat((dataset_feats['feats'], final_desc))
                 dataset_feats['poses'] = torch.cat((dataset_feats['poses'], batch['coord']))
 
+        dataset_feats['feats'] = dataset_feats['feats'].cpu()
+
         logger.info('Computing query feats')
         queries_feats = {'feats': None, 'poses': list()}
         for query in tqdm.tqdm(queries_loader):
@@ -440,11 +442,12 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 queries_feats['feats'] = torch.cat((queries_feats['feats'], feat))
                 queries_feats['poses'] = torch.cat((queries_feats['poses'], query['coord']))
 
+        queries_feats['feats'] = queries_feats['feats'].cpu()
         logger.info('Computing similarity')
         nn_computor = skn.NearestNeighbors(n_neighbors=k_nn, metric='cosine')
 
-        nn_computor.fit(dataset_feats['feats'].cpu().numpy())
-        idx = nn_computor.kneighbors(queries_feats['feats'].cpu().numpy(), return_distance=False)
+        nn_computor.fit(dataset_feats['feats'].numpy())
+        idx = nn_computor.kneighbors(queries_feats['feats'].numpy(), return_distance=False)
 
         ranked = [list(np.linalg.norm(queries_feats['poses'][i, :2].cpu().numpy() - dataset_feats['poses'][id, :2].cpu().numpy(), axis=1))
                   for i, id in enumerate(idx)]

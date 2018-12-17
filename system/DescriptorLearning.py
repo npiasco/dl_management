@@ -425,6 +425,7 @@ class MultNet(Default):
         ccmap = plt.get_cmap('jet', lut=1024)
 
         for b in dtload:
+            b = self.trainer.batch_to_device(b)
             b = b['query']
             main_mod = b[mod].contiguous().view(batch_size, 3, 224, 224)
             #true_img = b['mono_ref'].contiguous().view(batch_size, 3, 224, 224)
