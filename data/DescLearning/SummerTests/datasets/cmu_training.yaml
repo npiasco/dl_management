@@ -26,7 +26,7 @@ train:
                         - {class: 'datasets.multmodtf.ToTensor', param_class:}
                         - {class: 'datasets.multmodtf.Normalize', param_class: {mean:[0.5924, 0.5896, 0.6002], std:[0.2666, 0.2606, 0.2586]}}
                     mono_depth:
-                        - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
+                        - {class: 'datasets.multmodtf.Resize', param_class: {size: 112}}
                         - {class: 'datasets.multmodtf.ToTensor', param_class:}
                         - {class: 'datasets.multmodtf.DepthTransform', param_class: {depth_factor: 0.0001, replacing_value: 100000, error_value: 0, inverse: True}}
                     mono_ref:
@@ -62,7 +62,7 @@ train:
                                 ],
                             mono_depth:
                                 [
-                                    {class: 'datasets.multmodtf.Resize', param_class: {size: 56}},
+                                    {class: 'datasets.multmodtf.Resize', param_class: {size: 112}},
                                     {class: 'datasets.multmodtf.ToTensor', param_class:},
                                     {class: 'datasets.multmodtf.DepthTransform', param_class: {depth_factor: 0.0001, replacing_value: 100000, error_value: 0, inverse: True}}
                                 ],
@@ -97,7 +97,7 @@ train:
                                 ],
                             mono_depth:
                                 [
-                                    {class: 'datasets.multmodtf.Resize', param_class: {size: 56}},
+                                    {class: 'datasets.multmodtf.Resize', param_class: {size: 112}},
                                     {class: 'datasets.multmodtf.ToTensor', param_class:},
                                     {class: 'datasets.multmodtf.DepthTransform', param_class: {depth_factor: 0.0001, replacing_value: 100000, error_value: 0, inverse: True}}
                                 ],
