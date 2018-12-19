@@ -3,6 +3,7 @@ import trainers.Base as Base
 import torch.nn.functional as func
 import torch.autograd as auto
 import trainers.minning_function as minning
+import pose_utils.BatchWrapper as b_wrapper
 from trainers.minning_function import recc_acces
 import trainers.loss_functions as loss_func
 import datasets.Robotcar as Robotcar

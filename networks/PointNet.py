@@ -76,6 +76,7 @@ class PointNet(nn.Module):
         last_ac = kwargs.pop('last_ac', False)
         self.normalize_p = kwargs.pop('normalize_p', True)
         self.normalize_f = kwargs.pop('normalize_f', True)
+        self.normalize_output = kwargs.pop('normalize_output', False)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
         norm_layer = kwargs.pop('norm_layer', 'group')
         end_relu = kwargs.pop('end_relu', False)
@@ -125,7 +126,7 @@ class PointNet(nn.Module):
             self.convs_desc = None
 
 
-    def forward(self, input_p, input_f, input_global=None):
+    def forward(self, input_p, input_f=None, input_global=None):
         if self.normalize_p:
             centroid = torch.mean(input_p, -1).unsqueeze(-1)
             input_p = input_p - centroid
@@ -137,9 +138,15 @@ class PointNet(nn.Module):
             T = self.stn(input_p[:, :3, :])
             #xy_transf = torch.bmm(input[:,:3,:].transpose(1,2), T).transpose(1,2)
             xy_transf = T.matmul(input_p[:, :3, :])
-            input = torch.cat([xy_transf, input_f], 1)
+            if input_f is not None:
+                input = torch.cat([xy_transf, input_f], 1)
+            else:
+                input = xy_transf
         else:
-            input = torch.cat([input_p[:, :3, :], input_f], 1)
+            if input_f is not None:
+                input = torch.cat([input_p[:, :3, :], input_f], 1)
+            else:
+                input = input_p[:, :3, :]
 
         input = self.convs(input)
         max_input = nnf.max_pool1d(input, input.size(2)).squeeze(2)
@@ -151,6 +158,8 @@ class PointNet(nn.Module):
             input = torch.cat((input, global_desc.repeat(1, 1, input.size(-1))), 1)
             return self.convs_desc(input)
         else:
+            if self.normalize_output:
+                global_desc = nnf.normalize(global_desc)
             return global_desc.squeeze(-1)
 
     def get_training_layers(self, layers_to_train=None):
@@ -181,6 +190,9 @@ if __name__ == '__main__':
                    nf_conv_stn=[64, 64, 128],
                    nf_fc_stn=[128, 64],
                    nf_conv_desc=[],
-                   nfeat=3+16, nfeat_global=0, nfeat_stn=3, end_relu=False)
+                   nfeat=3, nfeat_global=0, nfeat_stn=3, end_relu=False, normalize_f=False, normalize_output=True)
+
     print(net)
-    print(net(p1, desc1).size())
+    out = net(p1)
+    print(out.size())
+    print(out[0])
