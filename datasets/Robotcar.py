@@ -20,6 +20,9 @@ class VBLDataset(utils.data.Dataset):
         self.root = root
         self.transform = kwargs.pop('transform', 'default')
         self.bearing = kwargs.pop('bearing', True)
+        self.K_fisheye = kwargs.pop('K_fisheye', [[340, 0, 435], [0.0, 340, 435], [0.0, 0.0, 1.0]])
+        self.K_stereo = kwargs.pop('K_stereo', [[964.82, 0, 643.78], [0.0, 964.82, 484.40], [0.0, 0.0, 1.0]])
+        self.K_CMU = kwargs.pop('K_stereo', [[406.298, 0, 312.809], [0.0, 407.497, 233.289], [0.0, 0.0, 1.0]])
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -46,13 +49,22 @@ class VBLDataset(utils.data.Dataset):
         for mod_name in self.used_mod:
             file_name = self.root + self.modalities[mod_name].ix[idx, 0]
             sample[mod_name] = PIL.Image.open(file_name)
+            if 'img' in file_name:
+                sample['K'] = np.array(self.K_CMU, dtype=np.float32)
+            elif 'mono' in file_name:
+                sample['K'] = np.array(self.K_fisheye, dtype=np.float32)
+            elif 'centre' in file_name:
+                sample['K'] = np.array(self.K_stereo, dtype=np.float32)
+            else:
+                raise AttributeError('Unknown camera calibration for image {}'.format(file_name))
 
         if self.transform:
             if 'first' in self.transform:
                 sample = torchvis.transforms.Compose(self.transform['first'])(sample)
             for mod in self.transform:
                 if mod not in ('first',) and mod in self.used_mod:
-                    sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod: sample[mod]})[mod]
+                    sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod: sample[mod],
+                                                                                    'K': sample['K']})[mod]
 
         sample['coord'] = self.coord.ix[idx, 0:2].values if self.bearing \
             else self.coord.ix[idx, 0:1].values
