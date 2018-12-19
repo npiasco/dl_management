@@ -1,0 +1,15 @@
+Main:
+    class: 'networks.PointNet.PointNet'
+    param_class:
+        layers_to_train: 'all'
+        nf_conv: [64,64,128,128,256]
+        nf_fc: [256,256,256]
+        nf_conv_stn: [64,64,128]
+        nf_fc_stn: [128,64]
+        nf_conv_desc: []
+        nfeat: 3
+        nfeat_global: 0
+        nfeat_stn: 3
+        normalize_f: False
+        normalize_p: False
+        normalize_output: True
