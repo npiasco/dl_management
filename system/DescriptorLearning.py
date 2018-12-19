@@ -13,6 +13,7 @@ import trainers.loss_functions
 import datasets.Robotcar                # Needed for class creation with eval
 import networks.Descriptor              # Needed for class creation with eval
 import networks.Discriminator           # Needed for class creation with eval
+import networks.PointNet
 import copy
 import tqdm
 import sklearn.cluster as skclust
@@ -427,9 +428,9 @@ class MultNet(Default):
         for b in dtload:
             b = self.trainer.batch_to_device(b)
             b = b['query']
-            main_mod = b[mod].contiguous().view(batch_size, 3, 224, 224)
+            main_mod = b[mod].contiguous()
             #true_img = b['mono_ref'].contiguous().view(batch_size, 3, 224, 224)
-            modality = b[aux_mod].contiguous().view(batch_size, -1, 224, 224)
+            modality = b[aux_mod].contiguous()
             #main_mod = b[mod].contiguous().view(batch_size, 3, 224, 224)
             #modality = b[aux_mod].contiguous().view(batch_size, -1, 224, 224)
 
