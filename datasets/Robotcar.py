@@ -161,7 +161,7 @@ def show_batch(sample_batched):
     """Show image with landmarks for a batch of samples."""
     buffer = tuple()
     for name, mod in sample_batched.items():
-        if name not in ('coord'):
+        if name not in ('coord', 'K'):
             '''
             min_v = mod.min()
             mod -= min_v
@@ -183,20 +183,20 @@ if __name__ == '__main__':
     transform = {
         'first': (tf.Resize((420, 420)),),
         'rgb': (tf.ToTensor(), ),
-        'depth': (tf.ToTensor(), tf.DepthTransform(depth_factor=1e-4, replacing_value=100000, error_value=0, inverse=True), tf.JetTransform(s_lut=1024)),
+        #'depth': (tf.ToTensor(), tf.DepthTransform(depth_factor=1e-4, replacing_value=100000, error_value=0, inverse=True), tf.JetTransform(s_lut=1024)),
         'mono_depth': (tf.ToTensor(), tf.JetTransform(s_lut=1024)),
         'ref': (tf.ToTensor(), tf.DepthTransform(depth_factor=1e-3), tf.JetTransform(s_lut=1024))
     }
     transform_wo_q = {
         'first': (tf.Resize((224, 224)),),
         'rgb': (tf.ToTensor(),),
-        'mono_depth': (tf.ToTensor(), tf.DepthTransform(depth_factor=1.0, error_value=0.0, replacing_value=1.0), tf.Normalize(mean=[0.2291], std=[1]), tf.JetTransform()),
-        'depth': (tf.ToTensor(),),
-        'ref': (tf.ToTensor(), tf.Normalize(mean=[0.2164], std=[0.08]))
+        #'mono_depth': (tf.ToTensor(), tf.DepthTransform(depth_factor=1.0, error_value=0.0, replacing_value=1.0), tf.Normalize(mean=[0.2291], std=[1]), tf.JetTransform()),
+        #'depth': (tf.ToTensor(),),
+        #'ref': (tf.ToTensor(), tf.Normalize(mean=[0.2164], std=[0.08]))
     }
 
-    '''
-    os.environ['CMU'] = "/mnt/anakim/data/"
+
+    #os.environ['CMU'] = "/mnt/anakim/data/"
 
     dataset_1 = VBLDataset(root=os.environ['CMU'] + 'sunny/',
                            modalities={'rgb': 'dataset.txt'},
@@ -230,14 +230,14 @@ if __name__ == '__main__':
                                        'ref': 'true_ref_dataset.txt'},
                            coord_file='coordxImbearing.txt',
                            transform=transform)
-
-    triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_2],
-                                     num_triplets=20, num_positives=3, num_negatives=3, ex_shuffle=True)
+    '''
+    triplet_dataset = TripletDataset(main=dataset_1, examples=[dataset_2, dataset_3], max_pose_dist=2,
+                                     num_triplets=20, num_positives=4, num_negatives=4, ex_shuffle=True)
     #%torch.save(triplet_dataset.triplets, 'night_200_triplets.pth')
     dtload = utils.data.DataLoader(triplet_dataset, batch_size=4)
 
-    for b in dtload:
 
+    for b in dtload:
         plt.figure(1)
         show_batch(b['query'])
         plt.figure(2)
