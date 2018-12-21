@@ -1,11 +1,11 @@
 batch_size: 1
-curr_epoch: 0
+curr_epoch: 113
 lr_scheduler:
   main_trainer:
     class: lr_scheduler.StepLR
     param: {gamma: 0.5, step_size: 10}
 max_epoch: 200
-min_value_to_stop: 10
+min_value_to_stop: 100
 num_workers: 8
 saved_files: {best_network: best_network.pth, loss: loss.pth, network_Main: network_Main.pth,
   optimizer_main_trainer: optimizer_main_trainer.pth, val_score: val_score.pth}

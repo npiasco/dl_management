@@ -11,5 +11,5 @@ Main:
         nfeat_global: 0
         nfeat_stn: 3
         normalize_f: False
-        normalize_p: False
+        normalize_p: True
         normalize_output: True
