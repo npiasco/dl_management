@@ -144,6 +144,7 @@ def fast_icp(nets, variable, **kwargs):
     desc_to_align = kwargs.pop('desc_to_align', None)
     desc_ref = kwargs.pop('desc_ref', None)
     init_T = kwargs.pop('init_T', None)
+    inv_init_T = kwargs.pop('inv_init_T', None)
     param_icp = kwargs.pop('param_icp', dict())
 
     if kwargs:
@@ -157,12 +158,12 @@ def fast_icp(nets, variable, **kwargs):
 
     if init_T.size(0) != 1:
         raise NotImplementedError('No implementation of batched ICP')
+    if inv_init_T:
+        init_T[0, :] = init_T[0, :].inverse()
 
     T = ICP.ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T,
-                    #desc_function=nets[0],
-                    desc_function=None,
-                    match_function=nets[1],
-                    #pose_function=ICP.PoseFromMatching,
+                    desc_function=(nets[0] if len(nets)>1 else None),
+                    match_function=(nets[1] if len(nets)>1 else nets[0]),
                     pose_function=RSCPose.ransac_pose_estimation,
                     **param_icp)
 

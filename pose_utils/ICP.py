@@ -396,6 +396,7 @@ def PoseFromMatching(pc1, pc2):
 
 def ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, **kwargs):
     verbose = kwargs.pop('verbose', False)
+    outliers_filter = kwargs.pop('outliers_filter', False)
     iter = kwargs.pop('iter', 200)
     epsilon = kwargs.pop('epsilon', 1e-6)
     match_function = kwargs.pop('match_function',  None)
@@ -439,6 +440,10 @@ def ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, **kwargs):
 
         res_match = match_function(pc_rec, pc_ref, desc_ta, desc_ref)
 
+        if outliers_filter:
+            res_match['nn'] = res_match['nn'][:, :, res_match['inliers'].squeeze().byte()]
+            pc_rec = pc_rec[:, :, res_match['inliers'].squeeze().byte()]
+
         new_T = pose_function(pc_rec.squeeze(), res_match['nn'].squeeze())
         T = torch.matmul(new_T['T'], T)
 
@@ -449,7 +454,7 @@ def ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, **kwargs):
             # Ploting
             ax1.clear()
             utils.plt_pc(pc_ref[0], ax1, pas, 'b', size=50, marker='*')
-            utils.plt_pc(pc_rec[0], ax1, pas, 'r', size=50, marker='+')
+            utils.plt_pc(pc_rec[0], ax1, pas, 'r', size=50, marker='o')
             ax1.set_xlim([-1, 1])
             ax1.set_ylim([-1, 1])
             ax1.set_zlim([-1, 1])
@@ -529,7 +534,7 @@ if __name__ == '__main__':
     rd_trans = torch.eye(4,4)
     #rd_trans[:,3] = torch.FloatTensor([0.5, -1, 1])
     rd_trans[:3, :3] = utils.rotation_matrix(torch.Tensor([1, 0, 0]), torch.Tensor([1]))
-    rd_trans[:3, :3] = poses[1][:3,:3]
+    rd_trans[:3, :] = poses[1][:3,:]
     pc_ref = torch.cat((pcs[0], pcs[2]), 1)
 
     pc_to_align = rd_trans.matmul(pcs[1])
@@ -549,16 +554,19 @@ if __name__ == '__main__':
     match_net_param = {
         'normalize_desc': False,
         'knn': 'fast_soft_knn',
-        'n_neighbors': 10
+        #'knn': 'hard_cpu',
+        #'bidirectional': True,
+        'n_neighbors': 15
     }
     T = ICPwNet(pc_ref.unsqueeze(0), pc_to_align.unsqueeze(0), pc_ref.unsqueeze(0), pc_to_align.unsqueeze(0),
-                   torch.eye(4, 4).unsqueeze(0), iter=200, verbose=True,
-                   match_function=ICPNet.MatchNet(**match_net_param),
+                torch.eye(4, 4).unsqueeze(0), iter=200, verbose=False, outliers_filter=False,
+                match_function=ICPNet.MatchNet(**match_net_param),
                 #pose_function=PoseFromMatching,
                 pose_function=RSCPose.ransac_pose_estimation,
-                   desc_function=None)[0]
+                desc_function=None)[0]
 
     pc_aligned = T.inverse().matmul(pc_to_align)
+    #pc_aligned = T.matmul(pc_to_align)
 
     fig = plt.figure(2)
     ax = fig.add_subplot(111, projection='3d')
@@ -575,9 +583,10 @@ if __name__ == '__main__':
     ax.set_title('GT')
     pas = 1
 
-    utils.plt_pc(pc_ref, ax, pas, 'b', size=50)
-    utils.plt_pc(pcs[1], ax, pas, 'c', size=50)
+    utils.plt_pc(pcs[1], ax, pas, 'b', size=50)
+    utils.plt_pc(pc_ref, ax, pas, 'c', size=50)
 
-    print(torch.matmul(T, poses[1].inverse()))
+    print(torch.matmul(T.inverse(), poses[1]))
+    print(poses[1])
 
     plt.show()

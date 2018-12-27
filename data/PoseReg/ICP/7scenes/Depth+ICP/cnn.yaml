@@ -1,0 +1,44 @@
+Main:
+    class: 'networks.ResNet.Feat'
+    param_class:
+        layers_to_train: 'no_layer'
+        num_layer: 50
+        unet: True
+        load_imagenet: False
+
+Deconv:
+    class: 'networks.ResNet.Deconv'
+    param_class:
+        layers_to_train: 'no_layer'
+        size_res_1: 1024
+        input_size: 2048
+        up_factor: 2
+        reduce_factor: 4
+        norm_layer: group
+        final_activation: sig
+        extended_size: true
+        dropout: 0.5
+
+Pose:
+    class: 'networks.Pose.PoseRegressor'
+    param_class:
+        layers_to_train: 'all'
+        input_size: 2048 # 2048 * 1 * 1
+        size_layer: 512
+        custom_input_size: 1
+        num_inter_layers: 1
+
+MatchNet:
+    class: 'networks.ICPNet.MatchNet'
+    param_class:
+        normalize_desc: False
+        knn: 'fast_soft_knn'
+        n_neighbors: 15
+
+init_weights:
+    Main:
+        self: '../DepthFull/Main_self.pth'
+    Deconv:
+        deconv1: '../DepthFull/Deconv_deconv1.pth'
+        deconv2: '../DepthFull/Deconv_deconv2.pth'
+        deconv3: '../DepthFull/Deconv_deconv3.pth'

@@ -1,0 +1,131 @@
+class: 'trainers.PoseTrainers.MultNetTrainer'
+param_class:
+    cuda_on: True
+    val_num_workers: 8
+    optimizers_params:
+        posenet_trainer:
+            associated_net: ['Main', 'Pose']
+            optimizer_type: ADAM
+            param:
+                lr: 0.0001 # * 0.5
+                weight_decay: 0.001
+
+    training_pipeline:
+        [
+            #------------------ Main Forward -----------------#
+            {
+                mode: no_grad,
+                trainer: posenet_trainer,
+            },
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['batch', 'rgb' ], ]},
+                net_name: 'Main',
+                out_name: 'fw_main'
+            },
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['fw_main', 'feat']], detach_inputs: true},
+                net_name: 'Pose',
+                out_name: 'posenet_pose'
+            },
+            #-------------------------------------------------#
+
+            #-------------------- Losses ---------------------#
+            {
+             mode: 'backprop',
+             name: 'posenet_backprop',
+             trainer: 'posenet_trainer',
+             clip_grad: {networks: ['Pose', ], val_max: 1.0,}
+            },
+            #-------------------------------------------------#
+        ]
+    eval_forwards:
+        data:
+            [
+                {
+                 mode: 'minning',
+                 func: 'b_wrapper.add_variable',
+                 param: {value: [[0], ], load: false, source: ['batch', 'rgb' ]},
+                 out_name: 'model'
+                },
+            ]
+        queries:
+            [
+                #------------------ Main Forward -----------------#
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false, input_targets: [['batch', 'rgb' ], ]},
+                    net_name: 'Main',
+                    out_name: 'fw_main'
+                },
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false, detach_inputs: false, dict: True,
+                    input_targets: [['fw_main', 'feat'], ['fw_main', 'res_1'], ['fw_main', 'res_2']]},
+                    net_name: 'Deconv',
+                    out_name: 'maps'
+                },
+                {
+                    mode: minning,
+                    func: b_wrapper.inverse,
+                    param: {data_to_inv: ['maps'], },
+                    out_name: 'fake_depth'
+                },
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false, input_targets: [['fw_main', 'feat'], ]},
+                    net_name: 'Pose',
+                    out_name: 'posenet_pose'
+                },
+                #----------------- Pose Refinement ----------------#
+                {
+                 mode: 'minning',
+                 func: 'b_wrapper.batched_depth_map_to_pc',
+                 param: {depth_maps: [fake_depth], K: [batch, K], remove_zeros: false, inverse_depth: false, scale_factor: 0.25},
+                 out_name: 'pc'
+                },
+                {
+                 mode: 'mult_forward',
+                 func: 'b_wrapper.advanced_local_map_getter',
+                 param: {T: ['posenet_pose', 'T'],
+                 map_args: {scene: heads/, frame_spacing: 20, output_size: 1500, no_grad: true, reduce_fact: 4,
+                 resize: 0.1166666667, num_pc: 4, cnn_depth: true}},
+                 net_name: ['Main', 'Deconv'],
+                 out_name: 'model'
+                },
+                {
+                 mode: 'mult_forward',
+                 func: 'b_wrapper.fast_icp',
+                 param: {init_T: ['posenet_pose', 'T'], inv_init_T: False,
+                 pc_to_align: ['pc'], pc_ref: ['model', ],
+                 desc_to_align: ['pc'], desc_ref: ['model', ],
+                 param_icp: {verbose: false, iter: 50}},
+                 net_name: ['MatchNet', ],
+                 out_name: 'icp_pose'
+                },
+            ]
+    access_pose: ['posenet_pose']
+    #access_pose: ['icp_pose']
+    build_model_func: torch.cat
+
+eval_class: 'score.Functions.GlobalPoseError'
+param_eval_class:
+    data_type: 'position'
+    pooling_type: 'mean'
+test_func:
+    med_pos:
+        class: 'score.Functions.GlobalPoseError'
+        param_class:
+            data_type: 'position'
+            pooling_type: 'median'
+    med_ori:
+        class: 'score.Functions.GlobalPoseError'
+        param_class:
+          data_type: 'orientation'
+          pooling_type: 'median'
