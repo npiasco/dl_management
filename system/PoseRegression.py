@@ -366,7 +366,7 @@ class MultNet(Default):
             #ref_pc = trainers.minning_function.recc_acces(variables, ['model']).squeeze()
             try:
                 ref_pc = trainers.minning_function.recc_acces(variables, ['model', 'pc']).squeeze()
-            except KeyError:
+            except (KeyError,TypeError):
                 ref_pc = trainers.minning_function.recc_acces(variables, ['model',]).squeeze()
             #output_pose = trainers.minning_function.recc_acces(variables, ['Tf', 'T'])[0]
             #output_pose = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'T'])[0]
