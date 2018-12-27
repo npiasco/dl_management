@@ -66,9 +66,12 @@ class Default(BaseClass.Base):
         for net_part_name, weight_path in init_weights.items():
             logger.info(
                 'Loading pretrained weights {} (part {})'.format(weight_path, net_part_name))
-            getattr(self.trainer.network, net_part_name).load_state_dict(
-                torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
-            )
+            if net_part_name == 'self':
+                self.trainer.network.load_state_dict(torch.load(os.environ['CNN_WEIGHTS'] + weight_path))
+            else:
+                getattr(self.trainer.network, net_part_name).load_state_dict(
+                    torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
+                )
 
     @staticmethod
     def creat_network(network_params):
