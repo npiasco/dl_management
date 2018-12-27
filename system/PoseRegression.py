@@ -364,7 +364,10 @@ class MultNet(Default):
                     variables = self.trainer._sequential_forward(action, variables, nets_to_test)
 
             #ref_pc = trainers.minning_function.recc_acces(variables, ['model']).squeeze()
-            ref_pc = trainers.minning_function.recc_acces(variables, ['model', 'pc']).squeeze()
+            try:
+                ref_pc = trainers.minning_function.recc_acces(variables, ['model', 'pc']).squeeze()
+            except KeyError:
+                ref_pc = trainers.minning_function.recc_acces(variables, ['model',]).squeeze()
             #output_pose = trainers.minning_function.recc_acces(variables, ['Tf', 'T'])[0]
             #output_pose = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'T'])[0]
             output_pose = trainers.minning_function.recc_acces(variables, self.trainer.access_pose + ['T'])[0]
