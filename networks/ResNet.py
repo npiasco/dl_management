@@ -315,9 +315,9 @@ class Deconv(nn.Module):
     def full_save(self, discard_tf=False):
         if discard_tf:
             pass
-        return {'deconv1': self.deconv_1.state_dict(),
-                'deconv2': self.deconv_2.state_dict(),
-                'deconv3': self.deconv_3.state_dict()}
+        return {'deconv_1': self.deconv_1.state_dict(),
+                'deconv_2': self.deconv_2.state_dict(),
+                'deconv_3': self.deconv_3.state_dict()}
 
 
 if __name__ == '__main__':
