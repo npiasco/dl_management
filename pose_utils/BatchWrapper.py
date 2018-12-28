@@ -167,6 +167,9 @@ def fast_icp(nets, variable, **kwargs):
                     pose_function=RSCPose.ransac_pose_estimation,
                     **param_icp)
 
+    if inv_init_T:
+        T[0, :] = T[0, :].inverse()
+
     return {'T': T, 'q': utils.rot_to_quat(T[0,:3,:3]).unsqueeze(0), 'p': T[0, :3, 3].unsqueeze(0)}
 
 
