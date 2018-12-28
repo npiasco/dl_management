@@ -159,7 +159,7 @@ def fast_icp(nets, variable, **kwargs):
     if init_T.size(0) != 1:
         raise NotImplementedError('No implementation of batched ICP')
     if inv_init_T:
-        init_T[0, :] = init_T[0, :].inverse()
+        init_T = init_T[0, :].inverse().unsqueeze(0)
 
     T = ICP.ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T,
                     desc_function=(nets[0] if len(nets)>1 else None),
@@ -168,7 +168,7 @@ def fast_icp(nets, variable, **kwargs):
                     **param_icp)
 
     if inv_init_T:
-        T[0, :] = T[0, :].inverse()
+        T = T[0, :].inverse().unsqueeze(0)
 
     return {'T': T, 'q': utils.rot_to_quat(T[0,:3,:3]).unsqueeze(0), 'p': T[0, :3, 3].unsqueeze(0)}
 
