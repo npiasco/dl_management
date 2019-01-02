@@ -17,6 +17,7 @@ import tqdm
 import os
 import random
 import datasets.augmentation as aug
+import copy
 PIL.PngImagePlugin.logger.setLevel('INFO')
 
 
@@ -231,6 +232,7 @@ class AugmentedTrain(Train):
         self.final_depth_size = kwargs.pop('final_depth_size', 56)
         Train.__init__(self, **kwargs)
 
+        self.transform = copy.deepcopy(self.transform)
         self.transform['first'] = (tf.CenterCrop(480), )
         self.transform['depth'] = (tf.ToTensor(), tf.DepthTransform())
 

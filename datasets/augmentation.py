@@ -17,7 +17,7 @@ def creat_new_sample(sample, zoom=0.2, reduce_fact=2, tilte_angle=1, final_size_
                       [0, 0, 1.0, 0]])
 
     K = torch.from_numpy(sample['K'])
-    new_K = K.new_tensor(K)
+    new_K = K.clone().detach()
     new_K[:2, :] /= reduce_fact
 
     D = torch.max(sample['depth'].view(-1))
@@ -95,7 +95,7 @@ def remove_gap(depth_map, zero_ids):
     c = ori_size[0]
     depth_map = depth_map.view(c, -1)
     lenght = depth_map.size(-1)
-    clear_depth_map = depth_map.clone()
+    clear_depth_map = depth_map.clone().detach()
 
     for id, is_zero in enumerate(zero_ids):
         if is_zero:
