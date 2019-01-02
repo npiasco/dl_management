@@ -24,6 +24,7 @@ class RandomVerticalFlip(tf.RandomVerticalFlip):
 
         return sample
 
+
 class RandomHorizontalFlip(tf.RandomHorizontalFlip):
     def __init__(self, p=0.5):
         tf.RandomHorizontalFlip.__init__(self, p=p)

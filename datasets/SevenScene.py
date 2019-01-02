@@ -16,6 +16,7 @@ import torch.utils.data as data
 import tqdm
 import os
 import random
+import datasets.augmentation as aug
 PIL.PngImagePlugin.logger.setLevel('INFO')
 
 
@@ -103,7 +104,6 @@ class Base(utils.Dataset):
 
         return sample
 
-
 class MultiDataset(utils.Dataset):
     def __init__(self, **kwargs):
         utils.Dataset.__init__(self)
@@ -111,6 +111,7 @@ class MultiDataset(utils.Dataset):
         folders = kwargs.pop('folders', list())
         type = kwargs.pop('type', 'train')
         transform = kwargs.pop('transform', dict())
+        aug_transform = kwargs.pop('aug_transform', dict())
         general_options = kwargs.pop('general_options', dict())
 
         if kwargs:
@@ -118,6 +119,10 @@ class MultiDataset(utils.Dataset):
 
         if type == 'train':
             self.datasets = [Train(root=root + folder, transform=transform, **general_options) for folder in folders]
+        elif type == 'aug_train':
+            self.datasets = [Train(root=root + folder, transform=transform, **general_options) for folder in folders]
+            self.datasets += [AugmentedTrain(root=root + folder, transform=transform, **general_options)
+                              for folder in folders]
         elif type == 'val':
             self.datasets = [Val(root=root + folder, transform=transform,  **general_options) for folder in folders]
         else:
@@ -218,6 +223,27 @@ class TrainSequence(Train):
         return samples
 
 
+class AugmentedTrain(Train):
+    def __init__(self, **kwargs):
+        self.zoom_percentage = kwargs.pop('zoom_percentage', 0.2)
+        self.tilte_angle = kwargs.pop('tilte_angle', 3.1415 / 16)
+        self.reduce_fact = kwargs.pop('reduce_fact', 480/224)
+        self.final_depth_size = kwargs.pop('final_depth_size', 56)
+        Train.__init__(self, **kwargs)
+
+        self.transform['first'] = (tf.CenterCrop(480), )
+        self.transform['depth'] = (tf.ToTensor(), tf.DepthTransform())
+
+    def __getitem__(self, idx):
+        sample = Train.__getitem__(self, idx)
+        new_sample = aug.creat_new_sample(sample,
+                                          zoom=self.zoom_percentage,
+                                          reduce_fact=self.reduce_fact,
+                                          tilte_angle=self.tilte_angle,
+                                          final_size_depth_map=self.final_depth_size)
+        return new_sample
+
+
 class Test(Base):
     def __init__(self, **kwargs):
         default_tf = {
@@ -289,7 +315,7 @@ if __name__ == '__main__':
 
     logger.setLevel('INFO')
     test_tf = {
-            'first': (tf.Resize(256), tf.CenterCrop(256)),
+            'first': (tf.Resize(256), tf.CenterCrop(256), tf.RandomHorizontalFlip(), tf.RandomVerticalFlip()),
             'rgb': (tf.ToTensor(), ),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
@@ -344,8 +370,8 @@ if __name__ == '__main__':
     for i, b in enumerate(dataloader):
         #show_seq_batch(b)
         fig.clear()
-        show_batch(b)
-        #show_batch_mono(b)
+        #show_batch(b)
+        show_batch_mono(b)
         print(i)
         plt.pause(0.5)
         del b
