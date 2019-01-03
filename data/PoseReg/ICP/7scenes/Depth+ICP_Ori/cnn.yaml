@@ -1,0 +1,37 @@
+Main:
+    class: 'networks.CustomArchi.PixEncoder'
+    param_class:
+        layers_to_train: 'no'
+        k_size: 4
+        d_fact: 2
+
+Deconv:
+    class: 'networks.CustomArchi.PixDecoder'
+    param_class:
+        layers_to_train: 'no'
+        k_size: 4
+        d_fact: 2
+        out_channel: 1
+        div_fact: 4
+
+Pose:
+    class: 'networks.Pose.PoseRegressor'
+    param_class:
+        layers_to_train: 'all'
+        input_size: 256 # 256 1 * 1
+        size_layer: 256
+        custom_input_size: 1
+        num_inter_layers: 2
+
+MatchNet:
+    class: 'networks.ICPNet.MatchNet'
+    param_class:
+        normalize_desc: False
+        knn: 'fast_soft_knn'
+        n_neighbors: 15
+
+init_weights:
+    Main:
+        feature: '../Depth+Pose_Heads224/Main_feature.pth'
+    Deconv:
+        feature: '../Depth+Pose_Heads224/Deconv_feature.pth'
