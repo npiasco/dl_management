@@ -32,7 +32,7 @@ test:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                     - {class: 'datasets.multmodtf.DepthTransform', param_class:}
     data:
-        class: datasets.SevenScene.Val
+        class: datasets.SevenScene.Test
         param_class:
             root: 'fire/'
             transform:
