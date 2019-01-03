@@ -27,7 +27,7 @@ param_class:
             {
                 mode: forward,
                 func: minning.custom_forward,
-                param: {multiples_instance: false, input_targets: [['fw_main'], ], detach_inputs: true},
+                param: {multiples_instance: false, input_targets: [['fw_main', 'conv7'], ], detach_inputs: true},
                 net_name: 'Pose',
                 out_name: 'posenet_pose'
             },
@@ -65,7 +65,7 @@ param_class:
                 {
                     mode: forward,
                     func: minning.custom_forward,
-                    param: {multiples_instance: false, input_targets: [['fw_main'], ]},
+                    param: {multiples_instance: false, input_targets: [['fw_main', 'conv7'], ]},
                     net_name: 'Pose',
                     out_name: 'posenet_pose'
                 },
