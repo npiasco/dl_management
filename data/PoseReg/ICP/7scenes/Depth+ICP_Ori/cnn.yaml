@@ -18,9 +18,8 @@ Pose:
     class: 'networks.Pose.PoseRegressor'
     param_class:
         layers_to_train: 'all'
-        input_size: 256 # 256 1 * 1
-        size_layer: 256
-        custom_input_size: 1
+        input_size: 50176 # 256 * 14 * 14
+        size_layer: 512
         num_inter_layers: 2
 
 MatchNet:
