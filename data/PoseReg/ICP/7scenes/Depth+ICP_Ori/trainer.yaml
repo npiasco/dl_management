@@ -35,9 +35,17 @@ param_class:
 
             #-------------------- Losses ---------------------#
             {
+             mode: 'loss',
+             name: 'min_max_posenet_loss',
+             func: 'loss_func.minmax_pose_loss',
+             args: [['posenet_pose', 'p'], ['posenet_pose', 'q'], ['batch', 'pose', 'position'], ['batch', 'pose', 'orientation']],
+             param: {pose_factor: 1, ori_factor: 1, min_factor: 0.1, max_factor: 0.9}
+            },
+            {
              mode: 'backprop',
              name: 'posenet_backprop',
              trainer: 'posenet_trainer',
+
              clip_grad: {networks: ['Pose', ], val_max: 1.0,}
             },
             #-------------------------------------------------#
