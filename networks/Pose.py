@@ -421,7 +421,7 @@ if __name__ == '__main__':
     print(feat_output)
     '''
 
-    input_t = torch.rand(3, 12544)
-    net = PoseRegressor(input_size=12544, size_layer=512, num_inter_layers=1)
+    input_t = torch.rand(3, 2048, 7, 7)
+    net = PoseRegressor(input_size=2048, custom_input_size=1, size_layer=512, num_inter_layers=1)
     poses = net(input_t)
     print(poses)

@@ -1,0 +1,31 @@
+Main:
+#    class: 'networks.Alexnet.Feat'
+#    param_class:
+#        layers_to_train: 'all'
+#        load_imagenet: True
+#        unet: True
+#        indices: True
+#        batch_norm: true
+#        norm_layer: group
+    class: 'networks.ResNet.Feat'
+    param_class:
+        layers_to_train: 'all'
+        num_layer: 18
+        unet: True
+        load_imagenet: True
+
+Deconv:
+    class: 'networks.ResNet.Deconv'
+    param_class:
+        layers_to_train: 'all'
+        #size_res_1: 192
+        #alexnet_entry: True
+        size_res_1: 256
+        input_size: 512
+        up_factor: 2
+        reduce_factor: 4
+        norm_layer: group
+        final_activation: sig
+        extended_size: true
+        dropout: 0.5
+

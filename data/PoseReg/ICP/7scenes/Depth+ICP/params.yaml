@@ -1,0 +1,12 @@
+batch_size: 24
+curr_epoch: 0
+lr_scheduler:
+  posenet_trainer:
+    class: lr_scheduler.StepLR
+    param: {gamma: 0.5, step_size: 20}
+max_epoch: 1000
+min_value_to_stop: 100
+shuffle: true
+sucess_bad_epoch: 2
+testing_mod: [rgb]
+training_mod: [rgb]

@@ -66,9 +66,12 @@ class Default(BaseClass.Base):
         for net_part_name, weight_path in init_weights.items():
             logger.info(
                 'Loading pretrained weights {} (part {})'.format(weight_path, net_part_name))
-            getattr(self.trainer.network, net_part_name).load_state_dict(
-                torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
-            )
+            if net_part_name == 'self':
+                self.trainer.network.load_state_dict(torch.load(os.environ['CNN_WEIGHTS'] + weight_path))
+            else:
+                getattr(self.trainer.network, net_part_name).load_state_dict(
+                    torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
+                )
 
     @staticmethod
     def creat_network(network_params):
@@ -128,9 +131,14 @@ class MultNet(Default):
             for net_part_name, weight_path in net_part.items():
                 logger.info('Loading pretrained weights {} for network {} (part {})'.format(weight_path, name_network,
                                                                                             net_part_name))
-                getattr(self.trainer.networks[name_network], net_part_name).load_state_dict(
-                    torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
-                )
+                if net_part_name == 'self':
+                    self.trainer.networks[name_network].load_state_dict(
+                        torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
+                    )
+                else:
+                    getattr(self.trainer.networks[name_network], net_part_name).load_state_dict(
+                        torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
+                    )
 
     @staticmethod
     def creat_network(networks_params):
@@ -356,7 +364,10 @@ class MultNet(Default):
                     variables = self.trainer._sequential_forward(action, variables, nets_to_test)
 
             #ref_pc = trainers.minning_function.recc_acces(variables, ['model']).squeeze()
-            ref_pc = trainers.minning_function.recc_acces(variables, ['model', 'pc']).squeeze()
+            try:
+                ref_pc = trainers.minning_function.recc_acces(variables, ['model', 'pc']).squeeze()
+            except (KeyError,TypeError):
+                ref_pc = trainers.minning_function.recc_acces(variables, ['model',]).squeeze()
             #output_pose = trainers.minning_function.recc_acces(variables, ['Tf', 'T'])[0]
             #output_pose = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'T'])[0]
             output_pose = trainers.minning_function.recc_acces(variables, self.trainer.access_pose + ['T'])[0]
