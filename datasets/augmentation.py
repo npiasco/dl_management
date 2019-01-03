@@ -6,6 +6,7 @@ import os
 import torch.utils.data as data
 import torch
 import random
+import torchvision as tv
 
 
 logger = setlog.get_logger(__name__)
@@ -89,6 +90,7 @@ def creat_new_sample(sample, zoom=0.2, reduce_fact=2, tilte_angle=1, final_size_
             'K':new_K.numpy(),
             'pose': full_new_pose}
 
+
 def remove_gap(depth_map, zero_ids):
     ori_size = depth_map.size()
     width = ori_size[-1]
@@ -126,13 +128,35 @@ def remove_gap(depth_map, zero_ids):
     return clear_depth_map.view(ori_size)
 
 
+def save_aug_dataset(dataset, folder, n_forwards=10):
+    try:
+        os.mkdir(folder)
+    except:
+        print('{} exist'.format(folder))
+    dataloader = data.DataLoader(dataset, batch_size=1, shuffle=False, num_workers=8)
+    for n_forward in range(n_forwards):
+        try:
+            os.mkdir(folder + 'seq-0{}'.format(n_forward))
+        except:
+            print('{} exist'.format(folder + 'seq-0{}'.format(n_forward)))
+        for i, b in enumerate(dataloader):
+            file_base_name = 'seq-0{}/frame-{}'.format(n_forward, i)
+            im = tv.transforms.functional.to_pil_image(b['rgb'].squeeze(0))
+            im.save(folder + file_base_name + ".color.png", "PNG")
+            depth = tv.transforms.functional.to_pil_image((b['depth'].squeeze(0)*1e3).int(), mode='I')
+            depth.save(folder + file_base_name + ".depth.png", "PNG", bytes=8)
+            with open(folder + file_base_name + '.pose.txt', 'w') as f:
+                for l in b['pose']['T'].squeeze(0).numpy():
+                    for num in l:
+                        f.write("%16.7e\t" % num)
+                    f.write('\n')
+
+
 if __name__ == '__main__':
     import datasets.SevenScene as SevenS
     aug_tf = {
         'first': (tf.CenterCrop(480),),
-        'rgb': (tf.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.05),
-                tf.ToTensor(),
-                tf.Normalize(mean=[0.4684, 0.4624, 0.4690], std=[0.2680, 0.2659, 0.2549])),
+        'rgb': (tf.ToTensor(), ),
         'depth': (tf.ToTensor(), tf.DepthTransform())
     }
 
@@ -143,19 +167,26 @@ if __name__ == '__main__':
                 tf.Normalize(mean=[0.4684, 0.4624, 0.4690], std=[0.2680, 0.2659, 0.2549])),
         'depth': (tf.Resize(56), tf.ToTensor(), tf.DepthTransform())
     }
-    root = os.environ['SEVENSCENES'] + 'chess/'
+    root = os.environ['SEVENSCENES'] + 'heads/'
 
     train_aug_dataset = SevenS.AugmentedTrain(root=root,
-                                       transform=aug_tf,)
+                                              transform=aug_tf,
+                                              final_depth_size=256,
+                                              reduce_fact=1.85,
+                                              zoom_percentage=0.15)
+
+    save_aug_dataset(train_aug_dataset, os.environ['SEVENSCENES'] + 'aug_heads/')
+
+    """
     train_dataset = SevenS.Train(root=root,
                                  transform=std_tf, )
 
-    m_dataset = SevenS.MultiDataset(type='aug_train', root=os.environ['SEVENSCENES'],
-                                    folders=['heads/', ], transform=std_tf, aug_transform=aug_tf,
+    m_dataset = SevenS.MultiDataset(type='train', root=os.environ['SEVENSCENES'],
+                                    folders=['heads/', ]*1, transform=std_tf,
                                     general_options={'used_mod': ('rgb', 'depth')})
 
     print(len(m_dataset))
-    dataloader = data.DataLoader(m_dataset, batch_size=1, shuffle=True, num_workers=8)
+    dataloader = data.DataLoader(train_aug_dataset, batch_size=2, shuffle=True, num_workers=0)
 
 
     fig = plt.figure(1)
@@ -171,3 +202,4 @@ if __name__ == '__main__':
         del b
 
 
+    """

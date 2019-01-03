@@ -295,9 +295,9 @@ class Val(Base):
             self.data = self.data[round(len(self.data)*pruning):]
 
 
-def show_batch(sample_batched):
+def show_batch(sample_batched,  n_row=4):
     """Show image with landmarks for a batch of samples."""
-    grid = torchvis.utils.make_grid(sample_batched['rgb'])
+    grid = torchvis.utils.make_grid(sample_batched['rgb'], nrow=n_row)
     plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
 def show_seq_batch(sample_batched):
@@ -306,10 +306,10 @@ def show_seq_batch(sample_batched):
     plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
 
-def show_batch_mono(sample_batched):
+def show_batch_mono(sample_batched, n_row=4):
     """Show image with landmarks for a batch of samples."""
     depth = sample_batched['depth']  # /torch.max(sample_batched['depth'])
-    grid = torchvis.utils.make_grid(depth)
+    grid = torchvis.utils.make_grid(depth, nrow=n_row)
     plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
 
@@ -317,7 +317,7 @@ if __name__ == '__main__':
 
     logger.setLevel('INFO')
     test_tf = {
-            'first': (tf.Resize(256), tf.CenterCrop(256), tf.RandomHorizontalFlip(), tf.RandomVerticalFlip()),
+            'first': (tf.Resize(256), tf.CenterCrop(256), ),
             'rgb': (tf.ToTensor(), ),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
@@ -325,8 +325,8 @@ if __name__ == '__main__':
             'first': (tf.Resize(240),),
             'rgb': (tf.ToTensor(),),
         }
-    root = os.environ['SEVENSCENES'] + 'heads/'
-
+    root = os.environ['SEVENSCENES'] + 'aug_heads/'
+    '''
     train_dataset = Train(root=root,
                           transform=test_tf)
 
@@ -339,7 +339,7 @@ if __name__ == '__main__':
     print(len(train_dataset))
     print(len(test_dataset))
     print(len(val_dataset))
-
+    '''
     train_seq_dataset = Train(root=root,
                               transform=test_tf,
                               )
@@ -353,7 +353,7 @@ if __name__ == '__main__':
 
     mult_train_seq_dataset.used_mod = ('depth',)
     #dataloader = data.DataLoader(mult_train_seq_dataset, batch_size=16, shuffle=False, num_workers=8)
-    dataloader = data.DataLoader(val_seq_dataset, batch_size=16, shuffle=False, num_workers=8)
+    dataloader = data.DataLoader(train_seq_dataset, batch_size=8, shuffle=False, num_workers=8)
     '''
     dataloader_wo_tf = data.DataLoader(train_dataset_wo_tf, batch_size=8, shuffle=False, num_workers=2)
     plt.figure(1)
@@ -372,8 +372,10 @@ if __name__ == '__main__':
     for i, b in enumerate(dataloader):
         #show_seq_batch(b)
         fig.clear()
-        #show_batch(b)
+        show_batch(b)
+        plt.pause(2)
+        fig.clear()
         show_batch_mono(b)
         print(i)
-        plt.pause(0.5)
+        plt.pause(20)
         del b
