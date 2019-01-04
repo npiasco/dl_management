@@ -25,9 +25,14 @@ Pose:
 MatchNet:
     class: 'networks.ICPNet.MatchNet'
     param_class:
-        normalize_desc: False
+        normalize_desc: True
         knn: 'fast_soft_knn'
         n_neighbors: 15
+
+Desc:
+    class: 'networks.FeatAggregation.Concat'
+    param_class:
+        norm: False
 
 init_weights:
     Main:

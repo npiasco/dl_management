@@ -1,6 +1,6 @@
 class: 'trainers.PoseTrainers.MultNetTrainer'
 param_class:
-    cuda_on: True
+    cuda_on: False
     val_num_workers: 8
     optimizers_params:
         posenet_trainer:
@@ -99,11 +99,17 @@ param_class:
                  out_name: 'pc'
                 },
                 {
+                 mode: 'minning',
+                 func: 'b_wrapper.resize',
+                 param: {inputs: ['fw_main', 'conv2'], scale_factor: 0.25, flatten: true},
+                 out_name: 'desc'
+                },
+                {
                  mode: 'mult_forward',
                  func: 'b_wrapper.advanced_local_map_getter',
-                 param: {T: ['posenet_pose', 'T'],
+                 param: {T: ['posenet_pose', 'T'], descriptors_size: 128,
                  map_args: {scene: heads/, frame_spacing: 20, output_size: 1500, no_grad: true, reduce_fact: 4,
-                 resize: 0.1166666667, num_pc: 4, cnn_depth: true}},
+                 resize: 0.1166666667, num_pc: 4, cnn_depth: true, cnn_descriptor: 'conv2'}},
                  net_name: ['Main', 'Deconv'],
                  out_name: 'model'
                 },
@@ -111,10 +117,10 @@ param_class:
                  mode: 'mult_forward',
                  func: 'b_wrapper.fast_icp',
                  param: {init_T: ['posenet_pose', 'T'], inv_init_T: False,
-                 pc_to_align: ['pc'], pc_ref: ['model', ],
-                 desc_to_align: ['pc'], desc_ref: ['model', ],
+                 pc_to_align: ['pc'], pc_ref: ['model', 'pc'],
+                 desc_to_align: ['desc'], desc_ref: ['model', 'desc'],
                  param_icp: {verbose: false, iter: 50}},
-                 net_name: ['MatchNet', ],
+                 net_name: ['Desc', 'MatchNet', ],
                  out_name: 'icp_pose'
                 },
             ]
