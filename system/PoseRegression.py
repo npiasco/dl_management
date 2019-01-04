@@ -345,7 +345,10 @@ class MultNet(Default):
             nets_to_test = dict()
             for name, network in self.trainer.networks.items():
                 nets_to_test[name] = copy.deepcopy(network)
-                nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
+                try:
+                    nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
+                except KeyError:
+                    logger.warning("Unable to load best weights for net {}".format(name))
 
         for network in nets_to_test.values():
             network.eval()
@@ -353,7 +356,7 @@ class MultNet(Default):
         dataset = 'test'
         mode = 'queries'
 
-        dtload = data.DataLoader(self.data[dataset][mode], batch_size=1)
+        dtload = data.DataLoader(self.data[dataset][mode], batch_size=1, shuffle=True)
 
         for b in dtload:
             with torch.no_grad():
@@ -411,6 +414,12 @@ class MultNet(Default):
             pc_utils.plt_pc(gt_pc.cpu(), ax, pas, 'c', size=2*plot_size, marker='*')
             if 'posenet_pose' in variables.keys():
                 pc_utils.plt_pc(posenet_pc.cpu(), ax, pas, 'm', size=2*plot_size, marker='o')
+                plt.plot([gt_pose[0, 3], posenet_pose[0, 3]],
+                         [gt_pose[1, 3], posenet_pose[1, 3]],
+                         [gt_pose[2, 3], posenet_pose[2, 3]], color='m')
+            plt.plot([gt_pose[0, 3], output_pose[0, 3]],
+                     [gt_pose[1, 3], output_pose[1, 3]],
+                     [gt_pose[2, 3], output_pose[2, 3]], color='r')
             pc_utils.plt_pc(output_pc.cpu(), ax, pas, 'r', size=2*plot_size, marker='o')
             centroid = torch.mean(ref_pc[:3, :], -1)
 

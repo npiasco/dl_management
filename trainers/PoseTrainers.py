@@ -411,7 +411,10 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             if not final:
                 for name, network in self.networks.items():
                     nets_to_test[name] = copy.deepcopy(network)
-                    nets_to_test[name].load_state_dict(self.best_net[1][name])
+                    try:
+                        nets_to_test[name].load_state_dict(self.best_net[1][name])
+                    except KeyError:
+                        logger.warning("Unable to load best weights for net {}".format(name))
             else:
                 nets_to_test = self.networks
 
