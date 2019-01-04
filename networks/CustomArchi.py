@@ -152,6 +152,7 @@ class PixDecoder(nn.Module):
         k_size = kwargs.pop('k_size', 2)
         norm_layer = kwargs.pop('norm_layer', 'group')
         div_fact = kwargs.pop('div_fact', 1)
+        dropout = kwargs.pop('dropout', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -186,6 +187,13 @@ class PixDecoder(nn.Module):
             ('bn3', norm_layer_func(int(256 / d_fact))),
             ('relu3', nn.ReLU(inplace=True)),
         ]
+
+        if dropout:
+            base_archi.append(('dp2', nn.Dropout2d(dropout)))
+            base_archi.insert(12, ('dp3', nn.Dropout2d(dropout)))
+            base_archi.insert(9, ('dp4', nn.Dropout2d(dropout)))
+            base_archi.insert(6, ('dp5', nn.Dropout2d(dropout)))
+            base_archi.insert(3, ('dp6', nn.Dropout2d(dropout)))
 
         end_div_4 = [
             ('conv2', nn.Conv2d(int(256 / d_fact * 2), int(out_channel), kernel_size=k_size*2+1, stride=1,
@@ -340,7 +348,7 @@ if __name__ == '__main__':
     torch.save(net.state_dict(), 'default.pth')
     '''
     enc = PixEncoder(k_size=4, d_fact=2)
-    dec= PixDecoder(k_size=4, d_fact=2, out_channel=1, div_fact=2)
+    dec= PixDecoder(k_size=4, d_fact=2, out_channel=1, div_fact=2, dropout=0.1)
 
     feat_output = enc(tensor_input)
     output = dec(feat_output)
