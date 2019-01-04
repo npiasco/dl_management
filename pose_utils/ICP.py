@@ -398,7 +398,7 @@ def ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, **kwargs):
     verbose = kwargs.pop('verbose', False)
     outliers_filter = kwargs.pop('outliers_filter', False)
     iter = kwargs.pop('iter', 200)
-    epsilon = kwargs.pop('epsilon', 1e-6)
+    epsilon = kwargs.pop('epsilon', 1e-5)
     match_function = kwargs.pop('match_function',  None)
     pose_function = kwargs.pop('pose_function', None)
     desc_function = kwargs.pop('desc_function', None)
