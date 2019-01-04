@@ -329,7 +329,7 @@ def get_local_map(**kwargs):
     for i in range(0, num_pc*frame_spacing, frame_spacing):
         fold, num = get_local_map.data[nearest_idx[i]]
         if cnn_descriptor or cnn_depth:
-            if  nearest_idx[i] not in get_local_map.out_enc.keys():
+            if nearest_idx[i] not in get_local_map.out_enc.keys():
                 file_name = get_local_map.folders[fold] + 'frame-' + num + '.color.png'
                 im = PIL.Image.open(file_name)
                 new_h = int(min(im.size) * resize_fact * reduce_fact) # 2 time depth map by default
@@ -345,31 +345,41 @@ def get_local_map(**kwargs):
                         get_local_map.out_enc[nearest_idx[i]] = cnn_enc(im.unsqueeze(0))
                 else:
                     get_local_map.out_enc[nearest_idx[i]] = cnn_enc(im.unsqueeze(0))
+                for part in get_local_map.out_enc[nearest_idx[i]]:
+                    get_local_map.out_enc[nearest_idx[i]][part] = get_local_map.out_enc[nearest_idx[i]][part].cpu()
+
             if cnn_descriptor:
                 desc = get_local_map.out_enc[nearest_idx[i]][cnn_descriptor].squeeze()
-                desc = desc.view(desc.size(0), -1)
+                desc = desc.view(desc.size(0), -1).to(T.device)
 
         if cnn_depth:
-            if  nearest_idx[i] not in get_local_map.depth.keys():
+            if nearest_idx[i] not in get_local_map.depth.keys():
                 if no_grad:
                     with torch.no_grad():
                         if isinstance(cnn_dec, Resnet.Deconv):
-                            get_local_map.depth[nearest_idx[i]] = cnn_dec(get_local_map.out_enc[nearest_idx[i]]['feat'],
-                                                                          get_local_map.out_enc[nearest_idx[i]]['res_1'],
-                                                                          get_local_map.out_enc[nearest_idx[i]]['res_2']).squeeze(0)
+                            get_local_map.depth[nearest_idx[i]] = cnn_dec(get_local_map.out_enc[nearest_idx[i]]['feat'].to(T.device),
+                                                                          get_local_map.out_enc[nearest_idx[i]]['res_1'].to(T.device),
+                                                                          get_local_map.out_enc[nearest_idx[i]]['res_2'].to(T.device)).squeeze(0).cpu()
                         else:
-                            get_local_map.depth[nearest_idx[i]] = cnn_dec(get_local_map.out_enc[nearest_idx[i]]).squeeze(0)
+                            dec_input = dict()
+                            for part in get_local_map.out_enc[nearest_idx[i]]:
+                                dec_input[part] = get_local_map.out_enc[nearest_idx[i]][part].to(T.device)
+
+                            get_local_map.depth[nearest_idx[i]] = cnn_dec(dec_input).squeeze(0).cpu()
                 else:
                     if isinstance(cnn_dec, Resnet.Deconv):
-                        get_local_map.depth[nearest_idx[i]] = cnn_dec(get_local_map.out_enc[nearest_idx[i]]['feat'],
-                                                                      get_local_map.out_enc[nearest_idx[i]]['res_1'],
-                                                                      get_local_map.out_enc[nearest_idx[i]]['res_2']).squeeze(0)
+                        get_local_map.depth[nearest_idx[i]] = cnn_dec(get_local_map.out_enc[nearest_idx[i]]['feat'].to(T.device),
+                                                                      get_local_map.out_enc[nearest_idx[i]]['res_1'].to(T.device),
+                                                                      get_local_map.out_enc[nearest_idx[i]]['res_2'].to(T.device)).squeeze(0).cpu()
                     else:
-                        get_local_map.depth[nearest_idx[i]] = cnn_dec(get_local_map.out_enc[nearest_idx[i]]).squeeze(0)
+                        dec_input = dict()
+                        for part in get_local_map.out_enc[nearest_idx[i]]:
+                            dec_input[part] = get_local_map.out_enc[nearest_idx[i]][part].to(T.device)
+                        get_local_map.depth[nearest_idx[i]] = cnn_dec(dec_input).squeeze(0).cpu()
 
             depth = torch.reciprocal(get_local_map.depth[nearest_idx[i]].clamp(min=1e-8)) - 1  # Need to inverse the depth
             pcs.append(
-                toSceneCoord(depth, torch.from_numpy(get_local_map.poses[nearest_idx[i]]).to(T.device),
+                toSceneCoord(depth.to(T.device), torch.from_numpy(get_local_map.poses[nearest_idx[i]]).to(T.device),
                              K, remove_zeros=False))
             if cnn_descriptor:
                 descs.append(desc)
