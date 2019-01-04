@@ -255,6 +255,7 @@ def get_local_map(**kwargs):
     cnn_enc = kwargs.pop('cnn_enc', None)
     cnn_dec = kwargs.pop('cnn_dec', None)
     no_grad = kwargs.pop('no_grad', True)
+    test_mode = kwargs.pop('test_mode', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -319,41 +320,54 @@ def get_local_map(**kwargs):
     pcs = list()
     if cnn_descriptor:
         descs = list()
+    if cnn_descriptor or cnn_depth:
+        if hasattr(get_local_map, 'depth') is False:
+            get_local_map.depth = dict()
+            get_local_map.out_enc = dict()
+
+
     for i in range(0, num_pc*frame_spacing, frame_spacing):
         fold, num = get_local_map.data[nearest_idx[i]]
         if cnn_descriptor or cnn_depth:
-            file_name = get_local_map.folders[fold] + 'frame-' + num + '.color.png'
-            im = PIL.Image.open(file_name)
-            new_h = int(min(im.size) * resize_fact * reduce_fact) # 2 time depth map by default
-            im = func.to_tensor(
-                func.center_crop(
-                    func.resize(im, new_h, interpolation=PIL.Image.BILINEAR),
-                    new_h
-                )
-            ).float()
-            im = im.to(T.device) # move on GPU if necessary
-            if no_grad:
-                with torch.no_grad():
-                    out_enc = cnn_enc(im.unsqueeze(0))
-            else:
-                out_enc = cnn_enc(im.unsqueeze(0))
-            if cnn_descriptor:
-                desc = out_enc[cnn_descriptor].squeeze()
-                desc = desc.view(desc.size(0), -1)
-        if cnn_depth:
-            if no_grad:
-                with torch.no_grad():
-                    if isinstance(cnn_dec, Resnet.Deconv):
-                        depth = cnn_dec(out_enc['feat'], out_enc['res_1'], out_enc['res_2']).squeeze(0)
-                    else:
-                        depth = cnn_dec(out_enc).squeeze(0)
-            else:
-                if isinstance(cnn_dec, Resnet.Deconv):
-                    depth = cnn_dec(out_enc['feat'], out_enc['res_1'], out_enc['res_2']).squeeze(0)
+            if  nearest_idx[i] not in get_local_map.out_enc.keys():
+                file_name = get_local_map.folders[fold] + 'frame-' + num + '.color.png'
+                im = PIL.Image.open(file_name)
+                new_h = int(min(im.size) * resize_fact * reduce_fact) # 2 time depth map by default
+                im = func.to_tensor(
+                    func.center_crop(
+                        func.resize(im, new_h, interpolation=PIL.Image.BILINEAR),
+                        new_h
+                    )
+                ).float()
+                im = im.to(T.device) # move on GPU if necessary
+                if no_grad:
+                    with torch.no_grad():
+                        get_local_map.out_enc[nearest_idx[i]] = cnn_enc(im.unsqueeze(0))
                 else:
-                    depth = cnn_dec(out_enc).squeeze(0)
+                    get_local_map.out_enc[nearest_idx[i]] = cnn_enc(im.unsqueeze(0))
+            if cnn_descriptor:
+                desc = get_local_map.out_enc[nearest_idx[i]][cnn_descriptor].squeeze()
+                desc = desc.view(desc.size(0), -1)
 
-            depth = torch.reciprocal(depth.clamp(min=1e-8)) - 1  # Need to inverse the depth
+        if cnn_depth:
+            if  nearest_idx[i] not in get_local_map.depth.keys():
+                if no_grad:
+                    with torch.no_grad():
+                        if isinstance(cnn_dec, Resnet.Deconv):
+                            get_local_map.depth[nearest_idx[i]] = cnn_dec(get_local_map.out_enc[nearest_idx[i]]['feat'],
+                                                                          get_local_map.out_enc[nearest_idx[i]]['res_1'],
+                                                                          get_local_map.out_enc[nearest_idx[i]]['res_2']).squeeze(0)
+                        else:
+                            get_local_map.depth[nearest_idx[i]] = cnn_dec(get_local_map.out_enc[nearest_idx[i]]).squeeze(0)
+                else:
+                    if isinstance(cnn_dec, Resnet.Deconv):
+                        get_local_map.depth[nearest_idx[i]] = cnn_dec(get_local_map.out_enc[nearest_idx[i]]['feat'],
+                                                                      get_local_map.out_enc[nearest_idx[i]]['res_1'],
+                                                                      get_local_map.out_enc[nearest_idx[i]]['res_2']).squeeze(0)
+                    else:
+                        get_local_map.depth[nearest_idx[i]] = cnn_dec(get_local_map.out_enc[nearest_idx[i]]).squeeze(0)
+
+            depth = torch.reciprocal(get_local_map.depth[nearest_idx[i]].clamp(min=1e-8)) - 1  # Need to inverse the depth
             pcs.append(
                 toSceneCoord(depth, torch.from_numpy(get_local_map.poses[nearest_idx[i]]).to(T.device),
                              K, remove_zeros=False))
@@ -400,6 +414,10 @@ def get_local_map(**kwargs):
 
     if timing:
         print('Pruning in {}s'.format(time.time() - t))
+
+    if not test_mode:
+        del get_local_map.depth
+        del get_local_map.out_enc
 
     if cnn_descriptor:
         return final_pc, cnn_desc_out
