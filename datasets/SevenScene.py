@@ -253,7 +253,7 @@ class Test(Base):
             'rgb': (tf.ToTensor(),),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
-        light = kwargs.pop('ligth', False)
+        light = kwargs.pop('light', False)
         Base.__init__(self,
                       transform=kwargs.pop('transform', default_tf),
                       **kwargs)
