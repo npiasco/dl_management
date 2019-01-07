@@ -456,6 +456,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         return errors
 
     def _compute_errors(self, networks, queries, dataset):
+        verbose = True
         for network in networks.values():
             network.eval()
 
@@ -479,7 +480,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             'orientation': list()
         }
         logger.info('Computing position and orientation errors')
-        for query in tqdm.tqdm(queries_loader):
+        for i, query in tqdm.tqdm(enumerate(queries_loader)):
             variables = {'batch': self.batch_to_device(query)}
             variables['model'] = model
             for action in self.eval_forwards['queries']:
@@ -490,6 +491,10 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                                                      query['pose']['position'].cpu().numpy()))
             errors['orientation'].append(self.distance_between_q(pose['q'].cpu().detach().numpy()[0],
                                                                  query['pose']['orientation'].cpu().numpy()[0]))
+            if verbose:
+                print('Query {} / Position err: {} / Orientation err: {}'.format(i,
+                                                                                 errors['position'][-1],
+                                                                                 errors['orientation'][-1]))
         return errors
 
     @staticmethod
