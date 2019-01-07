@@ -253,6 +253,7 @@ class Test(Base):
             'rgb': (tf.ToTensor(),),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
+        light = kwargs.pop('ligth', False)
         Base.__init__(self,
                       transform=kwargs.pop('transform', default_tf),
                       **kwargs)
@@ -264,6 +265,10 @@ class Test(Base):
                 self.folders.append(self.root_path + fold)
 
         self.load_data()
+
+        if light:
+            step = 10
+            self.data = [dat for i, dat in enumerate(self.data) if i % step == 0]
 
 
 class Val(Base):
@@ -325,7 +330,7 @@ if __name__ == '__main__':
             'first': (tf.Resize(240),),
             'rgb': (tf.ToTensor(),),
         }
-    root = os.environ['SEVENSCENES'] + 'aug_heads/'
+    root = os.environ['SEVENSCENES'] + 'heads/'
     '''
     train_dataset = Train(root=root,
                           transform=test_tf)
@@ -333,7 +338,9 @@ if __name__ == '__main__':
     train_dataset_wo_tf = Train(root=root,
                                 transform=test_tf_wo_tf,
                                 used_mod=('rgb',))
-    test_dataset = Test(root=root)
+    '''
+    test_dataset = Test(root=root, ligth=True)
+    '''
     val_dataset = Val(root=root)
 
     print(len(train_dataset))
@@ -353,7 +360,7 @@ if __name__ == '__main__':
 
     mult_train_seq_dataset.used_mod = ('depth',)
     #dataloader = data.DataLoader(mult_train_seq_dataset, batch_size=16, shuffle=False, num_workers=8)
-    dataloader = data.DataLoader(train_seq_dataset, batch_size=8, shuffle=False, num_workers=8)
+    dataloader = data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8)
     '''
     dataloader_wo_tf = data.DataLoader(train_dataset_wo_tf, batch_size=8, shuffle=False, num_workers=2)
     plt.figure(1)
@@ -369,13 +376,14 @@ if __name__ == '__main__':
     fig = plt.figure(1)
     print(len(train_seq_dataset))
     print(len(val_seq_dataset))
+    print(len(test_dataset))
     for i, b in enumerate(dataloader):
         #show_seq_batch(b)
         fig.clear()
         show_batch(b)
-        plt.pause(2)
+        plt.pause(0.2)
         fig.clear()
         show_batch_mono(b)
         print(i)
-        plt.pause(20)
+        plt.pause(0.2)
         del b
