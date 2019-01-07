@@ -492,7 +492,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             errors['orientation'].append(self.distance_between_q(pose['q'].cpu().detach().numpy()[0],
                                                                  query['pose']['orientation'].cpu().numpy()[0]))
             if verbose:
-                print('Query {} / Position err: {} / Orientation err: {}'.format(i,
+                print('Query {} GT pose {}\nPosition err: {} / Orientation err: {}'.format(i, query['pose']['position'],
                                                                                  errors['position'][-1],
                                                                                  errors['orientation'][-1]))
         return errors
