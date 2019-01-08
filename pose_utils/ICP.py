@@ -478,7 +478,7 @@ def ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, **kwargs):
 
     logger.info('Final RANSAC score is {} ({}% inliers)'.format(new_T['score'], new_T['inliers_ratio']))
 
-    return T
+    return {'T': T, 'inliers': new_T['inliers_ratio'], 'score': new_T['score']}
 
 
 if __name__ == '__main__':

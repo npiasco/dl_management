@@ -146,6 +146,8 @@ def fast_icp(nets, variable, **kwargs):
     init_T = kwargs.pop('init_T', None)
     inv_init_T = kwargs.pop('inv_init_T', None)
     param_icp = kwargs.pop('param_icp', dict())
+    filter_inliers = kwargs.pop('filter_inliers', False)
+    filter_score = kwargs.pop('filter_score', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -161,16 +163,25 @@ def fast_icp(nets, variable, **kwargs):
     if inv_init_T:
         init_T = init_T[0, :].inverse().unsqueeze(0)
 
-    T = ICP.ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T,
+    ICP_out = ICP.ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T,
                     desc_function=(nets[0] if len(nets)>1 else None),
                     match_function=(nets[1] if len(nets)>1 else nets[0]),
                     pose_function=RSCPose.ransac_pose_estimation,
                     **param_icp)
 
     if inv_init_T:
-        T = T[0, :].inverse().unsqueeze(0)
+        ICP_out['T'] = ICP_out['T'][0, :].inverse().unsqueeze(0)
 
-    return {'T': T, 'q': utils.rot_to_quat(T[0,:3,:3]).unsqueeze(0), 'p': T[0, :3, 3].unsqueeze(0)}
+    if filter_inliers:
+        if ICP_out['inliers'] <= filter_inliers:
+            ICP_out['T'] = init_T
+    if filter_score:
+        if ICP_out['score'] <= filter_score:
+            ICP_out['T'] = init_T
+
+    return {'T': ICP_out['T'],
+            'q': utils.rot_to_quat(ICP_out['T'][0,:3,:3]).unsqueeze(0),
+            'p': ICP_out['T'][0, :3, 3].unsqueeze(0)}
 
 
 def advanced_local_map_getter(nets, variable, **kwargs):

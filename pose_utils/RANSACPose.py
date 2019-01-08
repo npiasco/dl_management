@@ -49,7 +49,7 @@ class PoseEstimator(sklearn.base.BaseEstimator):
 
 
 def ransac_pose_estimation(pt, pt_nn):
-    ransac = sklearn.linear_model.RANSACRegressor(base_estimator=PoseEstimator(), min_samples=0.1, max_trials=100,  loss='squared_loss')#, residual_threshold=1e-3, loss='squared_loss')
+    ransac = sklearn.linear_model.RANSACRegressor(base_estimator=PoseEstimator(), min_samples=0.1, max_trials=100, residual_threshold=1e-3, loss='squared_loss')
     ransac.fit(pt.t().cpu().numpy(), pt_nn.t().cpu().numpy())
     fscore = ransac.score(pt.t().cpu().numpy(), pt_nn.t().cpu().numpy())
     logger.debug('Ransac score {} in {} iteration'.format(ransac.score(pt.t().cpu().numpy(), pt_nn.t().cpu().numpy()),
