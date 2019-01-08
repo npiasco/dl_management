@@ -276,7 +276,10 @@ class MultNet(Default):
             nets_to_test = dict()
             for name, network in self.trainer.networks.items():
                 nets_to_test[name] = copy.deepcopy(network)
-                nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
+                try:
+                    nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
+                except KeyError:
+                    logger.warning("Unable to load weights of network {}".format(name))
 
         for network in nets_to_test.values():
             network.eval()
@@ -356,7 +359,7 @@ class MultNet(Default):
         dataset = 'test'
         mode = 'queries'
 
-        dtload = data.DataLoader(self.data[dataset][mode], batch_size=1, shuffle=True)
+        dtload = data.DataLoader(self.data[dataset][mode], batch_size=1, shuffle=False)
 
         for b in dtload:
             with torch.no_grad():
@@ -392,20 +395,20 @@ class MultNet(Default):
                 print('Posenet pose:')
                 print(posenet_pose)
 
-            print('Diff distance = {} m'.format(torch.norm(gt_pose[:, 3] - output_pose[:, 3]).item()))
+            print('Diff distance = {} m'.format(torch.norm(gt_pose[:3, 3] - output_pose[:3, 3]).item()))
             gtq = trainers.minning_function.recc_acces(variables, ['batch', 'pose', 'orientation'])[0]
             #q = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'q'])[0]
             q = trainers.minning_function.recc_acces(variables, self.trainer.access_pose+ ['q'])[0]
             print('Diff orientation = {} deg'.format(2 * torch.acos(torch.abs(gtq.dot(q))) * 180 / 3.14159260))
             if 'posenet_pose' in variables.keys():
-                print('Diff distance = {} m (posenet)'.format(torch.norm(gt_pose[:, 3] - posenet_pose[:, 3]).item()))
+                print('Diff distance = {} m (posenet)'.format(torch.norm(gt_pose[:3, 3] - posenet_pose[:3, 3]).item()))
                 posenetq = trainers.minning_function.recc_acces(variables, ['posenet_pose', 'q'])[0]
                 print('Diff orientation = {} deg (posenet)'.format(2*torch.acos(torch.abs(gtq.dot(posenetq)))*180/3.14159260) )
             if 'noised_T' in variables.keys():
                 noise_pose = trainers.minning_function.recc_acces(variables, ['noised_T']).squeeze()
                 print('Noised pose:')
                 print(noise_pose)
-                print('Diff distance = {} m (noise T)'.format(torch.norm(gt_pose[:, 3] - noise_pose[:, 3]).item()))
+                print('Diff distance = {} m (noise T)'.format(torch.norm(gt_pose[:3, 3] - noise_pose[:3, 3]).item()))
 
             fig = plt.figure(1)
             ax = fig.add_subplot(111, projection='3d')

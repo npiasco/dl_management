@@ -339,7 +339,7 @@ if __name__ == '__main__':
                                 transform=test_tf_wo_tf,
                                 used_mod=('rgb',))
     '''
-    test_dataset = Test(root=root, ligth=True)
+    test_dataset = Test(root=root, light=True)
     '''
     val_dataset = Val(root=root)
 

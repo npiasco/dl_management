@@ -460,9 +460,9 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         for network in networks.values():
             network.eval()
 
-        dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
-        queries_loader = utils.data.DataLoader(queries, batch_size=1, num_workers=self.val_num_workers)
-
+        #dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
+        queries_loader = utils.data.DataLoader(queries, batch_size=1)#, num_workers=self.val_num_workers)
+        """
         logger.info('Computing reference model')
         model = None
         for batch in tqdm.tqdm(dataset_loader):
@@ -474,7 +474,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 model =  recc_acces(variables, ['model',])
             else:
                 model = self.build_model((model, recc_acces(variables, ['model',])))
-
+        """
         errors = {
             'position': list(),
             'orientation': list()
@@ -482,7 +482,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         logger.info('Computing position and orientation errors')
         for i, query in tqdm.tqdm(enumerate(queries_loader)):
             variables = {'batch': self.batch_to_device(query)}
-            variables['model'] = model
+            #variables['model'] = model
             for action in self.eval_forwards['queries']:
                 variables = self._sequential_forward(action, variables, networks)
 
@@ -492,9 +492,9 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             errors['orientation'].append(self.distance_between_q(pose['q'].cpu().detach().numpy()[0],
                                                                  query['pose']['orientation'].cpu().numpy()[0]))
             if verbose:
-                print('Query {} GT pose {}\nPosition err: {} / Orientation err: {}'.format(i, query['pose']['position'],
-                                                                                 errors['position'][-1],
-                                                                                 errors['orientation'][-1]))
+                print('Query {} Position err: {} / Orientation err: {}'.format(i,
+                                                                               errors['position'][-1],
+                                                                               errors['orientation'][-1]))
         return errors
 
     @staticmethod
