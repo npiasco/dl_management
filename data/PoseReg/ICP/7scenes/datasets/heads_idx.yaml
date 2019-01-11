@@ -1,0 +1,82 @@
+train:
+    class: datasets.SevenScene.Train
+    param_class:
+        root: 'heads/'
+        transform:
+            first:
+                - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}
+                - {class: 'datasets.multmodtf.RandomCrop', param_class: {size: 224}}
+            rgb:
+                - {class: 'datasets.multmodtf.ColorJitter', param_class: {brightness: 0.5, contrast: 0.5, saturation: 0.5, hue: 0.05}}
+                - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
+            depth:
+                - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
+                - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                - {class: 'datasets.multmodtf.DepthTransform', param_class:}
+test:
+    queries:
+        class: datasets.SevenScene.Test
+        param_class:
+            root: 'heads/'
+            light: true
+            transform:
+                first:
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}
+                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
+
+                rgb:
+                    - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4618, 0.4496, 0.4484], std: [0.2735, 0.2668, 0.2506]}}
+                depth:
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
+                    - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.DepthTransform', param_class:}
+    data:
+        class: datasets.SevenScene.Train
+        param_class:
+            pruning: 1.0
+            root: 'heads/'
+            transform:
+                first:
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}
+                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
+                rgb:
+                    - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4618, 0.4496, 0.4484], std: [0.2735, 0.2668, 0.2506]}}
+                depth:
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
+                    - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.DepthTransform', param_class:}
+
+val:
+    queries:
+        class: datasets.SevenScene.Val
+        param_class:
+            root: 'heads/'
+            transform:
+                first:
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}
+                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
+                rgb:
+                    - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
+                depth:
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
+                    - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.DepthTransform', param_class:}
+    data:
+        class: datasets.SevenScene.Test
+        param_class:
+            root: 'heads/'
+            transform:
+                first:
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}
+                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
+                rgb:
+                    - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
+                depth:
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 56}}
+                    - {class: 'datasets.multmodtf.ToTensor', param_class:}
+                    - {class: 'datasets.multmodtf.DepthTransform', param_class:}
