@@ -270,7 +270,7 @@ class MultNet(Default):
             color[2] = 255
         pc_utils.model_to_ply(map_args=map_args, file_name=file_name, color=color)
 
-    def map_print(self, final=False, mod='rgb', aux_mod='depth', batch_size=1):
+    def map_print(self, final=False, mod='rgb', aux_mod='depth', batch_size=1, shuffle=False):
         nets_to_test = self.trainer.networks
         if not final:
             nets_to_test = dict()
@@ -288,7 +288,7 @@ class MultNet(Default):
         mode = 'queries'
         self.data[dataset][mode].used_mod = [mod, aux_mod]
 
-        dtload = data.DataLoader(self.data[dataset][mode], batch_size=batch_size, shuffle=True)
+        dtload = data.DataLoader(self.data[dataset][mode], batch_size=batch_size, shuffle=shuffle)
         #dtload = data.DataLoader(self.data['train'], batch_size=batch_size, shuffle=True)
         ccmap = plt.get_cmap('jet', lut=1024)
 
@@ -359,12 +359,20 @@ class MultNet(Default):
         dataset = 'test'
         mode = 'queries'
 
+        dtload = data.DataLoader(self.data['test']['data'], batch_size=1, shuffle=False, num_workers=8)
+        variables = dict()
+        logger.info('Db feats computating...')
+        for b in tqdm.tqdm(dtload):
+            with torch.no_grad():
+                for action in self.trainer.eval_forwards['data']:
+                    variables['batch'] =  self.trainer.batch_to_device(b)
+                    variables = self.trainer._sequential_forward(action, variables, nets_to_test)
+
         dtload = data.DataLoader(self.data[dataset][mode], batch_size=1, shuffle=False)
 
         for b in dtload:
             with torch.no_grad():
-                b = self.trainer.batch_to_device(b)
-                variables = {'batch': b}
+                variables['batch'] = self.trainer.batch_to_device(b)
 
                 for action in self.trainer.eval_forwards['queries']:
                     variables = self.trainer._sequential_forward(action, variables, nets_to_test)
@@ -396,9 +404,9 @@ class MultNet(Default):
                 print(posenet_pose)
 
             print('Diff distance = {} m'.format(torch.norm(gt_pose[:3, 3] - output_pose[:3, 3]).item()))
-            gtq = trainers.minning_function.recc_acces(variables, ['batch', 'pose', 'orientation'])[0]
+            gtq = trainers.minning_function.recc_acces(variables, ['batch', 'pose', 'q'])[0]
             #q = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'q'])[0]
-            q = trainers.minning_function.recc_acces(variables, self.trainer.access_pose+ ['q'])[0]
+            q = trainers.minning_function.recc_acces(variables, self.trainer.access_pose + ['q'])[0]
             print('Diff orientation = {} deg'.format(2 * torch.acos(torch.abs(gtq.dot(q))) * 180 / 3.14159260))
             if 'posenet_pose' in variables.keys():
                 print('Diff distance = {} m (posenet)'.format(torch.norm(gt_pose[:3, 3] - posenet_pose[:3, 3]).item()))

@@ -4,6 +4,7 @@ import random as rd
 import torch.nn.functional as func
 import numpy as np
 import torch
+import sklearn.neighbors as skn
 
 
 logger = setlog.get_logger(__name__)
@@ -15,6 +16,48 @@ def recc_acces(var, names):
     else:
         sub_name = names[1:]
         return recc_acces(var[names[0]], sub_name)
+
+
+def get_nn_pose_from_desc(variable, **kwargs):
+    feat = kwargs.pop('feat', None)
+    db = kwargs.pop('db', None)
+    metric = kwargs.pop('metric', 'cosine')
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    feats = recc_acces(variable, feat)
+    db = recc_acces(variable, db)
+
+    if not hasattr(get_nn_pose_from_desc, 'nn_computor'):
+        logger.info('New nn indexing, fitting the db...')
+        get_nn_pose_from_desc.nn_computor = skn.NearestNeighbors(n_neighbors=1, metric=metric)
+        get_nn_pose_from_desc.nn_computor.fit(torch.stack(db['feat']).cpu().numpy())
+
+    idx = get_nn_pose_from_desc.nn_computor.kneighbors(feats.cpu().numpy(), return_distance=False)
+
+    return db['pose'][idx[0, 0]]
+
+
+def construct_feat_database(variable, **kwargs):
+    feat = kwargs.pop('feat', None)
+    pose = kwargs.pop('pose', None)
+    db = kwargs.pop('db', None)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    feats  = recc_acces(variable, feat)
+    pose = recc_acces(variable, pose)
+    try:
+        db = recc_acces(variable, db)
+    except KeyError:
+        db = {'feat': list(), 'pose': list()}
+
+    db['feat'].append(feats.squeeze(0))
+    db['pose'].append(pose)
+
+    return db
 
 
 def outliers_count(variable, **kwargs):

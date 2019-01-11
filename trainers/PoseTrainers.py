@@ -456,25 +456,20 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         return errors
 
     def _compute_errors(self, networks, queries, dataset):
-        verbose = True
+        verbose = False
         for network in networks.values():
             network.eval()
 
-        #dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
-        queries_loader = utils.data.DataLoader(queries, batch_size=1)#, num_workers=self.val_num_workers)
-        """
-        logger.info('Computing reference model')
-        model = None
-        for batch in tqdm.tqdm(dataset_loader):
-            variables = {'batch': self.batch_to_device(batch)}
-            for action in self.eval_forwards['data']:
-                variables = self._sequential_forward(action, variables, networks)
+        dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
+        queries_loader = utils.data.DataLoader(queries, batch_size=1, num_workers=self.val_num_workers)
 
-            if model is None:
-                model =  recc_acces(variables, ['model',])
-            else:
-                model = self.build_model((model, recc_acces(variables, ['model',])))
-        """
+        logger.info('Computing reference model')
+        data_variables = dict()
+        for batch in tqdm.tqdm(dataset_loader):
+            data_variables['batch'] = self.batch_to_device(batch)
+            for action in self.eval_forwards['data']:
+                data_variables = self._sequential_forward(action, data_variables, networks)
+
         errors = {
             'position': list(),
             'orientation': list()
@@ -482,15 +477,17 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         logger.info('Computing position and orientation errors')
         for i, query in tqdm.tqdm(enumerate(queries_loader)):
             variables = {'batch': self.batch_to_device(query)}
+            if 'db' in data_variables.keys():
+                variables['db'] = data_variables['db']
             #variables['model'] = model
             for action in self.eval_forwards['queries']:
                 variables = self._sequential_forward(action, variables, networks)
 
             pose = recc_acces(variables, self.access_pose)
             errors['position'].append(np.linalg.norm(pose['p'].cpu().detach().numpy() -
-                                                     query['pose']['position'].cpu().numpy()))
+                                                     query['pose']['p'].cpu().numpy()))
             errors['orientation'].append(self.distance_between_q(pose['q'].cpu().detach().numpy()[0],
-                                                                 query['pose']['orientation'].cpu().numpy()[0]))
+                                                                 query['pose']['q'].cpu().numpy()[0]))
             if verbose:
                 print('Query {} Position err: {} / Orientation err: {}'.format(i,
                                                                                errors['position'][-1],
