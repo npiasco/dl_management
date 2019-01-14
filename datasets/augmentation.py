@@ -167,15 +167,18 @@ if __name__ == '__main__':
                 tf.Normalize(mean=[0.4684, 0.4624, 0.4690], std=[0.2680, 0.2659, 0.2549])),
         'depth': (tf.Resize(56), tf.ToTensor(), tf.DepthTransform())
     }
-    root = os.environ['SEVENSCENES'] + 'heads/'
 
-    train_aug_dataset = SevenS.AugmentedTrain(root=root,
-                                              transform=aug_tf,
-                                              final_depth_size=256,
-                                              reduce_fact=1.85,
-                                              zoom_percentage=0.15)
+    for room in ['pumpkin/', 'chess/', 'red_kitchen/']:
+        print(room)
+        root = os.environ['SEVENSCENES'] + room
 
-    save_aug_dataset(train_aug_dataset, os.environ['SEVENSCENES'] + 'aug_heads/')
+        train_aug_dataset = SevenS.AugmentedTrain(root=root,
+                                                  transform=aug_tf,
+                                                  final_depth_size=256,
+                                                  reduce_fact=1.85,
+                                                  zoom_percentage=0.15)
+
+        save_aug_dataset(train_aug_dataset, os.environ['SEVENSCENES'] + 'aug_' + room, n_forwards=5)
 
     """
     train_dataset = SevenS.Train(root=root,
