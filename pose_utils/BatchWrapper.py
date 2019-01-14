@@ -167,6 +167,7 @@ def fast_icp(nets, variable, **kwargs):
                     desc_function=(nets[0] if len(nets)>1 else None),
                     match_function=(nets[1] if len(nets)>1 else nets[0]),
                     pose_function=RSCPose.ransac_pose_estimation,
+                          #pose_function=ICP.PoseFromMatching,
                     **param_icp)
 
     if inv_init_T:

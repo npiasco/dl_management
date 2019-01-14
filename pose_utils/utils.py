@@ -391,6 +391,7 @@ def get_local_map(**kwargs):
         cnn_desc_out = torch.cat(descs, 1)
     logger.debug('Final points before pruning cloud has {} points'.format(final_pc.size(1)))
     if not isinstance(output_size, bool):
+        torch.manual_seed(42)
         indexor = torch.randperm(final_pc.size(1))
         final_pc = final_pc[:, indexor]
         final_pc = final_pc[:, :output_size]

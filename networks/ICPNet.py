@@ -364,6 +364,7 @@ class MatchNet(nn.Module):
         self.bidirectional = kwargs.pop('bidirectional', False)
         self.n_neighbors = kwargs.pop('n_neighbors', 10)
         knn = kwargs.pop('knn', 'soft')
+        knn_metric = kwargs.pop('knn_metric', 'minkowski')
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -389,7 +390,11 @@ class MatchNet(nn.Module):
         elif knn == 'fast_soft_knn':
             self.knn = self.fast_soft_knn
             self.outlier_filter = False
-            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=self.n_neighbors)
+            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=self.n_neighbors, metric=knn_metric)
+        elif knn == 'desc_reweighting':
+            self.knn = self.desc_reweighting
+            self.outlier_filter = False
+            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=self.n_neighbors, metric=knn_metric)
         else:
             raise('Unknown knn type {}'.format(knn))
 
@@ -547,6 +552,28 @@ class MatchNet(nn.Module):
             self.fitted = False
 
         idx_nn_2 = self.nn_computor.kneighbors(d1_cpu, return_distance=False)
+
+        d_matrix = torch.sum((d1.unsqueeze(-1) - d2[:, idx_nn_2]) ** 2, 0)
+        d_matrix = self.softmax_1d(-self.fact * d_matrix)
+
+        pc_nearest = torch.sum(pc2[:, idx_nn_2] * d_matrix, -1)
+        return pc_nearest
+
+    def desc_reweighting(self, pc1, pc2, desc1, desc2):
+        p1 = pc1.view(pc1.size(0), -1)
+        p2 = pc2.view(pc2.size(0), -1)
+        d1 = desc1.view(desc1.size(0), -1)
+        d2 = desc2.view(desc2.size(0), -1)
+        if self.normalize_desc:
+            d1 = func_nn.normalize(d1, dim=0)
+            d2 = func_nn.normalize(d2, dim=0)
+        p1_cpu = p1.detach().t().cpu().numpy()
+
+        if not self.fitted:
+            self.fit(p2)
+            self.fitted = False
+
+        idx_nn_2 = self.nn_computor.kneighbors(p1_cpu, return_distance=False)
 
         d_matrix = torch.sum((d1.unsqueeze(-1) - d2[:, idx_nn_2]) ** 2, 0)
         d_matrix = self.softmax_1d(-self.fact * d_matrix)
