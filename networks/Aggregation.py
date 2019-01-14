@@ -170,10 +170,10 @@ class NetVLAD(nn.Module):
         Code from Antoine Miech
         @ https://github.com/antoine77340/Mixture-of-Embedding-Experts/blob/master/loupe.py
     """
-    def __init__(self, cluster_size, feature_size, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__()
-        self.feature_size = feature_size
-        self.cluster_size = cluster_size
+        self.feature_size = kwargs.pop('feature_size', None)
+        self.cluster_size = kwargs.pop('cluster_size', None)
         add_batch_norm = kwargs.pop('add_batch_norm', False)
         load = kwargs.pop('load', None)
         alpha = kwargs.pop('alpha', 50)
@@ -185,17 +185,17 @@ class NetVLAD(nn.Module):
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
         # Reweighting
-        self.clusters = nn.Parameter((1 / math.sqrt(feature_size))
-                                     * torch.randn(feature_size, cluster_size))
+        self.clusters = nn.Parameter((1 / math.sqrt(self.feature_size))
+                                     * torch.randn(self.feature_size, self.cluster_size))
 
         # Bias
         if self.add_bias:
-            self.bias = nn.Parameter((1 / math.sqrt(feature_size))
-                                     * torch.randn(cluster_size))
+            self.bias = nn.Parameter((1 / math.sqrt(self.feature_size))
+                                     * torch.randn(self.cluster_size))
 
         # Cluster
-        self.clusters2 = nn.Parameter((1 / math.sqrt(feature_size))
-                                      * torch.randn(1, feature_size, cluster_size))
+        self.clusters2 = nn.Parameter((1 / math.sqrt(self.feature_size))
+                                      * torch.randn(1, self.feature_size, self.cluster_size))
         if load is not None:
             clusters = torch.load(os.environ['CNN_WEIGHTS'] + load)
             if self.add_bias:
@@ -204,8 +204,8 @@ class NetVLAD(nn.Module):
             self.clusters.data = 2*alpha*clusters.squeeze()
             logger.info('Custom clusters {} have been loaded'.format(os.environ['CNN_WEIGHTS'] + load))
         self.add_batch_norm = add_batch_norm
-        self.batch_norm = nn.BatchNorm1d(cluster_size)
-        self.out_dim = cluster_size * feature_size
+        self.batch_norm = nn.BatchNorm1d(self.cluster_size)
+        self.out_dim = self.cluster_size * self.feature_size
         self.trace = trace
 
     def forward(self, x):
