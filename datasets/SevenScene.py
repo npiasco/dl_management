@@ -37,7 +37,7 @@ def matrix_2_quaternion(mat):
     '''
     quat = rot_to_quat(rot)
 
-    return {'position': pos, 'orientation': quat, 'T': mat}
+    return {'p': pos, 'q': quat, 'T': mat}
 
 
 class Base(utils.Dataset):
