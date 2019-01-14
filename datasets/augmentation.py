@@ -122,7 +122,7 @@ def remove_gap(depth_map, zero_ids):
                         break
 
                 is_curr_zero = zero_ids[id + search_idx]
-
+            id = min(id, min(depth_map.size(1) - 1 - search_idx, clear_depth_map.size(1) - 1))
             clear_depth_map[:, id] = depth_map[:, id + search_idx]
     depth_map = depth_map.view(ori_size)
     return clear_depth_map.view(ori_size)
