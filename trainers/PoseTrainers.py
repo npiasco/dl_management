@@ -456,7 +456,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         return errors
 
     def _compute_errors(self, networks, queries, dataset):
-        verbose = True
+        verbose = False
         for network in networks.values():
             network.eval()
 
