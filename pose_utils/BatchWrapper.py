@@ -182,7 +182,8 @@ def fast_icp(nets, variable, **kwargs):
 
     return {'T': ICP_out['T'],
             'q': utils.rot_to_quat(ICP_out['T'][0,:3,:3]).unsqueeze(0),
-            'p': ICP_out['T'][0, :3, 3].unsqueeze(0)}
+            'p': ICP_out['T'][0, :3, 3].unsqueeze(0),
+            'score': ICP_out['score']}
 
 
 def advanced_local_map_getter(nets, variable, **kwargs):

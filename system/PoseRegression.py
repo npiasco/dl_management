@@ -178,6 +178,100 @@ class MultNet(Default):
         self.data['test']['data'].used_mod = self.testing_mod
         BaseClass.Base.test(self)
 
+    def threshold_selection(self, final=False, n_values=200, beg=0.5, end=1.0, dataset='val', load=False):
+        if not load:
+            nets_to_test = self.trainer.networks
+            if not final:
+                nets_to_test = dict()
+                for name, network in self.trainer.networks.items():
+                    nets_to_test[name] = copy.deepcopy(network)
+                    try:
+                        nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
+                    except KeyError:
+                        logger.warning("Unable to load best weights for net {}".format(name))
+
+            for network in nets_to_test.values():
+                network.eval()
+
+            dtload = data.DataLoader(self.data[dataset]['data'], batch_size=1, shuffle=False, num_workers=8)
+            variables = dict()
+            logger.info('Db feats computating...')
+            for b in tqdm.tqdm(dtload):
+                with torch.no_grad():
+                    for action in self.trainer.eval_forwards['data']:
+                        variables['batch'] =  self.trainer.batch_to_device(b)
+                        variables = self.trainer._sequential_forward(action, variables, nets_to_test)
+
+            dtload = data.DataLoader(self.data[dataset]['queries'], batch_size=1, shuffle=False, num_workers=8)
+
+            scores = list()
+            pose_err = {'p': list(), 'q': list()}
+            refined_pose_err = {'p': list(), 'q': list()}
+
+            for b in tqdm.tqdm(dtload):
+                with torch.no_grad():
+                    variables['batch'] = self.trainer.batch_to_device(b)
+
+                    for action in self.trainer.eval_forwards['queries']:
+                        variables = self.trainer._sequential_forward(action, variables, nets_to_test)
+
+                    gt_pose = trainers.minning_function.recc_acces(variables, ['batch', 'pose'])
+                    pose = trainers.minning_function.recc_acces(variables, ['posenet_pose'])
+                    refined_pose = trainers.minning_function.recc_acces(variables, ['icp_pose'])
+                    scores.append(refined_pose['score'])
+                    pose_err['p'].append(torch.norm(gt_pose['p'].squeeze() - pose['p'].squeeze()).item())
+                    pose_err['q'].append(2*torch.acos(torch.abs(gt_pose['q'].squeeze().dot(pose['q'].squeeze())))*180/3.14159260)
+                    refined_pose_err['p'].append(torch.norm(gt_pose['p'].squeeze() - refined_pose['p'].squeeze()).item())
+                    refined_pose_err['q'].append(2 * torch.acos(torch.abs(gt_pose['q'].squeeze().dot(refined_pose['q'].squeeze()))) * 180 / 3.14159260)
+
+            torch.save(scores, 'th_score.pth')
+            torch.save(pose_err, 'th_pose.pth')
+            torch.save(refined_pose_err, 'th_refined.pth')
+        else:
+            scores = torch.load('th_score.pth')
+            pose_err = torch.load('th_pose.pth')
+            refined_pose_err = torch.load('th_refined.pth')
+
+        step = (end - beg)/n_values
+
+        step_list = [s*step for s in range(round(beg/step), round(end/step) + 1)]
+        tscores = torch.tensor(scores)
+        position_err = torch.tensor(pose_err['p'])*1e2 # cm
+        ref_position_err = torch.tensor(refined_pose_err['p'])*1e2 # cm
+        med_position_curve = [torch.median(
+            torch.cat([position_err[tscores < step_score], ref_position_err[tscores >= step_score]])).item()
+                          for step_score in step_list]
+        mean_position_curve = [torch.mean(
+            torch.cat([position_err[tscores < step_score], ref_position_err[tscores >= step_score]])).item()
+                          for step_score in step_list]
+
+
+        ori_err = torch.tensor(pose_err['q'])
+        ref_ori_err = torch.tensor(refined_pose_err['q'])
+        med_orientation_curve = [torch.median(
+            torch.cat([ori_err[tscores < step_score], ref_ori_err[tscores >= step_score]])).item()
+                          for step_score in step_list]
+        mean_orientation_curve = [torch.mean(
+            torch.cat([ori_err[tscores < step_score], ref_ori_err[tscores >= step_score]])).item()
+                          for step_score in step_list]
+
+
+        fig1 = plt.figure(1)
+        plt.plot(step_list, med_position_curve)
+        plt.plot(step_list, mean_position_curve)
+        plt.legend(['Med','Mean'])
+        plt.title('Position (m)')
+        fig2 = plt.figure(2)
+        plt.plot(step_list, med_orientation_curve)
+        plt.plot(step_list, mean_orientation_curve)
+        plt.title('Orientation (°)')
+        plt.legend(['Med', 'Mean'])
+        fig3 = plt.figure(3)
+        plt.plot(step_list, med_position_curve)
+        plt.plot(step_list, med_orientation_curve)
+
+        plt.show()
+
     def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256,
                        jobs=-1, mod='rgb', map_feat='conv7'):
         self.trainer.networks['Main'].train()
@@ -210,7 +304,6 @@ class MultNet(Default):
         torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_clusters.pth')
 
     def compute_mean_std(self, jobs=16, **kwargs):
-
         training = kwargs.pop('training', True)
         mod = kwargs.pop('mod', 'rgb')
         testing = kwargs.pop('testing', False)
@@ -444,7 +537,7 @@ class MultNet(Default):
             if 'posenet_pose' in variables.keys():
                 print('Diff distance = {} m (posenet)'.format(torch.norm(gt_pose[:3, 3] - posenet_pose[:3, 3]).item()))
                 posenetq = trainers.minning_function.recc_acces(variables, ['posenet_pose', 'q'])[0]
-                print('Diff orientation = {} deg (posenet)'.format(2*torch.acos(torch.abs(gtq.dot(posenetq)))*180/3.14159260) )
+                print('Diff orientation = {} deg (posenet)'.format(2*torch.acos(torch.abs(gtq.dot(posenetq)))*180/3.14159260))
             if 'noised_T' in variables.keys():
                 noise_pose = trainers.minning_function.recc_acces(variables, ['noised_T']).squeeze()
                 print('Noised pose:')
