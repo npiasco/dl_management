@@ -4,7 +4,6 @@ import sklearn.linear_model
 import sklearn.base
 
 
-
 logger = setlog.get_logger(__name__)
 
 
@@ -39,10 +38,17 @@ class PoseEstimator(sklearn.base.BaseEstimator):
 
     def score(self, X, y):
         y_est = self.predict(X)
+        '''
         u = np.sum(np.sum((y-y_est)**2, 1))
         v = np.sum(np.sum((y-np.mean(y, 0))**2, 1))
         return 1-u/v
-        #        return  np.mean( (np.sum((y-y_est)**2, 1)<self.threshold) )
+        '''
+        '''
+        u = np.sum((y - y_est) ** 2, 1)
+        v = np.sum((y - np.mean(y, 0)) ** 2, 1)
+        return np.average(1 - u / v, weights=v)
+        '''
+        return  1 - np.mean((np.sum((y-y_est)**2, 1)))
 
     def predict(self, X):
         return np.matmul(self.T, X.transpose(1,0)).transpose(1,0)
