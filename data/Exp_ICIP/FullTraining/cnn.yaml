@@ -27,7 +27,7 @@ Desc:
     param_class:
         norm: False
         norm_x2: False
-        norm_x1: Fasle
+        norm_x1: False
         main_ratio: 1.0
 
 FeatDesc:
