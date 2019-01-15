@@ -7,6 +7,7 @@ import torch.utils.data as data
 import torch
 import random
 import torchvision as tv
+import tqdm
 
 
 logger = setlog.get_logger(__name__)
@@ -122,8 +123,11 @@ def remove_gap(depth_map, zero_ids):
                         break
 
                 is_curr_zero = zero_ids[id + search_idx]
-            id = min(id, min(depth_map.size(1) - 1 - search_idx, clear_depth_map.size(1) - 1))
-            clear_depth_map[:, id] = depth_map[:, id + search_idx]
+            #id = min(id, min(depth_map.size(1) - 1 - search_idx, clear_depth_map.size(1) - 1))
+            try:
+                clear_depth_map[:, id] = depth_map[:, id + search_idx]
+            except IndexError:
+                pass
     depth_map = depth_map.view(ori_size)
     return clear_depth_map.view(ori_size)
 
@@ -139,7 +143,7 @@ def save_aug_dataset(dataset, folder, n_forwards=10):
             os.mkdir(folder + 'seq-0{}'.format(n_forward))
         except:
             print('{} exist'.format(folder + 'seq-0{}'.format(n_forward)))
-        for i, b in enumerate(dataloader):
+        for i, b in tqdm.tqdm(enumerate(dataloader)):
             file_base_name = 'seq-0{}/frame-{}'.format(n_forward, i)
             im = tv.transforms.functional.to_pil_image(b['rgb'].squeeze(0))
             im.save(folder + file_base_name + ".color.png", "PNG")
