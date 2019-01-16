@@ -67,6 +67,9 @@ class RMAC(nn.Module):
 
         return x
 
+    def get_training_layers(self, layers_to_train=None):
+        return []
+
 
 class RMean(nn.Module):
     def __init__(self, **kwargs):
@@ -254,3 +257,6 @@ class NetVLAD(nn.Module):
         vlad = func.normalize(vlad)
 
         return vlad
+
+    def get_training_layers(self, layers_to_train=None):
+        return []
