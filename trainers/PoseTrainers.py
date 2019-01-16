@@ -429,7 +429,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             return results
 
     def _compute_rerror(self, networks, queries, dataset):
-        dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
+        #dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
         queries_loader = utils.data.DataLoader(queries, batch_size=1, num_workers=self.val_num_workers)
 
         for network in networks.values():
@@ -438,7 +438,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         errors = list()
         # Forward pass
         logger.info('Computing dataset/queries reconstruction error')
-        for dataloader in (dataset_loader, queries_loader):
+        for dataloader in (queries_loader, ):
             for batch in tqdm.tqdm(dataloader):
                 variables = {'batch': self.batch_to_device(batch)}
                 for action in self.eval_forwards['queries']:
