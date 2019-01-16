@@ -126,6 +126,8 @@ class MultiDataset(utils.Dataset):
                               for folder in folders]
         elif type == 'val':
             self.datasets = [Val(root=root + folder, transform=transform,  **general_options) for folder in folders]
+        elif type == 'test':
+            self.datasets = [Test(root=root + folder, transform=transform,  **general_options) for folder in folders]
         else:
             raise AttributeError('No implementation for type {}'.format(type))
 
