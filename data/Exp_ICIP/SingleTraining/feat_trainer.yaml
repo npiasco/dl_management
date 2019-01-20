@@ -1,6 +1,6 @@
 class: 'trainers.PoseTrainers.MultNetTrainer'
 param_class:
-        # cuda_on: False
+        #cuda_on: False
     val_num_workers: 8
     optimizers_params:
         posenet_trainer:
