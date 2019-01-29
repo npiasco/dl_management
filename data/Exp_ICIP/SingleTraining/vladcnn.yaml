@@ -40,3 +40,9 @@ FeatDesc:
         trace: False
         feat_norm: True
         bias: True
+
+init_weights:
+    Main:
+        feature: 'Main_feature.pth'       
+    Deconv:
+        feature: 'Deconv_feature.pth'
