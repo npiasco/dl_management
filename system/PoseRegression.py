@@ -228,9 +228,9 @@ class MultNet(Default):
             torch.save(pose_err, 'th_pose.pth')
             torch.save(refined_pose_err, 'th_refined.pth')
         else:
-            scores = torch.load('th_score.pth')
-            pose_err = torch.load('th_pose.pth')
-            refined_pose_err = torch.load('th_refined.pth')
+            scores = torch.load('th_score.pth', map_location='cpu')
+            pose_err = torch.load('th_pose.pth', map_location='cpu')
+            refined_pose_err = torch.load('th_refined.pth', map_location='cpu')
 
         step = (end - beg)/n_values
 
