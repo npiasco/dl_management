@@ -27,7 +27,7 @@ Desc:
     param_class:
         norm: False
         norm_x2: False
-        norm_x1: False
+        norm_x1: True
         main_ratio: 1.0
 
 FeatDesc:
@@ -35,7 +35,7 @@ FeatDesc:
     param_class:
         feature_size: 256
         cluster_size: 64
-        load: 'kmean_64_clusters.pth'
+        load: '../../FullDepth/kmean_64_clusters.pth'
         alpha: 100
         trace: False
         feat_norm: True
@@ -43,6 +43,6 @@ FeatDesc:
 
 init_weights:
     Main:
-        feature: '../../../PoseReg/ICP/7Scenes/DepthFull224/Main_feature.pth'
+        feature: '../../FullDepth/Main_feature.pth'
     Deconv:
-        feature: '../../../PoseReg/ICP/7Scenes/DepthFull224/Deconv_feature.pth'
+        feature: '../../FullDepth/Deconv_feature.pth'
