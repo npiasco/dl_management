@@ -391,6 +391,11 @@ class MatchNet(nn.Module):
             self.knn = self.fast_soft_knn
             self.outlier_filter = False
             self.nn_computor = neighbors.NearestNeighbors(n_neighbors=self.n_neighbors, metric=knn_metric)
+        elif knn == 'bidirectional':
+            self.hard = True
+            self.knn = self.bidirectional_matching
+            self.outlier_filter = False
+            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=1, metric=knn_metric)
         elif knn == 'desc_reweighting':
             self.knn = self.desc_reweighting
             self.outlier_filter = False
@@ -539,6 +544,29 @@ class MatchNet(nn.Module):
 
         return pc_nearest, indexor
 
+
+    def bidirectional_matching(self, pc1, pc2, desc1, desc2):
+        d1 = desc1.view(desc1.size(0), -1)
+        d2 = desc2.view(desc2.size(0), -1)
+        if self.normalize_desc:
+            d1 = func_nn.normalize(d1, dim=0)
+            d2 = func_nn.normalize(d2, dim=0)
+        d1_cpu = d1.detach().t().cpu().numpy()
+
+        if not self.fitted:
+            self.fit(desc2)
+            self.fitted = False
+
+        idx_nn_2 = self.nn_computor.kneighbors(d1_cpu, return_distance=False)[:, 0]
+
+        bi_nn_computor = neighbors.NearestNeighbors(n_neighbors=1, metric='minkowski')
+        bi_nn_computor.fit(d1_cpu)
+        idx_nn_1 = bi_nn_computor.kneighbors(d2.detach().t().cpu().numpy(), return_distance=False)[:, 0]
+
+        pc_nearest = pc2.clone().detach()[:, idx_nn_2]
+        return pc_nearest, pc1.new_tensor((np.arange(idx_nn_2.shape[0]) == idx_nn_1[idx_nn_2]).astype(int))
+
+
     def fast_soft_knn(self, pc1, pc2, desc1, desc2):
         d1 = desc1.view(desc1.size(0), -1)
         d2 = desc2.view(desc2.size(0), -1)
@@ -636,7 +664,10 @@ class MatchNet(nn.Module):
             if self.outlier_filter:
                 indexor[i] = self.soft_outlier_rejection(pc, pc_nearest[i])
 
-        return {'nn': pc_nearest, 'inliers': indexor.int()}
+        if self.hard or self.outlier_filter:
+            return {'nn': pc_nearest, 'inliers': indexor.int()}
+        else:
+            return {'nn': pc_nearest,}
 
 
 def normalize_rotmat(R):
