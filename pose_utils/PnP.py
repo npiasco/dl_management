@@ -10,6 +10,8 @@ from mpl_toolkits.mplot3d import Axes3D
 import networks.ICPNet as ICPNet
 import pose_utils.RANSACPose as RSCPose
 import pyopengv
+import io
+import contextlib
 
 logger = setlog.get_logger(__name__)
 
@@ -24,22 +26,26 @@ def reproject_back(pc, K):
     return keypoints
 
 
-def keypoints_to_bearing(keypoints, K):
+def keypoints_to_bearing(keypoints, K, norm=True):
     bearing_vectors = keypoints.new_zeros(3, keypoints.size(1))
-    bearing_vectors[:2, :] =  -keypoints.new_tensor(K[:1, 2]) + keypoints
+    bearing_vectors[:2, :] =  (-keypoints.new_tensor(K[:2, 2]) + keypoints.t()).t()
     #bearing_vectors[:2, :] = keypoints - keypoints.new_tensor(K[:1, 2])
     bearing_vectors[2, :] = K[0, 0]
-    bearing_vectors = torch.nn.functional.normalize(bearing_vectors, dim=0)
+    if norm:
+        bearing_vectors = torch.nn.functional.normalize(bearing_vectors, dim=0)
     return bearing_vectors
 
 
-def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, **kwargs):
+def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K, **kwargs):
     verbose = kwargs.pop('verbose', False)
     match_function = kwargs.pop('match_function',  None)
-    pose_function = kwargs.pop('pose_function', None)
     desc_function = kwargs.pop('desc_function', None)
     fit_pc = kwargs.pop('fit_pc', False)
-    K = kwargs.pop('K', None)
+    pnp_algo = kwargs.pop('pnp_algo', 'epnp')
+    '''
+        Algo are: KNEIP - GAO - EPNP - TWOPT - GP3P
+    '''
+
 
     timing = False
     if timing:
@@ -76,16 +82,29 @@ def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, **kwargs):
 
     res_match = match_function(pc_rec, pc_ref, desc_ta, desc_ref)
 
-    keypoints = reproject_back(pc_to_align, K)
+    keypoints = reproject_back(pc_to_align, K.squeeze())
 
-    bearing_vector = keypoints_to_bearing(keypoints, K)
+    bearing_vector = keypoints_to_bearing(keypoints, K.squeeze())
 
     non_nan_idx, _ = torch.min(bearing_vector == bearing_vector, dim=0)
     bearing_vector = bearing_vector[:, non_nan_idx]
     corr3d_pt = res_match['nn'][0, :3, non_nan_idx]
 
-    #new_T = pose_function(pc_rec.squeeze(), res_match['nn'].squeeze())
-    T = pyopengv.absolute_pose_ransac(bearing_vector.t().numpy(), corr3d_pt.t().numpy(), algo_name='p3p_kneip', threshold=0.00002)
+    fio = io.StringIO()
+
+    #with ostream_redirect(stdout=True, stderr=True):
+
+       # help(pow)
+    """
+    print('Interpected:')
+    s = fio.getvalue()
+    print(s)
+    """
+    T = pyopengv.absolute_pose_ransac(bearing_vector.t().cpu().numpy(), corr3d_pt.t().cpu().numpy(),
+                                      algo_name=pnp_algo, threshold=0.0002, iterations=10000)
+    #T = pyopengv.absolute_pose_epnp(bearing_vector.t().cpu().numpy(), corr3d_pt.t().cpu().numpy())
+    if pc_to_align.device == 'gpu':
+        T = T.cuda()
 
     if timing:
         print('Iteration on {}s'.format(time.time()-t))
@@ -111,12 +130,11 @@ def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, **kwargs):
     if timing:
         print('ICP converge on {}s'.format(time.time() - t_beg))
 
-    finatl_T = pc_ref.new_zeros(4, 4)
-    finatl_T[3, 3] = 1.0
-    finatl_T[:3, :] = pc_ref.new_tensor(T)
-    print(T)
-    return {'T': finatl_T}
+    final_T = pc_ref.new_zeros(4, 4)
+    final_T[3, 3] = 1.0
+    final_T[:3, :] = pc_ref.new_tensor(T)
 
+    return {'T': final_T.unsqueeze(0)}
 
 if __name__ == '__main__':
     ids = ['frame-000100','frame-000150', 'frame-000150']
@@ -172,12 +190,12 @@ if __name__ == '__main__':
 
     rd_trans = torch.eye(4,4)
     #rd_trans[:,3] = torch.FloatTensor([0.5, -1, 1])
-    rd_trans[:3, :3] = utils.rotation_matrix(torch.Tensor([1, 0, 0]), torch.Tensor([1]))
-    rd_trans[:3, :] = poses[1][:3,:]
+    rd_trans[:3, :3] = utils.rotation_matrix(torch.Tensor([1, 0, 0]), torch.Tensor([0.1]))
+    #rd_trans[:3, :] = poses[1][:3,:]
     pc_ref = torch.cat((pcs[0], pcs[2]), 1)
 
-    #pc_to_align = rd_trans.matmul(pcs[1])
-    pc_to_align = poses[1].inverse().matmul(pcs[1])
+    pc_to_align = rd_trans.matmul(pcs[1])
+    #pc_to_align = poses[1].inverse().matmul(pcs[1])
 
     print('Loading finished')
 
@@ -196,16 +214,16 @@ if __name__ == '__main__':
         'knn': 'fast_soft_knn',
         #'knn': 'hard_cpu',
         #'bidirectional': True,
-        'n_neighbors': 15
+        'n_neighbors': 1
     }
+
     #T = PnP(pc_to_align.unsqueeze(0), pc_ref.unsqueeze(0), pc_to_align.unsqueeze(0), pc_ref.unsqueeze(0),
     T=PnP(pc_to_align.unsqueeze(0), pcs[1].unsqueeze(0), pc_to_align.unsqueeze(0), pcs[1].unsqueeze(0),
-                poses[1].unsqueeze(0), verbose=True,
+                torch.eye(4), verbose=True,
                 match_function=ICPNet.MatchNet(**match_net_param),
                 #pose_function=PoseFromMatching,
-                pose_function=RSCPose.ransac_pose_estimation,
                 desc_function=None,
-                K=K)['T']
+                K=K, pnp_algo='epnp')['T'][0]
 
     pc_aligned = T.inverse().matmul(pc_to_align)
     #pc_aligned = T.matmul(pc_to_align)
@@ -227,8 +245,8 @@ if __name__ == '__main__':
 
     utils.plt_pc(pcs[1], ax, pas, 'b', size=50)
     utils.plt_pc(pc_ref, ax, pas, 'c', size=50)
-    print(T)
+    print(T.inverse())
     print(poses[1])
-    print(torch.matmul(T.inverse(), poses[1]))
+    print(torch.matmul(T, poses[1]))
 
     plt.show()

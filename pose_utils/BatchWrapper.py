@@ -1,4 +1,5 @@
 import pose_utils.ICP as ICP
+import pose_utils.PnP as PnP
 import torch
 import torch.nn.functional as nn_func
 import pose_utils.utils as utils
@@ -9,6 +10,45 @@ import pose_utils.RANSACPose as RSCPose
 
 
 logger = setlog.get_logger(__name__)
+
+
+def pnp(nets, variable, **kwargs):
+    pc_to_align = kwargs.pop('pc_to_align', None)
+    pc_ref = kwargs.pop('pc_ref', None)
+    desc_to_align = kwargs.pop('desc_to_align', None)
+    desc_ref = kwargs.pop('desc_ref', None)
+    K = kwargs.pop('K', None)
+    init_T = kwargs.pop('init_T', None)
+    inv_init_T = kwargs.pop('inv_init_T', None)
+    param_pnp = kwargs.pop('param_pnp', dict())
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    pc_to_align = recc_acces(variable, pc_to_align)
+    pc_ref = recc_acces(variable, pc_ref)
+    desc_to_align = recc_acces(variable, desc_to_align)
+    desc_ref = recc_acces(variable, desc_ref)
+    init_T = recc_acces(variable, init_T)
+    K = recc_acces(variable, K)
+
+    if init_T.size(0) != 1:
+        raise NotImplementedError('No implementation of batched ICP')
+    if inv_init_T:
+        init_T = init_T[0, :].inverse().unsqueeze(0)
+
+    PnP_out = PnP.PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K,
+                    desc_function=(nets[0] if len(nets)>1 else None),
+                    match_function=(nets[1] if len(nets)>1 else nets[0]),
+                    **param_pnp)
+
+    if inv_init_T:
+        PnP_out['T'] = PnP_out['T'][0, :].inverse().unsqueeze(0)
+
+    return {'T': PnP_out['T'],
+            'q': utils.rot_to_quat(PnP_out['T'][0,:3,:3]).unsqueeze(0),
+            'p': PnP_out['T'][0, :3, 3].unsqueeze(0)
+            }
 
 
 def global_point_net_forward(pointnet, variables, **kwargs):
@@ -67,7 +107,8 @@ def corrected_depth_map_getter(variable, **kwargs):
 
     final_maps = poor_pc.new_zeros(b, 1, size_depth_map, size_depth_map)
 
-    for i, pc in enumerate(poor_pc):
+    for i, pc in enumerate(poor_pc)\
+            :
         if inliers is not None:
             inlier = inliers[i]
         else:
