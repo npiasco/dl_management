@@ -563,7 +563,7 @@ class MatchNet(nn.Module):
         bi_nn_computor.fit(d1_cpu)
         idx_nn_1 = bi_nn_computor.kneighbors(d2.detach().t().cpu().numpy(), return_distance=False)[:, 0]
 
-        pc_nearest = pc1.clone().detach()
+        pc_nearest = pc2.clone().detach()[:, idx_nn_2]
         pc_nearest[:, np.arange(idx_nn_2.shape[0])[np.arange(idx_nn_2.shape[0]) == idx_nn_1[idx_nn_2]]] = \
             pc2[:, idx_nn_2[(np.arange(idx_nn_2.shape[0]) == idx_nn_1[idx_nn_2])]]
 
