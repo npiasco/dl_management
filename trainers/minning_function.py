@@ -54,7 +54,8 @@ def construct_feat_database(variable, **kwargs):
     except KeyError:
         db = {'feat': list(), 'pose': list()}
 
-    db['feat'].append(feats.squeeze(0))
+    db['feat'].append(feats.squeeze(0).cpu())
+    #TODO: pose on cpu as well (but problem with dico)
     db['pose'].append(pose)
 
     return db
