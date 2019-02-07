@@ -28,7 +28,7 @@ def reproject_back(pc, K):
 
 def keypoints_to_bearing(keypoints, K, norm=True):
     bearing_vectors = keypoints.new_zeros(3, keypoints.size(1))
-    bearing_vectors[:2, :] =  (-keypoints.new_tensor(K[:2, 2]) + keypoints.t()).t()
+    bearing_vectors[:2, :] =  (-K[:2, 2].clone().detach() + keypoints.t()).t()
     #bearing_vectors[:2, :] = keypoints - keypoints.new_tensor(K[:1, 2])
     bearing_vectors[2, :] = K[0, 0]
     if norm:
