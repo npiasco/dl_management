@@ -42,6 +42,7 @@ def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K, **kwargs):
     desc_function = kwargs.pop('desc_function', None)
     fit_pc = kwargs.pop('fit_pc', False)
     pnp_algo = kwargs.pop('pnp_algo', 'epnp')
+    inliers_threshold = kwargs.pop('inliers_threshold', 0.1)
     '''
         Algo are: KNEIP - GAO - EPNP - TWOPT - GP3P
     '''
@@ -85,8 +86,8 @@ def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K, **kwargs):
         pc_to_align = pc_to_align[0, :, res_match['inliers'][0].byte()].unsqueeze(0)
         res_match['nn'] =  res_match['nn'][0, :, res_match['inliers'][0].byte()].unsqueeze(0)
 
-        if pc_to_align.size(2) == 0:
-            logger.warning("0 inliers founded, retuturning intial pose")
+        if pc_to_align.size(2) < 4:
+            logger.warning("Less than 4 inliers founded, retuturning intial pose")
             return {'T': init_T}
 
     keypoints = reproject_back(pc_to_align, K.squeeze())
@@ -97,18 +98,11 @@ def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K, **kwargs):
     bearing_vector = bearing_vector[:, non_nan_idx]
     corr3d_pt = res_match['nn'][0, :3, non_nan_idx]
 
-    fio = io.StringIO()
-
-    #with ostream_redirect(stdout=True, stderr=True):
-
-       # help(pow)
-    """
-    print('Interpected:')
-    s = fio.getvalue()
-    print(s)
-    """
     T = pyopengv.absolute_pose_ransac(bearing_vector.t().cpu().numpy(), corr3d_pt.t().cpu().numpy(),
-                                      algo_name=pnp_algo, threshold=0.0002, iterations=1000)
+                                  algo_name=pnp_algo, threshold=0.0002, iterations=1000)
+
+    with open("ransac_inliers.txt", 'r') as f:
+        inliers = int(f.read())
                                       #algo_name = pnp_algo, threshold = 0.0002, iterations = 1000)
     #T = pyopengv.absolute_pose_epnp(bearing_vector.t().cpu().numpy(), corr3d_pt.t().cpu().numpy())
     if pc_to_align.device == 'gpu':
@@ -136,7 +130,12 @@ def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K, **kwargs):
     match_function.unfit()
 
     if timing:
-        print('ICP converge on {}s'.format(time.time() - t_beg))
+        print('Pnp converge on {}s'.format(time.time() - t_beg))
+
+    inliers_ratio = inliers / pc_to_align.size(2)
+    if inliers_ratio < inliers_threshold:
+        logger.debug('Not enought inliers (ratio: {})'.format(inliers_ratio))
+        return {'T': init_T}
 
     final_T = pc_ref.new_zeros(4, 4)
     final_T[3, 3] = 1.0
