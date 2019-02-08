@@ -133,13 +133,16 @@ def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K, **kwargs):
         print('Pnp converge on {}s'.format(time.time() - t_beg))
 
     inliers_ratio = inliers / pc_to_align.size(2)
-    if inliers_ratio < inliers_threshold:
-        logger.debug('Not enought inliers (ratio: {})'.format(inliers_ratio))
-        return {'T': init_T}
 
     final_T = pc_ref.new_zeros(4, 4)
     final_T[3, 3] = 1.0
     final_T[:3, :] = pc_ref.new_tensor(T)
+
+    if inliers_ratio < inliers_threshold:
+        T_diff = torch.norm(init_T[0] - final_T)
+        logger.debug('Not enought inliers (ratio: {})'.format(inliers_ratio))
+        logger.debug('Diff in pose is {})'.format(T_diff.item()))
+        return {'T': init_T}
 
     return {'T': final_T.unsqueeze(0)}
 
