@@ -8,7 +8,8 @@ import PIL.Image
 def image_warp(img, depth, K, T, padding_mode='zeros'):
     # img: the source image (where to sample pixels) -- [B, 3, H, W]
     # depth: depth map of the target image -- [B, 1, H, W]
-    # Returns: Source image warped to the target image
+    # K: intrinsec
+    # T: pose from source to target (T_{s->t})
 
     b, _, h, w = depth.size()
     #coord = [[[i/w - 0.5, j/h - 0.5, 1] for j in range(h)] for i in range(w)]
