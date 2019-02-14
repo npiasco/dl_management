@@ -5,7 +5,7 @@ import torchvision.transforms.functional as func
 import PIL.Image
 
 
-def image_warp(img, depth, K, T, padding_mode='zeros'):
+def image_warp(img, depth, Ks, Kt, T, padding_mode='zeros'):
     # img: the source image (where to sample pixels) -- [B, 3, H, W]
     # depth: depth map of the target image -- [B, 1, H, W]
     # K: intrinsec
@@ -13,19 +13,17 @@ def image_warp(img, depth, K, T, padding_mode='zeros'):
 
     b, _, h, w = depth.size()
     #coord = [[[i/w - 0.5, j/h - 0.5, 1] for j in range(h)] for i in range(w)]
-    coord = [[[i, j , 1] for j in range(h)] for i in range(w)]
-    coord = (depth.new_tensor(coord).transpose(0, 2).contiguous()).view(b, 3, -1)
-    invK = torch.stack([k.inverse() for k in K])
+    coord = [[[[i, j , 1] for j in range(h)] for i in range(w)] for _ in range(b)]
+    coord = (depth.new_tensor(coord).transpose(1, 3).contiguous()).view(b, 3, -1)
+    invK = torch.stack([k.inverse() for k in Kt])
 
-    corr_coord = K.matmul(T[:, :3, :3].matmul(depth.view(b, -1) * invK.matmul(coord)) + T[:, :3, 3].unsqueeze(-1)).view(b, 3, h, w)
-    corr_coord[:, :2, :, :] /= corr_coord[:, 2, :, :]
-    corr_coord[:, 0, :, :] -= w/2
-    corr_coord[:, 0, :, :] /= w/2
-    corr_coord[:, 1, :, :] -= h/2
-    corr_coord[:, 1, :, :] /= h/2
+    corr_coord = Ks.matmul(T[:, :3, :3].matmul(depth.view(b, 1, -1) * invK.matmul(coord)) + T[:, :3, 3].unsqueeze(-1)).view(b, 3, h, w)
+    offset = depth.new_tensor([w/2, h/2]).unsqueeze(-1).unsqueeze(-1)
+    corr_coord = corr_coord[:, :2, :, :] / corr_coord[:, 2, :, :].unsqueeze(1)
+    corr_coord =(corr_coord - offset)/offset
     corr_coord = corr_coord.transpose(1, 3).transpose(1, 2)
 
-    projected_img = torch.nn.functional.grid_sample(img, corr_coord[:, :, :, :2], padding_mode=padding_mode)
+    projected_img = torch.nn.functional.grid_sample(img, corr_coord, padding_mode=padding_mode)
 
     return projected_img
 
@@ -83,7 +81,7 @@ if __name__=='__main__':
     plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
     plt.colorbar()
 
-    img_wrapped = image_warp(ims[1], depths[0], K.unsqueeze(0), (poses[1].inverse().matmul(poses[0])).unsqueeze(0))
+    img_wrapped = image_warp(ims[1], depths[0], K.unsqueeze(0),  K.unsqueeze(0), (poses[1].inverse().matmul(poses[0])).unsqueeze(0))
     #img_wrapped = image_warp(ims[1], depths[0].new_ones(depths[0].size()), K, torch.eye(4,4), padding_mode='zeros')
     fig = plt.figure(2)
 
