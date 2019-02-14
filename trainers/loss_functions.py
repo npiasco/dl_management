@@ -260,11 +260,20 @@ def l1_modal_loss(predicted_maps, gt_maps, **kwargs):
         gt_w_grad = gt_maps
 
     if no_zeros:
-        gt_w_grad = gt_w_grad.view(1, -1).transpose(0, 1)
-        predicted = predicted.view(1, -1).transpose(0, 1)
-        non_zeros_idx = gt_w_grad.nonzero()
-        gt = gt_w_grad[non_zeros_idx][:, 0]
-        predicted = predicted[non_zeros_idx][:, 0]
+        if predicted_maps.size(1) > 1:
+            zeros_idx = torch.max(predicted_maps == predicted_maps.new_zeros(predicted_maps.size()), dim=1)[0].byte()
+            zero_mask = predicted_maps.new_ones(predicted_maps.size())
+
+            if torch.sum(zeros_idx ).item() != 0:
+                zero_mask.transpose(1, 3).transpose(1,2)[zeros_idx ] = predicted_maps.new_zeros(3)
+
+            gt = gt_maps*zero_mask
+        else:
+            gt_w_grad = gt_w_grad.view(1, -1).transpose(0, 1)
+            predicted = predicted.view(1, -1).transpose(0, 1)
+            non_zeros_idx = gt_w_grad.nonzero()
+            gt = gt_w_grad[non_zeros_idx][:, 0]
+            predicted = predicted[non_zeros_idx][:, 0]
     else:
         gt = gt_w_grad
 
@@ -274,6 +283,8 @@ def l1_modal_loss(predicted_maps, gt_maps, **kwargs):
         loss = factor * func.l1_loss(predicted, gt)
     elif p == 2:
         loss = factor * func.mse_loss(predicted, gt)
+    elif p == 'sum':
+        loss = factor * torch.sum(torch.abs(predicted - gt))
     else:
         raise AttributeError('No behaviour for p = {}'.format(p))
 
