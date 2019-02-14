@@ -7,9 +7,40 @@ from trainers.minning_function import recc_acces
 import numpy as np
 import setlog
 import pose_utils.RANSACPose as RSCPose
+import trainers.bilinear_sampler as bsm
 
 
 logger = setlog.get_logger(__name__)
+
+
+def bilinear_wrapping(variables, **kwargs):
+    img_source = kwargs.pop('img_source', None)
+    depth_map = kwargs.pop('depth_map', None)
+    Ks = kwargs.pop('Ks', None)
+    Kt = kwargs.pop('Kt', None)
+    T_s = kwargs.pop('T_s', None)
+    T_t = kwargs.pop('T_t', None)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    img_source = recc_acces(variables, img_source)
+    target_depth_map = recc_acces(variables, depth_map)
+    Ks = recc_acces(variables, Ks)
+    Kt = recc_acces(variables, Kt)
+    T_s = recc_acces(variables, T_s)
+    T_t = recc_acces(variables, T_t)
+
+    T = torch.stack([t_s.inverse().matmul(T_t[i]) for i, t_s in enumerate(T_s)])
+
+    _, _, h, w = target_depth_map.size()
+    if h != img_source.size(2) or w != img_source.size(3):
+        img_source_resized = nn_func.interpolate(img_source, size=(h, w), mode='nearest')
+        wrapped_im = bsm.image_warp(img_source_resized, target_depth_map , Ks, Kt, T)
+    else:
+        wrapped_im = bsm.image_warp(img_source, target_depth_map, Ks, Kt, T)
+
+    return wrapped_im
 
 
 def pnp(nets, variable, **kwargs):
