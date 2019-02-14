@@ -191,6 +191,7 @@ class TrainSequence(Train):
         self.num_samples = kwargs.pop('num_samples', 2)
         self.spacing = kwargs.pop('spacing', 20)
         self.random = kwargs.pop('random', True)
+        load_fast = kwargs.pop('load_fast', True)
 
         Train.__init__(self, **kwargs)
 
@@ -207,12 +208,24 @@ class TrainSequence(Train):
                             pass
             self.poses.append(pose)
 
-    def __getitem__(self, idx):
-        T = self.poses[idx]
-        InvnpT = np.linalg.inv(T)
+        logger.info('Relative pose computation')
         eye_mat = np.eye(4, 4)
-        d_poses = [np.linalg.norm(eye_mat - np.matmul(pose, InvnpT)) for pose in self.poses]
-        nearest_idx = np.argsort(d_poses)
+        if not load_fast:
+            self.r_poses = [np.argsort([np.linalg.norm(eye_mat - np.matmul(pose, np.linalg.inv(InvnpT)))
+                                        for pose in self.poses])
+                            for InvnpT in self.poses]
+
+    def __getitem__(self, idx):
+
+        if not hasattr(self, 'r_poses'):
+            T = self.poses[idx]
+            InvnpT = np.linalg.inv(T)
+            eye_mat = np.eye(4, 4)
+            d_poses = [np.linalg.norm(eye_mat - np.matmul(pose, InvnpT)) for pose in self.poses]
+            nearest_idx = np.argsort(d_poses)
+        else:
+            nearest_idx = copy.deepcopy(self.r_poses[idx])
+
         if self.random:
             nearest_idx = nearest_idx[1:(self.num_samples * self.spacing)]
             indexor = torch.randperm(self.num_samples * self.spacing-1).numpy()
@@ -349,20 +362,20 @@ if __name__ == '__main__':
     print(len(test_dataset))
     print(len(val_dataset))
     '''
-    train_seq_dataset = Train(root=root,
-                              transform=test_tf,
-                              )
+    train_seq_dataset = TrainSequence(root=root, transform=test_tf,
+                                      num_samples=2, spacing=10, random=True)
     val_seq_dataset = Val(root=root,
                               transform=test_tf,
                               )
 
     mult_train_seq_dataset = MultiDataset(type='val', root=os.environ['SEVENSCENES'],
-                                          folders=['chess/', 'heads/'], transform=test_tf,
+                                          folders=['fire/', 'heads/'], transform=test_tf,
                                           general_options={'used_mod': ('rgb',)})
 
     mult_train_seq_dataset.used_mod = ('depth',)
+
     #dataloader = data.DataLoader(mult_train_seq_dataset, batch_size=16, shuffle=False, num_workers=8)
-    dataloader = data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8)
+    dataloader = data.DataLoader(train_seq_dataset, batch_size=1, shuffle=False, num_workers=0)
     '''
     dataloader_wo_tf = data.DataLoader(train_dataset_wo_tf, batch_size=8, shuffle=False, num_workers=2)
     plt.figure(1)
@@ -382,10 +395,12 @@ if __name__ == '__main__':
     for i, b in enumerate(dataloader):
         #show_seq_batch(b)
         fig.clear()
-        show_batch(b)
-        plt.pause(0.2)
+        show_seq_batch(b)
+        plt.pause(0.75)
+        '''
         fig.clear()
         show_batch_mono(b)
         print(i)
         plt.pause(0.2)
+        '''
         del b
