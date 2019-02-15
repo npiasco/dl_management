@@ -230,7 +230,7 @@ class TrainSequence(Train):
             nearest_idx = nearest_idx[1:(self.num_samples * self.spacing)]
             indexor = torch.randperm(self.num_samples * self.spacing-1).numpy()
             nearest_idx = nearest_idx[indexor]
-            nearest_idx.put(0, idx)
+            nearest_idx = np.concatenate([[idx], nearest_idx])
 
         samples = list()
         for i in range(0, self.num_samples * self.spacing, self.spacing):
