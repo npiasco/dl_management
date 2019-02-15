@@ -243,6 +243,40 @@ def reg_loss(map_to_reg, im_ori, **kwargs):
     return loss
 
 
+def image_similarity(predicted_im, gt_im, **kwargs):
+    p = kwargs.pop('p', 1)
+    factor = kwargs.pop('factor', 1)
+    no_zeros = kwargs.pop('no_zeros', False)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    if isinstance(predicted_im, list):
+        loss = 0
+        for i in range(len(predicted_im)):
+            loss +=  image_similarity(predicted_im[i], gt_im, p=p, factor=factor/len(predicted_im), no_zeros=no_zeros)
+    else:
+        if no_zeros:
+            zeros_idx = torch.max(predicted_im == predicted_im.new_zeros(predicted_im.size()), dim=1)[0].byte()
+            zero_mask = predicted_im.new_ones(predicted_im.size())
+
+            if torch.sum(zeros_idx ).item() != 0:
+                zero_mask.transpose(1, 3).transpose(1,2)[zeros_idx ] = predicted_im.new_zeros(3)
+
+            gt_im = gt_im*zero_mask
+
+        if p == 1:
+            loss = factor * func.l1_loss(predicted_im, gt_im)
+        elif p == 2:
+            loss = factor * func.mse_loss(predicted_im, gt_im)
+        elif p == 'sum':
+            loss = factor * torch.sum(torch.abs(predicted_im - gt_im))
+        else:
+            raise AttributeError('No behaviour for p = {}'.format(p))
+
+    return loss
+
+
 def l1_modal_loss(predicted_maps, gt_maps, **kwargs):
     p = kwargs.pop('p', 1)
     factor = kwargs.pop('factor', 1)

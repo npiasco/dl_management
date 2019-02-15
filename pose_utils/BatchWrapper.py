@@ -20,25 +20,45 @@ def bilinear_wrapping(variables, **kwargs):
     Kt = kwargs.pop('Kt', None)
     T_s = kwargs.pop('T_s', None)
     T_t = kwargs.pop('T_t', None)
+    multiple_proj = kwargs.pop('multiple_proj', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    img_source = recc_acces(variables, img_source)
     target_depth_map = recc_acces(variables, depth_map)
-    Ks = recc_acces(variables, Ks)
     Kt = recc_acces(variables, Kt)
-    T_s = recc_acces(variables, T_s)
     T_t = recc_acces(variables, T_t)
 
-    T = torch.stack([t_s.inverse().matmul(T_t[i]) for i, t_s in enumerate(T_s)])
+    if multiple_proj:
+        wrapped_im = list()
+        listed_var = variables[multiple_proj]
+        for j in range(len(listed_var)):
+            Ksj = recc_acces(listed_var[j], Ks)
+            T_sj = recc_acces(listed_var[j], T_s)
+            img_sourcej = recc_acces(listed_var[j], img_source)
 
-    _, _, h, w = target_depth_map.size()
-    if h != img_source.size(2) or w != img_source.size(3):
-        img_source_resized = nn_func.interpolate(img_source, size=(h, w), mode='nearest')
-        wrapped_im = bsm.image_warp(img_source_resized, target_depth_map , Ks, Kt, T)
+            T = torch.stack([t_s.inverse().matmul(T_t[i]) for i, t_s in enumerate(T_sj)])
+
+            _, _, h, w = target_depth_map.size()
+            if h != img_sourcej.size(2) or w != img_sourcej.size(3):
+                img_source_resized = nn_func.interpolate(img_sourcej, size=(h, w), mode='nearest')
+                wrapped_im.append(bsm.image_warp(img_source_resized, target_depth_map, Ksj, Kt, T))
+            else:
+                wrapped_im.append(bsm.image_warp(img_sourcej, target_depth_map, Ksj, Kt, T))
+
     else:
-        wrapped_im = bsm.image_warp(img_source, target_depth_map, Ks, Kt, T)
+        img_source = recc_acces(variables, img_source)
+        Ks = recc_acces(variables, Ks)
+        T_s = recc_acces(variables, T_s)
+
+        T = torch.stack([t_s.inverse().matmul(T_t[i]) for i, t_s in enumerate(T_s)])
+
+        _, _, h, w = target_depth_map.size()
+        if h != img_source.size(2) or w != img_source.size(3):
+            img_source_resized = nn_func.interpolate(img_source, size=(h, w), mode='nearest')
+            wrapped_im = bsm.image_warp(img_source_resized, target_depth_map , Ks, Kt, T)
+        else:
+            wrapped_im = bsm.image_warp(img_source, target_depth_map, Ks, Kt, T)
 
     return wrapped_im
 
