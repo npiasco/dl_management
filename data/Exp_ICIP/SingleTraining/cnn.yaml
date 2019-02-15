@@ -12,7 +12,7 @@ Deconv:
         k_size: 4
         d_fact: 2
         out_channel: 1
-        div_fact: 4
+        div_fact: 1
 
 MatchNet:
     class: 'networks.ICPNet.MatchNet'
