@@ -268,12 +268,10 @@ class PixDecoderMultiscale(nn.Module):
         nn.Module.__init__(self)
 
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
-        out_channel = kwargs.pop('out_channel', 1)
         d_fact = kwargs.pop('d_fact', 1)
         k_size = kwargs.pop('k_size', 2)
         norm_layer = kwargs.pop('norm_layer', 'group')
         div_fact = kwargs.pop('div_fact', 1)
-        dropout = kwargs.pop('dropout', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -286,7 +284,7 @@ class PixDecoderMultiscale(nn.Module):
         elif norm_layer == 'batch':
             norm_layer_func = lambda x: copy.deepcopy(nn.BatchNorm2d(x))
 
-        block_0 = {
+        block_7 = {
             'map': nn.Sequential(coll.OrderedDict([
                 ('map7', nn.Conv2d(int(512 / d_fact), 1, kernel_size=k_size + 1, stride=1,
                                     padding=(k_size + 1) // 2)),
@@ -299,185 +297,71 @@ class PixDecoderMultiscale(nn.Module):
                 ('relu7', nn.ReLU(inplace=True)),
             ]))
         }
-        block_1 = {
-            'conv': nn.Sequential(coll.OrderedDict([
-                ('conv6', nn.ConvTranspose2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size, stride=2,
-                                             padding=(k_size - 1) // 2)),
-                ('bn6', norm_layer_func(int(512 / d_fact))),
-                ('relu6', nn.ReLU(inplace=True)),
-            ])),
-            'fuse': nn.Sequential(coll.OrderedDict([
-                ('conv6', nn.ConvTranspose2d(int(512 / d_fact * 2 + 1), int(512 / d_fact), kernel_size=k_size +1 , stride=1,
-                                             padding=(k_size + 1) // 2)),
-                ('bn6', norm_layer_func(int(512 / d_fact))),
-                ('relu6', nn.ReLU(inplace=True)),
-            ])),
-            'map': nn.Sequential(coll.OrderedDict([
-                ('map6', nn.ConvTranspose2d(int(512 / d_fact), 1, kernel_size=k_size + 1, stride=1,
-                                            padding=(k_size + 1) // 2)),
-                ('sig', nn.Sigmoid()),
-            ])),
-        }
-        block_2 = {
-            'conv': nn.Sequential(coll.OrderedDict([
-                ('conv5', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size + 1, stride=1,
-                                    padding=(k_size + 1) // 2)),
-                ('bn5', norm_layer_func(int(512 / d_fact))),
-                ('relu5', nn.ReLU(inplace=True)),
-            ])),
-            'fuse': nn.Sequential(coll.OrderedDict([
-                ('conv5',
-                 nn.ConvTranspose2d(int(512 / d_fact * 2 + 1), int(512 / d_fact), kernel_size=k_size + 1, stride=1,
-                                    padding=(k_size + 1) // 2)),
-                ('bn5', norm_layer_func(int(512 / d_fact))),
-                ('relu5', nn.ReLU(inplace=True)),
-            ])),
-            'map': nn.Sequential(coll.OrderedDict([
-                ('map5', nn.ConvTranspose2d(int(512 / d_fact), 1, kernel_size=k_size + 1, stride=1,
-                                            padding=(k_size + 1) // 2)),
-                ('sig', nn.Sigmoid()),
-            ])),
-        }
-        block_3 = {
-            'conv': nn.Sequential(coll.OrderedDict([
-                ('conv4', nn.ConvTranspose2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size, stride=2,
-                                             padding=(k_size - 1) // 2)),
-                ('bn4', norm_layer_func(int(512 / d_fact))),
-                ('relu4', nn.ReLU(inplace=True)),
-            ])),
-            'fuse': nn.Sequential(coll.OrderedDict([
-                ('conv4',
-                 nn.ConvTranspose2d(int(512 / d_fact * 2 + 1), int(512 / d_fact), kernel_size=k_size + 1, stride=1,
-                                    padding=(k_size + 1) // 2)),
-                ('bn4', norm_layer_func(int(512 / d_fact))),
-                ('relu4', nn.ReLU(inplace=True)),
-            ])),
-            'map': nn.Sequential(coll.OrderedDict([
-                ('map4', nn.ConvTranspose2d(int(512 / d_fact), 1, kernel_size=k_size + 1, stride=1,
-                                            padding=(k_size + 1) // 2)),
-                ('sig', nn.Sigmoid()),
-            ])),
-        }
-        block_4 = {
-            'conv': nn.Sequential(coll.OrderedDict([
-                ('conv3', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size + 1, stride=1,
-                                    padding=(k_size + 1) // 2)),
-                ('bn3', norm_layer_func(int(512 / d_fact))),
-                ('relu3', nn.ReLU(inplace=True)),            ])),
-            'fuse': nn.Sequential(coll.OrderedDict([
-                ('conv3',
-                 nn.ConvTranspose2d(int(512 / d_fact * 2 + 1), int(256/ d_fact), kernel_size=k_size + 1, stride=1,
-                                    padding=(k_size + 1) // 2)),
-                ('bn3', norm_layer_func(int(256 / d_fact))),
-                ('relu3', nn.ReLU(inplace=True)),
-            ])),
-            'map': nn.Sequential(coll.OrderedDict([
-                ('map3', nn.ConvTranspose2d(int(512 / d_fact), 1, kernel_size=k_size + 1, stride=1,
-                                            padding=(k_size + 1) // 2)),
-                ('sig', nn.Sigmoid()),
-            ])),
-        }
-        block_5 = {
-            'conv': nn.Sequential(coll.OrderedDict([
-                ('conv3', nn.Conv2d(int(256/ d_fact), int(256/ d_fact), kernel_size=k_size + 1, stride=1,
-                                    padding=(k_size + 1) // 2)),
-                ('bn3', norm_layer_func(int(512 / d_fact))),
-                ('relu3', nn.ReLU(inplace=True)), ])),
-            'fuse': nn.Sequential(coll.OrderedDict([
-                ('conv3',
-                 nn.ConvTranspose2d(int(256/ d_fact * 2 + 1), int(128 / d_fact), kernel_size=k_size + 1, stride=1,
-                                    padding=(k_size + 1) // 2)),
-                ('bn3', norm_layer_func(int(256 / d_fact))),
-                ('relu3', nn.ReLU(inplace=True)),
-            ])),
-            'map': nn.Sequential(coll.OrderedDict([
-                ('map3', nn.ConvTranspose2d(int(512 / d_fact), 1, kernel_size=k_size + 1, stride=1,
-                                            padding=(k_size + 1) // 2)),
-                ('sig', nn.Sigmoid()),
-            ])),
-        }
-
-
-
-
-        base_archi = [
-
-        ]
-
-        end_div_4 = [
-            ('conv2', nn.Conv2d(int(256 / d_fact * 2), int(out_channel), kernel_size=k_size*2+1, stride=1,
-                                padding=(k_size*2+1) // 2)),
-        ]
-
-        layer_21 = [
-            ('conv2', nn.ConvTranspose2d(int(256 / d_fact * 2), int(128 / d_fact), kernel_size=k_size, stride=2,
-                                         padding=(k_size - 1) // 2)),
-            ('bn2', norm_layer_func(int(128 / d_fact))),
-            ('relu2', nn.ReLU(inplace=True)),
-            ('conv1', nn.Conv2d(int(128 / d_fact * 2), int(64 / d_fact), kernel_size=k_size + 1, stride=1,
-                                padding=(k_size + 1) // 2)),
-            ('bn1', norm_layer_func(int(64 / d_fact))),
-            ('relu1', nn.ReLU(inplace=True)),
-        ]
-
-        end_div_2 = layer_21 + [
-            ('conv0', nn.Conv2d(int(64 / d_fact * 2), int(out_channel), kernel_size=(k_size*2+1), stride=1,
-                                padding=(k_size*2+1) // 2)),
-        ]
-
-        end_div_1 = layer_21 + [
-            ('conv0', nn.ConvTranspose2d(int(64 / d_fact * 2), int(out_channel), kernel_size=k_size*2, stride=2,
-                                padding=(k_size*2 - 1) // 2)),
-        ]
-
-        end = [
-            ('sig', nn.Sigmoid()),
-        ]
+        block_6 = self.build_block(int(512 / d_fact), int(512 / d_fact), k_size, norm_layer_func, 6)
+        block_5 = self.build_block(int(512 / d_fact), int(512 / d_fact), k_size, norm_layer_func, 5)
+        block_4 = self.build_block(int(512 / d_fact), int(512 / d_fact), k_size, norm_layer_func, 4)
+        block_3 = self.build_block(int(512 / d_fact), int(256 / d_fact), k_size, norm_layer_func, 3)
+        block_2 = self.build_block(int(256 / d_fact), int(128 / d_fact), k_size, norm_layer_func, 2)
+        block_1 = self.build_block(int(128 / d_fact), int(64 / d_fact), k_size, norm_layer_func, 1)
+        block_0 = self.build_block(int(64 / d_fact), int(32 / d_fact), k_size, norm_layer_func, 0)
 
         if div_fact == 1:
-            base_archi = base_archi + end_div_1 + end
+            self.blocks = [block_7, block_5, block_3, block_1, block_0]
         elif div_fact == 2:
-            base_archi = base_archi + end_div_2 + end
+            self.blocks = [block_7, block_6, block_5, block_4, block_3, block_2, block_1]
         elif div_fact == 4:
-            base_archi = base_archi + end_div_4 + end
-
-        self.feature = nn.Sequential(
-            coll.OrderedDict(base_archi)
-        )
+            self.blocks = [block_7, block_6, block_5, block_4, block_3, block_2]
 
         logger.info('Final architecture is:')
-        logger.info(self.feature)
+        logger.info(self.blocks)
+
+    @staticmethod
+    def build_block(input_depth, output_depth, k_size, norm_layer_func, i):
+        block = {
+            'conv': nn.Sequential(coll.OrderedDict([
+                ('conv{}'.format(i), nn.ConvTranspose2d(input_depth, input_depth, kernel_size=k_size, stride=2,
+                                             padding=(k_size - 1) // 2)),
+                ('bn{}'.format(i), norm_layer_func(input_depth)),
+                ('relu{}'.format(i), nn.ReLU(inplace=True)),
+            ])),
+            'fuse': nn.Sequential(coll.OrderedDict([
+                ('conv{}'.format(i), nn.ConvTranspose2d(int(input_depth * 2 + 1), output_depth, kernel_size=k_size +1,
+                                                        stride=1, padding=(k_size + 1) // 2)),
+                ('bn{}'.format(i), norm_layer_func(output_depth)),
+                ('relu{}'.format(i), nn.ReLU(inplace=True)),
+            ])),
+            'map': nn.Sequential(coll.OrderedDict([
+                ('map{}'.format(i), nn.ConvTranspose2d(output_depth, 1, kernel_size=k_size + 1, stride=1,
+                                            padding=(k_size + 1) // 2)),
+                ('sig', nn.Sigmoid()),
+            ])),
+        }
+
+        return block
 
     def forward(self, unet):
         output = list()
         for i, block in enumerate(self.blocks):
-            name = block['conv'][0].name
+            name = list(block['conv'].named_children())[0][0]
             if i == 0:
-                output.append(block['map'](unet[name]))
                 x = block['conv'](unet[name])
+                output.append(block['map'](x))
             elif i == (len(self.blocks)-1):
                 output.append(block['conv'](torch.cat((output[-1], unet[name], x), dim=1)))
             else:
                 x = block['conv'](x)
-                x = block['fuse'](torch.cat((output[-1], unet[name], x), dim=1))
                 output.append(block['map'](x))
+                print(name, x.size(), output[-1].size(), unet[name].size())
+                x = block['fuse'](torch.cat((output[-1], unet[name], x), dim=1))
 
-            return output
 
-        for name, lay in self.feature.named_children():
-            if name == 'conv7':
-                x = lay(unet[name])
-            else:
-                if 'conv' in name:
-                    x = torch.cat((x, unet[name]), dim=1)
-                x = lay(x)
-        return x
+        return output
 
     def get_training_layers(self, layers_to_train=None):
         if layers_to_train is None:
             layers_to_train = self.layers_to_train
         if layers_to_train == 'all':
-            return [{'params': self.feature.parameters()}]
+            return [{'params': self.blocks.parameters()}]
         elif layers_to_train == 'no':
             return []
 
@@ -572,7 +456,8 @@ if __name__ == '__main__':
     torch.save(net.state_dict(), 'default.pth')
     '''
     enc = PixEncoder(k_size=4, d_fact=2)
-    dec= PixDecoder(k_size=4, d_fact=2, out_channel=1, div_fact=2, dropout=0.1)
+    #dec= PixDecoder(k_size=4, d_fact=2, out_channel=1, div_fact=2, dropout=0.1)
+    dec = PixDecoderMultiscale(k_size=4, d_fact=2, div_fact=1)
 
     feat_output = enc(tensor_input)
     output = dec(feat_output)
