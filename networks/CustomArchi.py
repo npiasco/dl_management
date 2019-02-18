@@ -297,20 +297,24 @@ class PixDecoderMultiscale(nn.Module):
                 ('relu7', nn.ReLU(inplace=True)),
             ]))
         }
-        block_6 = self.build_block(int(512 / d_fact), int(512 / d_fact), k_size, norm_layer_func, 6)
-        block_5 = self.build_block(int(512 / d_fact), int(512 / d_fact), k_size, norm_layer_func, 5)
-        block_4 = self.build_block(int(512 / d_fact), int(512 / d_fact), k_size, norm_layer_func, 4)
-        block_3 = self.build_block(int(512 / d_fact), int(256 / d_fact), k_size, norm_layer_func, 3)
-        block_2 = self.build_block(int(256 / d_fact), int(128 / d_fact), k_size, norm_layer_func, 2)
+        block_6 = self.build_block(int(512 / d_fact), int(256 / d_fact), k_size, norm_layer_func, 5)
+        block_5 = self.build_block(int(256/ d_fact), int(128/ d_fact), k_size, norm_layer_func, 2)
+        block_4 = self.build_block(int(128/ d_fact), int(64/ d_fact), k_size, norm_layer_func, 1)
+        block_3 = self.build_block(int(64/ d_fact), int(32 / d_fact), k_size, norm_layer_func, 0)
+        block_2 = self.build_block(int(64 / d_fact), int(32/ d_fact), k_size, norm_layer_func, 1)
+
         block_1 = self.build_block(int(128 / d_fact), int(64 / d_fact), k_size, norm_layer_func, 1)
         block_0 = self.build_block(int(64 / d_fact), int(32 / d_fact), k_size, norm_layer_func, 0)
 
-        if div_fact == 1:
-            self.blocks = [block_7, block_5, block_3, block_1, block_0]
-        elif div_fact == 2:
-            self.blocks = [block_7, block_6, block_5, block_4, block_3, block_2, block_1]
+        if div_fact == 2:
+            self.blocks = [block_7, block_6, block_5, block_4]
         elif div_fact == 4:
-            self.blocks = [block_7, block_6, block_5, block_4, block_3, block_2]
+            self.blocks = [block_7, block_6, block_5, block_3]
+        elif div_fact == 8:
+            self.blocks = [block_7, block_6, block_5]
+        else:
+            logger.error('Unimplemeted div factor {}'.format(div_fact))
+            raise NotImplementedError()
 
         logger.info('Final architecture is:')
         logger.info(self.blocks)
@@ -346,14 +350,11 @@ class PixDecoderMultiscale(nn.Module):
             if i == 0:
                 x = block['conv'](unet[name])
                 output.append(block['map'](x))
-            elif i == (len(self.blocks)-1):
-                output.append(block['conv'](torch.cat((output[-1], unet[name], x), dim=1)))
             else:
                 x = block['conv'](x)
+                upsampled_map = nn.functional.interpolate(output[-1], scale_factor=2, mode='nearest')
+                x = block['fuse'](torch.cat((upsampled_map, unet[name], x), dim=1))
                 output.append(block['map'](x))
-                print(name, x.size(), output[-1].size(), unet[name].size())
-                x = block['fuse'](torch.cat((output[-1], unet[name], x), dim=1))
-
 
         return output
 
@@ -361,7 +362,10 @@ class PixDecoderMultiscale(nn.Module):
         if layers_to_train is None:
             layers_to_train = self.layers_to_train
         if layers_to_train == 'all':
-            return [{'params': self.blocks.parameters()}]
+            params = list()
+            for block in self.blocks:
+                params += [{'params': conv.parameters()} for conv in block.values()]
+            return params
         elif layers_to_train == 'no':
             return []
 
@@ -439,7 +443,7 @@ class Softlier(nn.Module):
 
 
 if __name__ == '__main__':
-    input_size = 448//4
+    input_size = 448//2
     tensor_input = torch.rand([1, 3, input_size, input_size])
     '''
     net = DeploymentNet()
@@ -457,10 +461,11 @@ if __name__ == '__main__':
     '''
     enc = PixEncoder(k_size=4, d_fact=2)
     #dec= PixDecoder(k_size=4, d_fact=2, out_channel=1, div_fact=2, dropout=0.1)
-    dec = PixDecoderMultiscale(k_size=4, d_fact=2, div_fact=1)
+    dec = PixDecoderMultiscale(k_size=4, d_fact=2, div_fact=2)
 
     feat_output = enc(tensor_input)
     output = dec(feat_output)
-    print(output.size())
+    for out in output:
+        print(out.size())
 
     #print([res.size() for res in feat_output.values()])
