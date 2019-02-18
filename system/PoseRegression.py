@@ -430,6 +430,8 @@ class MultNet(Default):
                 for action in self.trainer.eval_forwards['queries']:
                     variables = self.trainer._sequential_forward(action, variables, nets_to_test)
                 output = trainers.minning_function.recc_acces(variables, ['maps'])
+                if isinstance(output, list):
+                    output = output[-1]
 
                 inv_output = 1/output - 1
                 mean = torch.mean(inv_output.view(inv_output.size(0), -1), 1)
