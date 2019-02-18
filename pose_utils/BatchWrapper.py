@@ -21,19 +21,20 @@ def bilinear_wrapping(variables, **kwargs):
     T_s = kwargs.pop('T_s', None)
     T_t = kwargs.pop('T_t', None)
     multiple_proj = kwargs.pop('multiple_proj', False)
+    resize_K = kwargs.pop('resize_K', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     target_depth_map = recc_acces(variables, depth_map)
-    Kt = recc_acces(variables, Kt)
     T_t = recc_acces(variables, T_t)
 
     if multiple_proj:
         wrapped_im = list()
         listed_var = variables[multiple_proj]
-        for j in range(len(listed_var)):
-            Ksj = recc_acces(listed_var[j], Ks)
+        for j in range(1, len(listed_var)): # idx 1 -> 0 is origin image
+            Kt_tmp = recc_acces(variables, Kt).clone()
+            Ksj = recc_acces(listed_var[j], Ks).clone()
             T_sj = recc_acces(listed_var[j], T_s)
             img_sourcej = recc_acces(listed_var[j], img_source)
 
@@ -41,21 +42,31 @@ def bilinear_wrapping(variables, **kwargs):
 
             _, _, h, w = target_depth_map.size()
             if h != img_sourcej.size(2) or w != img_sourcej.size(3):
-                img_source_resized = nn_func.interpolate(img_sourcej, size=(h, w), mode='nearest')
-                wrapped_im.append(bsm.image_warp(img_source_resized, target_depth_map, Ksj, Kt, T))
+                if resize_K:
+                    ratio = h/img_sourcej.size(2)
+                    Kt_tmp[:, :2, :] *= ratio
+                    Ksj[:, :2, :] *= ratio
+                img_source_resized = nn_func.interpolate(img_sourcej, size=(h, w), mode='bilinear', align_corners=True)
+                wrapped_im.append(bsm.image_warp(img_source_resized, target_depth_map, Ksj, Kt_tmp, T))
             else:
-                wrapped_im.append(bsm.image_warp(img_sourcej, target_depth_map, Ksj, Kt, T))
+                wrapped_im.append(bsm.image_warp(img_sourcej, target_depth_map, Ksj, Kt_tmp, T))
 
     else:
         img_source = recc_acces(variables, img_source)
-        Ks = recc_acces(variables, Ks)
+        Ks = recc_acces(variables, Ks).clone()
+        Kt = recc_acces(variables, Kt).clone()
+
         T_s = recc_acces(variables, T_s)
 
         T = torch.stack([t_s.inverse().matmul(T_t[i]) for i, t_s in enumerate(T_s)])
 
         _, _, h, w = target_depth_map.size()
         if h != img_source.size(2) or w != img_source.size(3):
-            img_source_resized = nn_func.interpolate(img_source, size=(h, w), mode='nearest')
+            if resize_K:
+                ratio = h / img_source.size(2)
+                Kt[:, :2, :] *= ratio
+                Ks[:, :2, :] *= ratio
+            img_source_resized = nn_func.interpolate(img_source, size=(h, w), mode='bilinear', align_corners=True)
             wrapped_im = bsm.image_warp(img_source_resized, target_depth_map , Ks, Kt, T)
         else:
             wrapped_im = bsm.image_warp(img_source, target_depth_map, Ks, Kt, T)
@@ -397,12 +408,16 @@ def resize(variable, **kwargs):
     inputs = kwargs.pop('inputs', None)
     scale_factor = kwargs.pop('scale_factor', None)
     flatten = kwargs.pop('flatten', True)
+    mode = kwargs.pop('mode', 'nearest')
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     inputs = recc_acces(variable, inputs)
-    inputs = nn_func.interpolate(inputs, scale_factor=scale_factor, mode='nearest')
+    if mode == 'bilinear':
+        inputs = nn_func.interpolate(inputs, scale_factor=scale_factor, mode=mode, align_corners=True)
+    else:
+        inputs = nn_func.interpolate(inputs, scale_factor=scale_factor, mode=mode)
     if flatten:
         inputs = inputs.view(inputs.size(0),inputs.size(1), -1)
 
