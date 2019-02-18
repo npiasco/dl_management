@@ -284,34 +284,31 @@ class PixDecoderMultiscale(nn.Module):
         elif norm_layer == 'batch':
             norm_layer_func = lambda x: copy.deepcopy(nn.BatchNorm2d(x))
 
-        block_7 = {
-            'map': nn.Sequential(coll.OrderedDict([
+        self.block_7 = nn.Sequential(coll.OrderedDict([
+            ('map', nn.Sequential(coll.OrderedDict([
                 ('map7', nn.Conv2d(int(512 / d_fact), 1, kernel_size=k_size + 1, stride=1,
-                                    padding=(k_size + 1) // 2)),
-                ('sig', nn.Sigmoid()),
-            ])),
-            'conv': nn.Sequential(coll.OrderedDict([
+                                   padding=(k_size + 1) // 2)),
+                ('sig', nn.Sigmoid()),])),
+             ),
+            ('conv', nn.Sequential(coll.OrderedDict([
                 ('conv7', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size + 1, stride=1,
                                     padding=(k_size + 1) // 2)),
                 ('bn7', norm_layer_func(int(512 / d_fact))),
                 ('relu7', nn.ReLU(inplace=True)),
             ]))
-        }
-        block_6 = self.build_block(int(512 / d_fact), int(256 / d_fact), k_size, norm_layer_func, 5)
-        block_5 = self.build_block(int(256/ d_fact), int(128/ d_fact), k_size, norm_layer_func, 2)
-        block_4 = self.build_block(int(128/ d_fact), int(64/ d_fact), k_size, norm_layer_func, 1)
-        block_3 = self.build_block(int(64/ d_fact), int(32 / d_fact), k_size, norm_layer_func, 0)
-        block_2 = self.build_block(int(64 / d_fact), int(32/ d_fact), k_size, norm_layer_func, 1)
+             )
+        ]))
 
-        block_1 = self.build_block(int(128 / d_fact), int(64 / d_fact), k_size, norm_layer_func, 1)
-        block_0 = self.build_block(int(64 / d_fact), int(32 / d_fact), k_size, norm_layer_func, 0)
+        self.block_6 = self.build_block(int(512 / d_fact), int(256 / d_fact), k_size, norm_layer_func, 5)
+        self.block_5 = self.build_block(int(256/ d_fact), int(128/ d_fact), k_size, norm_layer_func, 2)
+        self.block_4 = self.build_block(int(128/ d_fact), int(64/ d_fact), k_size, norm_layer_func, 1)
 
         if div_fact == 2:
-            self.blocks = [block_7, block_6, block_5, block_4]
+            self.blocks = [self.block_7, self.block_6, self.block_5, self.block_4]
         elif div_fact == 4:
-            self.blocks = [block_7, block_6, block_5, block_3]
+            self.blocks = [self.block_7, self.block_6, self.block_5]
         elif div_fact == 8:
-            self.blocks = [block_7, block_6, block_5]
+            self.blocks = [self.block_7, self.block_6]
         else:
             logger.error('Unimplemeted div factor {}'.format(div_fact))
             raise NotImplementedError()
@@ -321,40 +318,43 @@ class PixDecoderMultiscale(nn.Module):
 
     @staticmethod
     def build_block(input_depth, output_depth, k_size, norm_layer_func, i):
-        block = {
-            'conv': nn.Sequential(coll.OrderedDict([
+        block = nn.Sequential(coll.OrderedDict([
+            ('conv', nn.Sequential(coll.OrderedDict([
                 ('conv{}'.format(i), nn.ConvTranspose2d(input_depth, input_depth, kernel_size=k_size, stride=2,
                                              padding=(k_size - 1) // 2)),
                 ('bn{}'.format(i), norm_layer_func(input_depth)),
                 ('relu{}'.format(i), nn.ReLU(inplace=True)),
             ])),
-            'fuse': nn.Sequential(coll.OrderedDict([
+             ),
+            ('fuse', nn.Sequential(coll.OrderedDict([
                 ('conv{}'.format(i), nn.ConvTranspose2d(int(input_depth * 2 + 1), output_depth, kernel_size=k_size +1,
                                                         stride=1, padding=(k_size + 1) // 2)),
                 ('bn{}'.format(i), norm_layer_func(output_depth)),
                 ('relu{}'.format(i), nn.ReLU(inplace=True)),
             ])),
-            'map': nn.Sequential(coll.OrderedDict([
+             ),
+            ('map', nn.Sequential(coll.OrderedDict([
                 ('map{}'.format(i), nn.ConvTranspose2d(output_depth, 1, kernel_size=k_size + 1, stride=1,
                                             padding=(k_size + 1) // 2)),
                 ('sig', nn.Sigmoid()),
             ])),
-        }
+             ),
+        ]))
 
         return block
 
     def forward(self, unet):
         output = list()
         for i, block in enumerate(self.blocks):
-            name = list(block['conv'].named_children())[0][0]
+            name = list(dict(block.named_children())['conv'].named_children())[0][0]
             if i == 0:
-                x = block['conv'](unet[name])
-                output.append(block['map'](x))
+                x = dict(block.named_children())['conv'](unet[name])
+                output.append(dict(block.named_children())['map'](x))
             else:
-                x = block['conv'](x)
+                x = dict(block.named_children())['conv'](x)
                 upsampled_map = nn.functional.interpolate(output[-1], scale_factor=2, mode='nearest')
-                x = block['fuse'](torch.cat((upsampled_map, unet[name], x), dim=1))
-                output.append(block['map'](x))
+                x = dict(block.named_children())['fuse'](torch.cat((upsampled_map, unet[name], x), dim=1))
+                output.append(dict(block.named_children())['map'](x))
 
         return output
 
@@ -362,10 +362,7 @@ class PixDecoderMultiscale(nn.Module):
         if layers_to_train is None:
             layers_to_train = self.layers_to_train
         if layers_to_train == 'all':
-            params = list()
-            for block in self.blocks:
-                params += [{'params': conv.parameters()} for conv in block.values()]
-            return params
+            return [{'params': block.parameters()} for block in self.blocks]
         elif layers_to_train == 'no':
             return []
 
@@ -444,7 +441,7 @@ class Softlier(nn.Module):
 
 if __name__ == '__main__':
     input_size = 448//2
-    tensor_input = torch.rand([1, 3, input_size, input_size])
+    tensor_input = torch.rand([1, 3, input_size, input_size]).cuda()
     '''
     net = DeploymentNet()
 
@@ -459,13 +456,12 @@ if __name__ == '__main__':
 
     torch.save(net.state_dict(), 'default.pth')
     '''
-    enc = PixEncoder(k_size=4, d_fact=2)
+    enc = PixEncoder(k_size=4, d_fact=2).cuda()
     #dec= PixDecoder(k_size=4, d_fact=2, out_channel=1, div_fact=2, dropout=0.1)
-    dec = PixDecoderMultiscale(k_size=4, d_fact=2, div_fact=2)
-
+    dec = PixDecoderMultiscale(k_size=4, d_fact=2, div_fact=2).cuda()
     feat_output = enc(tensor_input)
     output = dec(feat_output)
     for out in output:
         print(out.size())
 
-    #print([res.size() for res in feat_output.values()])
+    print(dec.get_training_layers())
