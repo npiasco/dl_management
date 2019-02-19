@@ -431,6 +431,19 @@ class MultNet(Default):
                     variables = self.trainer._sequential_forward(action, variables, nets_to_test)
                 output = trainers.minning_function.recc_acces(variables, ['maps'])
                 if isinstance(output, list):
+                    plt.figure(0)
+                    images_batch = torch.cat((modality,
+                                              1 / output[-1] - 1,
+                                              torch.nn.functional.interpolate(1 / output[-2] - 1, scale_factor=2,
+                                                                              mode='nearest'),
+                                              torch.nn.functional.interpolate(1 / output[-3] - 1, scale_factor=4,
+                                                                              mode='nearest'),
+                                              torch.nn.functional.interpolate(1 / output[-4] - 1, scale_factor=8,
+                                                                              mode='nearest'))).clamp(max=modality.max()).cpu().detach()
+
+                    grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
+                    plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0])
+
                     output = output[-1]
 
                 inv_output = 1/output - 1
