@@ -233,8 +233,8 @@ def reg_loss(map_to_reg, im_ori, **kwargs):
     if reduce_factor:
         im_ori = func.interpolate(im_ori, scale_factor=reduce_factor, mode='bilinear', align_corners=True)
 
-    dx_im = torch.exp(-1 * torch.abs(im_ori[:, :, :, :-1] - im_ori[:, :, :, 1:]))
-    dy_im = torch.exp(-1 * torch.abs(im_ori[:, :, :-1, :] - im_ori[:, :, 1:, :]))
+    dx_im = torch.exp(-1 * torch.mean(torch.abs(im_ori[:, :, :, :-1] - im_ori[:, :, :, 1:]), dim=1, keepdim=True))
+    dy_im = torch.exp(-1 * torch.mean(torch.abs(im_ori[:, :, :-1, :] - im_ori[:, :, 1:, :]), dim=1, keepdim=True))
     dx_mod = torch.abs(map_to_reg[:, :, :, :-1] - map_to_reg[:, :, :, 1:])
     dy_mod = torch.abs(map_to_reg[:, :, :-1, :] - map_to_reg[:, :, 1:, :])
 
@@ -271,6 +271,23 @@ def image_similarity(predicted_im, gt_im, **kwargs):
             loss = factor * func.mse_loss(predicted_im, gt_im)
         elif p == 'sum':
             loss = factor * torch.sum(torch.abs(predicted_im - gt_im))
+        elif p == 'SSIM':
+            C1 = 0.01 ** 2
+            C2 = 0.03 ** 2
+
+            mu_x = func.avg_pool2d(predicted_im, 3, 1)
+            mu_y = func.avg_pool2d(gt_im, 3, 1)
+
+            sigma_x = func.avg_pool2d(predicted_im ** 2, 3, 1) - mu_x ** 2
+            sigma_y = func.avg_pool2d(gt_im ** 2, 3, 1) - mu_y ** 2
+            sigma_xy = func.avg_pool2d(predicted_im * gt_im, 3, 1) - mu_x * mu_y
+
+            SSIM_n = (2 * mu_x * mu_y + C1) * (2 * sigma_xy + C2)
+            SSIM_d = (mu_x ** 2 + mu_y ** 2 + C1) * (sigma_x + sigma_y + C2)
+
+            SSIM = SSIM_n / SSIM_d
+
+            loss = torch.mean(((1 - SSIM) / 2).clamp(min=0, max=1))
         else:
             raise AttributeError('No behaviour for p = {}'.format(p))
 
