@@ -322,8 +322,9 @@ class PixDecoderMultiscale(nn.Module):
     def build_block_up(input_depth, output_depth, k_size, norm_layer_func, i):
         block = nn.Sequential(coll.OrderedDict([
             ('conv', nn.Sequential(coll.OrderedDict([
-                ('conv{}'.format(i), nn.ConvTranspose2d(input_depth, input_depth, kernel_size=k_size, stride=2,
-                                             padding=(k_size - 1) // 2)),
+                ('conv{}'.format(i), nn.UpsamplingNearest2d(scale_factor=2)),
+                ('upconv{}'.format(i), nn.Conv2d(input_depth, input_depth, kernel_size=k_size + 1, stride=1,
+                                             padding=(k_size + 1) // 2)),
                 ('bn{}'.format(i), norm_layer_func(input_depth)),
                 ('relu{}'.format(i), nn.ReLU(inplace=True)),
             ])),
@@ -459,7 +460,8 @@ class Softlier(nn.Module):
 
 if __name__ == '__main__':
     input_size = 448//2
-    tensor_input = torch.rand([1, 3, input_size, input_size]).cuda()
+    tensor_input = torch.rand([1, 3, input_size, int(input_size/2)]).cuda()
+    print(tensor_input.size())
     '''
     net = DeploymentNet()
 
