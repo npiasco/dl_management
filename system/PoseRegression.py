@@ -6,6 +6,7 @@ import system.BaseClass as BaseClass
 import torch
 import copy
 import datasets.SevenScene              # Needed for class creation with eval
+import datasets.PoseCambridge
 import trainers.loss_functions
 import trainers.PoseTrainers
 import networks.Pose
@@ -99,7 +100,7 @@ class MultNet(Default):
         self.dataset_file = kwargs.pop('dataset_file', 'dataset.yaml')
         BaseClass.Base.__init__(self, **kwargs)
 
-        env_var = os.environ['SEVENSCENES']
+        env_var = 'SEVENSCENES'
 
         with open(self.root + self.dataset_file, 'rt') as f:
             dataset_params = yaml.safe_load(f)
@@ -107,13 +108,18 @@ class MultNet(Default):
             logger.debug(yaml.safe_dump(dataset_params))
 
         self.data = dict()
-        self.data['train'] = self.creat_dataset(dataset_params['train'], env_var)
+        self.data['train'] = self.creat_dataset(dataset_params['train'],
+                                                os.environ[dataset_params['train'].get('env', env_var)])
         self.data['test'] = dict()
-        self.data['test']['queries'] = self.creat_dataset(dataset_params['test']['queries'], env_var)
-        self.data['test']['data'] = self.creat_dataset(dataset_params['test']['data'], env_var)
+        self.data['test']['queries'] = self.creat_dataset(dataset_params['test']['queries'],
+                                                          os.environ[dataset_params['test']['queries'].get('env', env_var)])
+        self.data['test']['data'] = self.creat_dataset(dataset_params['test']['data'],
+                                                       os.environ[dataset_params['test']['data'].get('env', env_var)])
         self.data['val'] = dict()
-        self.data['val']['queries'] = self.creat_dataset(dataset_params['val']['queries'], env_var)
-        self.data['val']['data'] = self.creat_dataset(dataset_params['val']['data'], env_var)
+        self.data['val']['queries'] = self.creat_dataset(dataset_params['val']['queries'],
+                                                         os.environ[dataset_params['val']['queries'].get('env', env_var)])
+        self.data['val']['data'] = self.creat_dataset(dataset_params['val']['data'],
+                                                      os.environ[dataset_params['val']['data'].get('env', env_var)])
 
         net = self.creat_network(self.network_params)
 
@@ -424,7 +430,14 @@ class MultNet(Default):
                 _, _, h, w = b[mod].size()
                 _, _, haux, waux = b[aux_mod].size()
                 main_mod = b[mod].contiguous().view(batch_size, 3, h, w)
-                modality = b[aux_mod].contiguous().view(batch_size, -1, haux, waux)
+
+                if aux_mod in ('rgb'):
+                    modality = torch.nn.functional.interpolate(
+                        torch.mean(b[aux_mod].contiguous().view(batch_size, -1, haux, waux), dim=1, keepdim=True),
+                        scale_factor=0.5,
+                        mode='nearest')
+                else:
+                    modality = b[aux_mod].contiguous().view(batch_size, -1, haux, waux)
 
                 variables = {'batch': b}
                 for action in self.trainer.eval_forwards['queries']:
@@ -439,7 +452,7 @@ class MultNet(Default):
                                               torch.nn.functional.interpolate(1 / output[-3] - 1, scale_factor=4,
                                                                               mode='nearest'),
                                               torch.nn.functional.interpolate(1 / output[-4] - 1, scale_factor=8,
-                                                                              mode='nearest'))).clamp(max=modality.max()).cpu().detach()
+                                                                              mode='nearest'))).cpu().detach()#.clamp(max=modality.max())
 
                     grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
                     plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0])
