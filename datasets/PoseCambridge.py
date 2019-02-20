@@ -78,7 +78,7 @@ class Base(utils.Dataset):
         pose[3, 3] = 1
         pose = np.linalg.inv(pose)
         t = pose[:3, 3]
-        q = putils.rot_to_quat(pose[:3, :3])
+        q = putils.rot_to_quat(torch.from_numpy(pose[:3, :3])).numpy()
         sample['pose'] = {'p': t, 'q': q, 'T': pose}
 
         return sample
