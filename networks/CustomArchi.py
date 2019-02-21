@@ -69,6 +69,28 @@ class DeploymentNet(nn.Module):
 
         return desc
 
+
+class UpConv(nn.Module):
+    def __init__(self, in_channels, out_channels, **kwargs):
+        nn.Module.__init__(self)
+        self.scale_factor = kwargs.pop('scale_factor', 2)
+        kernel_size = kwargs.pop('kernel_size', 3)
+        padding = kwargs.pop('padding', 0)
+        stride = kwargs.pop('stride', 1)
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        self.conv = nn.Conv2d(in_channels, out_channels,
+                              kernel_size=kernel_size,
+                              padding=padding,
+                              stride=stride)
+
+    def forward(self, x):
+        upx = nn.functional.interpolate(x, scale_factor=self.scale_factor)
+        x = self.conv(upx)
+
+        return x
+
 class PixEncoder(nn.Module):
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
@@ -286,8 +308,9 @@ class PixDecoderMultiscale(nn.Module):
 
         self.block_7 = nn.Sequential(coll.OrderedDict([
             ('map', nn.Sequential(coll.OrderedDict([
+                ('refpad7', nn.ReplicationPad2d((k_size + 1) // 2)),
                 ('map7', nn.Conv2d(int(512 / d_fact), 1, kernel_size=k_size*2 + 1, stride=1,
-                                   padding=(k_size*2 + 1) // 2)),
+                                   padding=(k_size + 1) // 2)),
                 ('sig', nn.Sigmoid()),])),
              ),
             ('conv', nn.Sequential(coll.OrderedDict([
@@ -322,9 +345,8 @@ class PixDecoderMultiscale(nn.Module):
     def build_block_up(input_depth, output_depth, k_size, norm_layer_func, i):
         block = nn.Sequential(coll.OrderedDict([
             ('conv', nn.Sequential(coll.OrderedDict([
-                ('conv{}'.format(i), nn.UpsamplingNearest2d(scale_factor=2)),
-                ('upconv{}'.format(i), nn.Conv2d(input_depth, input_depth, kernel_size=k_size + 1, stride=1,
-                                             padding=(k_size + 1) // 2)),
+                ('conv{}'.format(i), UpConv(input_depth, input_depth, kernel_size=k_size + 1, stride=1,
+                                            padding=((k_size + 1) // 2), scale_factor=2)),
                 ('bn{}'.format(i), norm_layer_func(input_depth)),
                 ('relu{}'.format(i), nn.ReLU(inplace=True)),
             ])),
@@ -337,8 +359,8 @@ class PixDecoderMultiscale(nn.Module):
             ])),
              ),
             ('map', nn.Sequential(coll.OrderedDict([
-                ('map{}'.format(i), nn.Conv2d(output_depth, 1, kernel_size=k_size*2 + 1, stride=1,
-                                            padding=(k_size*2 + 1) // 2)),
+                ('refpad{}'.format(i), nn.ReplicationPad2d((k_size + 1) // 2)),
+                ('map{}'.format(i), nn.Conv2d(output_depth, 1, kernel_size=k_size + 1, stride=1)),
                 ('sig', nn.Sigmoid()),
             ])),
              ),
