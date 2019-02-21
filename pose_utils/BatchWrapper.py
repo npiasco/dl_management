@@ -22,6 +22,8 @@ def bilinear_wrapping(variables, **kwargs):
     T_t = kwargs.pop('T_t', None)
     multiple_proj = kwargs.pop('multiple_proj', False)
     resize_K = kwargs.pop('resize_K', False)
+    param_sampler = kwargs.pop('param_sampler', dict())
+
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -47,9 +49,9 @@ def bilinear_wrapping(variables, **kwargs):
                     Kt_tmp[:, :2, :] *= ratio
                     Ksj[:, :2, :] *= ratio
                 img_source_resized = nn_func.interpolate(img_sourcej, size=(h, w), mode='bilinear', align_corners=True)
-                wrapped_im.append(bsm.image_warp(img_source_resized, target_depth_map, Ksj, Kt_tmp, T))
+                wrapped_im.append(bsm.image_warp(img_source_resized, target_depth_map, Ksj, Kt_tmp, T, **param_sampler))
             else:
-                wrapped_im.append(bsm.image_warp(img_sourcej, target_depth_map, Ksj, Kt_tmp, T))
+                wrapped_im.append(bsm.image_warp(img_sourcej, target_depth_map, Ksj, Kt_tmp, T, **param_sampler))
 
     else:
         img_source = recc_acces(variables, img_source)
@@ -67,9 +69,9 @@ def bilinear_wrapping(variables, **kwargs):
                 Kt[:, :2, :] *= ratio
                 Ks[:, :2, :] *= ratio
             img_source_resized = nn_func.interpolate(img_source, size=(h, w), mode='bilinear', align_corners=True)
-            wrapped_im = bsm.image_warp(img_source_resized, target_depth_map , Ks, Kt, T)
+            wrapped_im = bsm.image_warp(img_source_resized, target_depth_map , Ks, Kt, T, **param_sampler)
         else:
-            wrapped_im = bsm.image_warp(img_source, target_depth_map, Ks, Kt, T)
+            wrapped_im = bsm.image_warp(img_source, target_depth_map, Ks, Kt, T, **param_sampler)
 
     return wrapped_im
 
@@ -210,13 +212,21 @@ def inverse(variable, **kwargs):
     data_to_inv = kwargs.pop('data_to_inv', None)
     offset = kwargs.pop('offset', -1)
     eps = kwargs.pop('eps', 1e-8)
+    fact = kwargs.pop('fact', 1)
+    bounded = kwargs.pop('bounded', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     data_to_inv = recc_acces(variable, data_to_inv)
 
-    return torch.reciprocal(data_to_inv.clamp(min=eps)) + offset
+    if not bounded:
+        inv_data = torch.reciprocal(data_to_inv.clamp(min=eps)*fact) + offset
+    else:
+        inv_data = torch.reciprocal(data_to_inv*fact + offset)
+
+
+    return inv_data
 
 
 def add_random_transform(variable, **kwargs):
@@ -224,6 +234,7 @@ def add_random_transform(variable, **kwargs):
     noise_factor = kwargs.pop('noise_factor', 1e-1)
 
     if kwargs:
+
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     ori_T = recc_acces(variable, ori_T)
@@ -612,3 +623,4 @@ def batched_icp(variable, **kwargs):
         poses['T'][i, :, :] = computed_pose
 
     return {'errors': dist, 'poses': poses}
+
