@@ -8,6 +8,26 @@ import random as rand
 logger = setlog.get_logger(__name__)
 
 
+def SSIM(im1, im2, **kwargs):
+    C1 = kwargs.pop('C1', 0.01 ** 2)
+    C2 = kwargs.pop('C2', 0.03 ** 2)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    mu_x = func.avg_pool2d(im1, 3, 1)
+    mu_y = func.avg_pool2d(im2, 3, 1)
+
+    sigma_x = func.avg_pool2d(im1 ** 2, 3, 1) - mu_x ** 2
+    sigma_y = func.avg_pool2d(im2 ** 2, 3, 1) - mu_y ** 2
+    sigma_xy = func.avg_pool2d(im1 * im2, 3, 1) - mu_x * mu_y
+
+    SSIM_n = (2 * mu_x * mu_y + C1) * (2 * sigma_xy + C2)
+    SSIM_d = (mu_x ** 2 + mu_y ** 2 + C1) * (sigma_x + sigma_y + C2)
+
+    return SSIM_n / SSIM_d
+
+
 def simple_fact_loss(value, fact=1):
 
     return torch.mean(value)*fact
@@ -244,9 +264,10 @@ def reg_loss(map_to_reg, im_ori, **kwargs):
 
 
 def image_similarity(predicted_im, gt_im, **kwargs):
-    p = kwargs.pop('p', 1)
+    p = kwargs.pop('p', 'L1')
     factor = kwargs.pop('factor', 1)
     no_zeros = kwargs.pop('no_zeros', False)
+    alpha = kwargs.pop('alpha', 0.5)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -265,29 +286,20 @@ def image_similarity(predicted_im, gt_im, **kwargs):
 
             gt_im = gt_im*zero_mask
 
-        if p == 1:
+        if p == 'L1':
             loss = factor * func.l1_loss(predicted_im, gt_im)
-        elif p == 2:
+        elif p == 'L2':
             loss = factor * func.mse_loss(predicted_im, gt_im)
         elif p == 'sum':
             loss = factor * torch.sum(torch.abs(predicted_im - gt_im))
         elif p == 'SSIM':
-            C1 = 0.01 ** 2
-            C2 = 0.03 ** 2
-
-            mu_x = func.avg_pool2d(predicted_im, 3, 1)
-            mu_y = func.avg_pool2d(gt_im, 3, 1)
-
-            sigma_x = func.avg_pool2d(predicted_im ** 2, 3, 1) - mu_x ** 2
-            sigma_y = func.avg_pool2d(gt_im ** 2, 3, 1) - mu_y ** 2
-            sigma_xy = func.avg_pool2d(predicted_im * gt_im, 3, 1) - mu_x * mu_y
-
-            SSIM_n = (2 * mu_x * mu_y + C1) * (2 * sigma_xy + C2)
-            SSIM_d = (mu_x ** 2 + mu_y ** 2 + C1) * (sigma_x + sigma_y + C2)
-
-            SSIM = SSIM_n / SSIM_d
-
-            loss = torch.mean(((1 - SSIM) / 2).clamp(min=0, max=1))
+            ssim = SSIM(predicted_im, gt_im)
+            loss = torch.mean(((1 - ssim) / 2).clamp(min=0, max=1))
+        elif p == 'mixed':
+            ssim = SSIM(predicted_im, gt_im)
+            lssim = torch.mean(((1 - ssim) / 2).clamp(min=0, max=1))
+            l1 = func.l1_loss(predicted_im, gt_im)
+            loss = l1*alpha + lssim *(1-alpha)
         else:
             raise AttributeError('No behaviour for p = {}'.format(p))
 
