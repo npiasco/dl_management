@@ -442,7 +442,7 @@ class MultNet(Default):
                 variables = {'batch': b}
                 for action in self.trainer.eval_forwards['queries']:
                     variables = self.trainer._sequential_forward(action, variables, nets_to_test)
-                output = trainers.minning_function.recc_acces(variables, ['maps'])
+                output = trainers.minning_function.recc_acces(variables, self.trainer.access_pose[0])
                 if isinstance(output, list):
                     plt.figure(0)
                     images_batch = torch.cat((modality,
@@ -459,40 +459,20 @@ class MultNet(Default):
 
                     output = output[-1]
 
-                inv_output = 1/output - 1
-                mean = torch.mean(inv_output.view(inv_output.size(0), -1), 1)
-                for nb, im in enumerate(inv_output):
-                    inv_output[nb, im>mean[nb]*2] = 0
-
-                inv_mod = 1/(modality + 1)
-                if 'filters' in  variables.keys():
-                    filted_im = output.new_zeros(output.size())
-                    for nb, im in enumerate(trainers.minning_function.recc_acces(variables, ['fw_main', 'conv1'])):
-                        ch, h, w = im.size()
-                        filted_im[nb] = nets_to_test['Filter'](im.view(ch, -1).t()).t().view(1, h, w)
-
             plt.figure(1)
-            images_batch = torch.cat((modality.cpu(), inv_mod.cpu(), inv_output.detach().cpu(), output.detach().cpu()))
-            grid = torchvis.utils.make_grid(images_batch, nrow=batch_size*2)
+            images_batch = torch.cat((modality, output)).cpu()
+            grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
             plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
             plt.colorbar()
 
             plt.figure(2)
-            images_batch = torch.cat((torch.abs(modality - inv_output.detach()).cpu(), torch.abs(inv_mod - output.detach()).cpu()))
+            images_batch = torch.cat((torch.abs(modality - output), )).detach().cpu()
             grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
             plt.imshow(grid.numpy().transpose(1, 2, 0), cmap=None)
 
             plt.figure(3)
             grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=batch_size)
             plt.imshow(grid.numpy().transpose(1, 2, 0))
-
-            if 'filters' in variables.keys():
-                plt.figure(4)
-                inv_output = inv_output*filted_im
-                images_batch = torch.cat((filted_im.cpu(), inv_output.cpu()))
-                grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
-                plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
-                plt.colorbar()
 
             plt.show()
 
