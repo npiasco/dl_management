@@ -5,7 +5,7 @@ import torchvision.transforms.functional as func
 import PIL.Image
 
 
-def image_warp(img, depth, Ks, Kt, T, padding_mode='zeros'):
+def image_warp(img, depth, Ks, Kt, T, padding_mode='zeros', mode='bilinear'):
     # img: the source image (where to sample pixels) -- [B, 3, H, W]
     # depth: depth map of the target image -- [B, 1, H, W]
     # K: intrinsec
@@ -23,7 +23,7 @@ def image_warp(img, depth, Ks, Kt, T, padding_mode='zeros'):
     corr_coord =(corr_coord - offset)/offset
     corr_coord = corr_coord.transpose(1, 3).transpose(1, 2)
 
-    projected_img = torch.nn.functional.grid_sample(img, corr_coord, padding_mode=padding_mode)
+    projected_img = torch.nn.functional.grid_sample(img, corr_coord, mode=mode, padding_mode=padding_mode)
 
     return projected_img
 
