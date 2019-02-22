@@ -232,3 +232,18 @@ class BaseMultNetTrainer:
                 for k, v in state.items():
                     if torch.is_tensor(v):
                         state[k] = self.cuda_func(v)
+    @property
+    def device(self):
+        return torch.device('cuda' if self.cuda_on else 'cpu')
+
+    def batch_to_device(self, batch):
+        if isinstance(batch, list):
+            for i, elem in enumerate(batch):
+                batch[i] = self.batch_to_device(elem)
+        else:
+            for name, values in batch.items():
+                if isinstance(values, (dict, list)):
+                    batch[name] = self.batch_to_device(values)
+                else:
+                    batch[name] = values.to(self.device)
+        return batch

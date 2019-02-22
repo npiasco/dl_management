@@ -3,6 +3,7 @@ import trainers.Base as Base
 import torch.nn.functional as func
 import torch.autograd as auto
 import trainers.minning_function as minning
+import pose_utils.BatchWrapper as b_wrapper
 from trainers.minning_function import recc_acces
 import trainers.loss_functions as loss_func
 import datasets.Robotcar as Robotcar
@@ -14,7 +15,9 @@ import networks.Descriptor as Desc
 import numpy as np
 import tqdm
 import copy
+import time
 import score.Functions as ScoreFunc
+import sklearn.neighbors as skn
 
 
 logger = setlog.get_logger(__name__)
@@ -250,6 +253,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             self.eval_forwards['queries'][-1]['func'] = eval(forward['func'])
 
     def train(self, batch):
+        timing = False
         for network in self.networks.values():
             network.train()
             for params in network.get_training_layers():
@@ -257,9 +261,11 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                     param.requires_grad = True
 
         # Forward pass
-        variables = {'batch': batch}
+        variables = {'batch': self.batch_to_device(batch)}
         sumed_loss = 0
         for action in self.training_pipeline:
+            if timing:
+                t = time.time()
 
             variables = self._sequential_forward(action, variables, self.networks)
 
@@ -267,12 +273,18 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 input_args = [recc_acces(variables, name) for name in action['args']]
                 val = action['func'](*input_args, **action['param'])
                 sumed_loss += val
-                self.loss_log[action['name']].append(val.data[0])
-                logger.debug(action['name'] + ' loss is {}'.format(val.data[0]))
+                self.loss_log[action['name']].append(val.item())
+                logger.debug(action['name'] + ' loss is {}'.format(val.item()))
             elif action['mode'] == 'backprop':
                 self.optimizers[action['trainer']].zero_grad()
                 sumed_loss.backward()
                 # sumed_loss.backward(retain_graph=True)
+                if 'clip_grad' in action.keys():
+                    for nets_name in action['clip_grad']['networks']:
+                        for params in self.networks[nets_name].get_training_layers():
+                            for param in params['params']:
+                                torch.nn.utils.clip_grad_value_(param,
+                                                                action['clip_grad']['val_max'])
                 self.optimizers[action['trainer']].step()
                 sumed_loss = 0
                 for name in self.optimizers_params[action['trainer']]['associated_net']:
@@ -291,6 +303,9 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             else:
                 if action['mode'] not in ('batch_forward', 'forward', 'minning'):
                     raise NameError('Unknown action {}'.format(action['mode']))
+            if timing:
+                print('Elapsed {}s for action {}'.format(time.time() - t, action))
+
 
     def _sequential_forward(self, action, variables, networks):
         if action['mode'] == 'batch_forward':
@@ -315,46 +330,48 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         return variables
 
     def eval(self, **kwargs):
-        dataset = kwargs.pop('dataset', None)
+        with torch.no_grad():
+            dataset = kwargs.pop('dataset', None)
 
-        score_function = kwargs.pop('score_function', None)
-        ep = kwargs.pop('ep', None)
-        if kwargs:
-            logger.error('Unexpected **kwargs: %r' % kwargs)
-            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+            score_function = kwargs.pop('score_function', None)
+            ep = kwargs.pop('ep', None)
+            if kwargs:
+                logger.error('Unexpected **kwargs: %r' % kwargs)
+                raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-        if len(self.val_score) <= ep:
-            if isinstance(score_function, ScoreFunc.Reconstruction_Error):
-                ranked = self._compute_rerror(self.networks, dataset['queries'], dataset['data'])
-            else:
-                ranked = self._compute_sim(self.networks, dataset['queries'], dataset['data'])
+            if len(self.val_score) <= ep:
+                if isinstance(score_function, ScoreFunc.Reconstruction_Error):
+                    ranked = self._compute_rerror(self.networks, dataset['queries'], dataset['data'])
+                else:
+                    ranked = self._compute_sim(self.networks, dataset['queries'], dataset['data'])
 
-            score = score_function(ranked)
-            self.val_score.append(score)
-            if score_function.rank_score(score, self.best_net[0]):
-                self._save_current_net(score)
+                score = score_function(ranked)
+                self.val_score.append(score)
+                if score_function.rank_score(score, self.best_net[0]):
+                    self._save_current_net(score)
 
-        logger.info('Score is: {}'.format(self.val_score[ep]))
+            logger.info('Score is: {}'.format(self.val_score[ep]))
 
     def test(self, **kwargs):
-        dataset = kwargs.pop('dataset', None)
-        score_functions = kwargs.pop('score_functions', None)
-        if kwargs:
-            logger.error('Unexpected **kwargs: %r' % kwargs)
-            raise TypeError('Unexpected **kwargs: %r' % kwargs)
-        nets_to_test = dict()
-        for name, network in self.networks.items():
-            nets_to_test[name] = copy.deepcopy(network)
-            nets_to_test[name].load_state_dict(self.best_net[1][name])
+        with torch.no_grad():
+            dataset = kwargs.pop('dataset', None)
+            score_functions = kwargs.pop('score_functions', None)
+            if kwargs:
+                logger.error('Unexpected **kwargs: %r' % kwargs)
+                raise TypeError('Unexpected **kwargs: %r' % kwargs)
+            nets_to_test = dict()
+            for name, network in self.networks.items():
+                nets_to_test[name] = copy.deepcopy(network)
+                nets_to_test[name].load_state_dict(self.best_net[1][name])
 
-        if True in [isinstance(score_function, ScoreFunc.Reconstruction_Error)
-                    for score_function in score_functions.values()]:
-            ranked = self._compute_rerror(nets_to_test, dataset['queries'], dataset['data'])
-        else:
-            ranked = self._compute_sim(nets_to_test, dataset['queries'], dataset['data'])
-        results = dict()
-        for function_name, score_func in score_functions.items():
-            results[function_name] = score_func(ranked)
+            if True in [isinstance(score_function, ScoreFunc.Reconstruction_Error)
+                        for score_function in score_functions.values()]:
+                ranked = self._compute_rerror(nets_to_test, dataset['queries'], dataset['data'])
+            else:
+                ranked = self._compute_sim(nets_to_test, dataset['queries'], dataset['data'])
+            results = dict()
+            for function_name, score_func in score_functions.items():
+                results[function_name] = score_func(ranked)
         return results
 
     def _compute_rerror(self, networks, queries, dataset):
@@ -369,7 +386,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         logger.info('Computing dataset/queries reconstruction error')
         for dataloader in (dataset_loader, queries_loader):
             for batch in tqdm.tqdm(dataloader):
-                variables = {'batch': batch}
+                variables = {'batch': self.batch_to_device(batch)}
                 for action in self.eval_forwards['dataset']:
                     variables = self._sequential_forward(action, variables, networks)
 
@@ -377,43 +394,64 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                     loss_func.l1_modal_loss(
                         recc_acces(variables, self.eval_final_desc[0]),
                         recc_acces(variables, self.eval_final_desc[1]),
-                        listed_maps=False
-                    ).cpu().data[0]
+                        listed_maps=False,
+                        no_zeros = True
+                    ).cpu().item()
                 )
 
         return errors
 
     def _compute_sim(self, networks, queries, dataset):
-        dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
-        queries_loader = utils.data.DataLoader(queries, batch_size=1, num_workers=self.val_num_workers)
+        batch_size = 30
+        k_nn = 50
+        dataset_loader = utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=self.val_num_workers)
+        queries_loader = utils.data.DataLoader(queries, batch_size=batch_size, num_workers=self.val_num_workers)
 
         for network in networks.values():
             network.eval()
 
-        dataset_feats = list()
+        dataset_feats = {'feats': None, 'poses': None}
         # Forward pass
         logger.info('Computing dataset feats')
         for batch in tqdm.tqdm(dataset_loader):
-            variables = {'batch': batch}
+            variables = {'batch': self.batch_to_device(batch)}
             for action in self.eval_forwards['dataset']:
                 variables = self._sequential_forward(action, variables, networks)
 
             final_desc = recc_acces(variables, self.eval_final_desc)
-            dataset_feats.append((final_desc[0].cpu().data.numpy(), batch['coord'].cpu().numpy()))
+            if dataset_feats['feats'] is None:
+                dataset_feats['feats'] = final_desc
+                dataset_feats['poses'] = batch['coord']
+            else:
+                dataset_feats['feats'] = torch.cat((dataset_feats['feats'], final_desc))
+                dataset_feats['poses'] = torch.cat((dataset_feats['poses'], batch['coord']))
 
-        logger.info('Computing similarity')
-        ranked = list()
+        dataset_feats['feats'] = dataset_feats['feats'].cpu()
+
+        logger.info('Computing query feats')
+        queries_feats = {'feats': None, 'poses': list()}
         for query in tqdm.tqdm(queries_loader):
-            variables = {'batch': query}
+            variables = {'batch': self.batch_to_device(query)}
             for action in self.eval_forwards['queries']:
                 variables = self._sequential_forward(action, variables, networks)
 
-            feat = recc_acces(variables, self.eval_final_desc)[0].cpu().data.numpy()
+            feat = recc_acces(variables, self.eval_final_desc)
+            if queries_feats['feats'] is None:
+                queries_feats['feats'] = feat
+                queries_feats['poses'] = query['coord']
+            else:
+                queries_feats['feats'] = torch.cat((queries_feats['feats'], feat))
+                queries_feats['poses'] = torch.cat((queries_feats['poses'], query['coord']))
 
-            gt_pos = query['coord'].cpu().numpy()
-            diff = [(np.dot(feat, d_feat[0]), np.linalg.norm(gt_pos - d_feat[1])) for d_feat in dataset_feats]
-            sorted_index = list(np.argsort([d[0] for d in diff]))
-            ranked.append([diff[idx][1] for idx in reversed(sorted_index)])
+        queries_feats['feats'] = queries_feats['feats'].cpu()
+        logger.info('Computing similarity')
+        nn_computor = skn.NearestNeighbors(n_neighbors=k_nn, metric='cosine')
+
+        nn_computor.fit(dataset_feats['feats'].numpy())
+        idx = nn_computor.kneighbors(queries_feats['feats'].numpy(), return_distance=False)
+
+        ranked = [list(np.linalg.norm(queries_feats['poses'][i, :2].cpu().numpy() - dataset_feats['poses'][id, :2].cpu().numpy(), axis=1))
+                  for i, id in enumerate(idx)]
 
         return ranked
 

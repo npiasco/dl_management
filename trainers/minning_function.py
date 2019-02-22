@@ -258,22 +258,22 @@ def batch_to_var(net, batch, **kwargs):
         if mult_mod:
             forward = dict()
             for name_mod, mod in recc_acces(batch, target).items():
-                forward[name_mod] = auto.Variable(cuda_func(mod), requires_grad=False)
+                forward[name_mod] = mod
         else:
-            forward = auto.Variable(cuda_func(recc_acces(batch, target)), requires_grad=False)
+            forward = recc_acces(batch, target)
     else:
         if mult_mod:
             forward = dict()
             for sub_batch in batch[mode]:
                 for name_mod, mod in recc_acces(sub_batch, target).items():
                     if name_mod in forward.keys():
-                        forward[name_mod].append(auto.Variable(cuda_func(mod), requires_grad=False))
+                        forward[name_mod].append(mod)
                     else:
-                        forward[name_mod] = [auto.Variable(cuda_func(mod), requires_grad=False)]
+                        forward[name_mod] = [mod]
         else:
             forward = list()
             for sub_batch in batch[mode]:
-                forward.append(auto.Variable(cuda_func(recc_acces(sub_batch, target)), requires_grad=False))
+                forward.append(recc_acces(sub_batch, target))
 
     return forward
 
@@ -423,7 +423,7 @@ def general_hard_minning(outputs, **kwargs):
     forwarded_ex = [None for _ in range(n_ex)]
 
     for i, desc_anchor in enumerate(desc_anchors):
-        diff = [func.pairwise_distance(desc_anchor.unsqueeze(0), x[i:i+1]).data.cpu().numpy()[0, 0] for x in examples]
+        diff = [func.pairwise_distance(desc_anchor.unsqueeze(0), x[i:i+1]).item() for x in examples]
         sort_index = np.argsort(diff)
         if mode == 'positives':
             idx = sort_index[-1*n_ex:]

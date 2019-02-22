@@ -2,6 +2,7 @@
 import os, sys
 import setlog
 
+
 conf_file = os.environ['DEV'] + 'dl_management/.log/logging.yaml'
 save_file = os.path.abspath(sys.argv[0])[:-len(sys.argv[0])] + 'log/'
 setlog.reconfigure(conf_file, save_file)
@@ -11,10 +12,9 @@ import system.DescriptorLearning as System
 
 
 if __name__ == '__main__':
-    print(os.getcwd())
     machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])],
-                             dataset_file='../../../../datasets/cmu_training.yaml',
-                             trainer_file='../trainer.yaml')
+                             cnn_type='cnn.yaml',
+                             dataset_file='../../../../../datasets/default.yaml')
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':
         machine.train()
@@ -45,9 +45,5 @@ if __name__ == '__main__':
         machine.print('test_query')
     elif action == 'testd':
         machine.print('test_data')
-    elif action == 'valq':
-        machine.print('val_query')
-    elif action == 'vald':
-        machine.print('val_data')
     else:
         raise ValueError('Unknown cmd: {}'.format(action))

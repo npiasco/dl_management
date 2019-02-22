@@ -152,16 +152,19 @@ class RandomResizedCrop(tf.RandomResizedCrop):
 
 
 class DepthTransform:
-    def __init__(self, depth_factor=1e-3, error_value=65535, replacing_value=0):
+    def __init__(self, depth_factor=1e-3, error_value=65535, replacing_value=0, inverse=False):
         self.depth_factor = depth_factor
         self.error_value = error_value
         self.replacing_value = replacing_value
+        self.inverse = inverse
 
     def __call__(self, sample):
         for name, mod in sample.items():
             if name is not 'K':
                 sample[name][sample[name] == self.error_value] = self.replacing_value
                 sample[name] *= self.depth_factor
+                if self.inverse:
+                    sample[name] = torch.reciprocal(sample[name] + 1)
 
         return sample
 
@@ -260,7 +263,7 @@ class JetTransform:
 
     def __call__(self, sample):
         for name, mod in sample.items():
-            mod = mod - torch.min(mod)
+            #mod = mod - torch.min(mod)
             sample[name] = torch.Tensor(
                     self.cmap(mod.numpy()).transpose((0,3,1,2))
             )[:,0:3,:,:].squeeze()
