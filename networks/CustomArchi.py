@@ -91,6 +91,48 @@ class UpConv(nn.Module):
 
         return x
 
+
+class PixelRnn(nn.Module):
+    def __init__(self, in_channels, out_channels, **kwargs):
+        nn.Module.__init__(self)
+        rec_module = kwargs.pop('rec_module', 'gru')
+        num_layers = kwargs.pop('num_layers', 1)
+        bidirectional = kwargs.pop('bidirectional', True)
+        self.padding = kwargs.pop('padding', 0)
+        self.kernel_size = kwargs.pop('kernel_size', 1)
+        self.stride = kwargs.pop('stride', 1)
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        if rec_module == 'gru':
+            self.h_rec_module = nn.GRU(input_size=in_channels, hidden_size=out_channels,
+                                       num_layers=num_layers, bidirectional=bidirectional)
+            self.v_rec_module = nn.GRU(input_size=in_channels, hidden_size=out_channels,
+                                       num_layers=num_layers, bidirectional=bidirectional)
+        elif rec_module == 'lstm':
+            self.h_rec_module = nn.LSTM(input_size=in_channels, hidden_size=out_channels,
+                                        num_layers=num_layers, bidirectional=bidirectional)
+            self.v_rec_module = nn.LSTM(input_size=in_channels, hidden_size=out_channels,
+                                        num_layers=num_layers, bidirectional=bidirectional)
+        else:
+            raise NotImplementedError('No recurent module named {}'.format(rec_module))
+
+        self.h0_size = (num_layers*(2 if bidirectional else 1), out_channels)
+
+    def forward(self, x):
+        output_h = list()
+        output_v = list()
+        for line in x.transpose(0, 2).transpose(1, 3):
+            output, _ = self.h_rec_module(line)
+            output_h.append(output.transpose(0, 1).transpose(1, 2))
+        for col in x.transpose(0, 2).transpose(1, 3).transpose(0, 1):
+            output, _ = self.v_rec_module(col)
+            output_v.append(output.transpose(0, 1).transpose(1, 2))
+
+        x = torch.cat((torch.stack(output_h, dim=2), torch.stack(output_v, dim=3)), dim=1)
+        return x
+
+
 class PixEncoder(nn.Module):
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
@@ -294,6 +336,8 @@ class PixDecoderMultiscale(nn.Module):
         k_size = kwargs.pop('k_size', 2)
         norm_layer = kwargs.pop('norm_layer', 'group')
         div_fact = kwargs.pop('div_fact', 1)
+        pixel_rnn = kwargs.pop('pixel_rnn', False)
+        rnn_type = kwargs.pop('rnn_type', 'gru')
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -313,17 +357,22 @@ class PixDecoderMultiscale(nn.Module):
                                    padding=(k_size + 1) // 2)),
                 ('sig', nn.Sigmoid()),])),
              ),
+
             ('conv', nn.Sequential(coll.OrderedDict([
-                ('conv7', nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size + 1, stride=1,
-                                    padding=(k_size + 1) // 2)),
+                ('conv7', (
+                    PixelRnn(int(512 / d_fact), int(128 / d_fact), rec_module=rnn_type) if pixel_rnn else
+                    nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size + 1, stride=1,
+                              padding=(k_size + 1) // 2))
+                 ),
                 ('bn7', norm_layer_func(int(512 / d_fact))),
-                ('relu7', nn.ReLU(inplace=True)),
-            ]))
+                ('relu7', nn.ReLU(inplace=True)),]))
              )
         ]))
-        self.block_6 = self.build_block(int(512 / d_fact), int(512 / d_fact), k_size, norm_layer_func, 6)
+        self.block_6 = self.build_block(int(512 / d_fact), int(512 / d_fact), k_size, norm_layer_func, 6,
+                                        pixel_rnn, rnn_type)
         self.block_5 = self.build_block_up(int(512 / d_fact), int(512 / d_fact), k_size, norm_layer_func, 5)
-        self.block_4 = self.build_block(int(512 / d_fact), int(512/ d_fact), k_size, norm_layer_func, 4)
+        self.block_4 = self.build_block(int(512 / d_fact), int(512/ d_fact), k_size, norm_layer_func, 4,
+                                        pixel_rnn, rnn_type)
         self.block_3 = self.build_block_up(int(512/ d_fact), int(256/ d_fact), k_size, norm_layer_func, 3)
         self.block_2 = self.build_block(int(256/ d_fact), int(128/ d_fact), k_size, norm_layer_func, 2)
         self.block_1 = self.build_block_up(int(128/ d_fact), int(64/ d_fact), k_size, norm_layer_func, 1)
@@ -369,11 +418,14 @@ class PixDecoderMultiscale(nn.Module):
         return block
 
     @staticmethod
-    def build_block(input_depth, output_depth, k_size, norm_layer_func, i):
+    def build_block(input_depth, output_depth, k_size, norm_layer_func, i, pixel_rnn=False, rnn_type='gru'):
         block = nn.Sequential(coll.OrderedDict([
             ('conv', nn.Sequential(coll.OrderedDict([
-                ('conv{}'.format(i), nn.Conv2d(int(input_depth * 2), output_depth, kernel_size=k_size + 1,
-                                               stride=1, padding=(k_size + 1) // 2)),
+                ('conv{}'.format(i), (
+                    PixelRnn(int(input_depth * 2), int(output_depth / 4), rec_module=rnn_type) if pixel_rnn else
+                    nn.Conv2d(int(input_depth * 2), output_depth, kernel_size=k_size + 1,
+                              stride=1, padding=(k_size + 1) // 2))
+                 ),
                 ('bn{}'.format(i), norm_layer_func(output_depth)),
                 ('relu{}'.format(i), nn.ReLU(inplace=True)),
             ])),
@@ -482,7 +534,7 @@ class Softlier(nn.Module):
 
 if __name__ == '__main__':
     input_size = 448//2
-    tensor_input = torch.rand([1, 3, input_size, int(input_size/2)]).cuda()
+    tensor_input = torch.rand([2, 3, input_size, int(input_size/2)]).cuda()
     print(tensor_input.size())
     '''
     net = DeploymentNet()
@@ -500,10 +552,15 @@ if __name__ == '__main__':
     '''
     enc = PixEncoder(k_size=4, d_fact=2).cuda()
     #dec= PixDecoder(k_size=4, d_fact=2, out_channel=1, div_fact=2, dropout=0.1)
-    dec = PixDecoderMultiscale(k_size=4, d_fact=2, div_fact=2).cuda()
+    dec = PixDecoderMultiscale(k_size=4, d_fact=2, div_fact=2, pixel_rnn=True).cuda()
     feat_output = enc(tensor_input)
     output = dec(feat_output)
     for out in output:
         print(out.size())
 
     print(dec.get_training_layers())
+
+    rec_mod = PixelRnn(3, 1, ).cuda()
+
+    out_rec = rec_mod(tensor_input)
+    print(out_rec.size())
