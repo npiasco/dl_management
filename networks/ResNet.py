@@ -153,6 +153,10 @@ class Feat(models.ResNet):
     def final_feat_num(self):
         return self._final_feat_num
 
+    def full_save(self, discard_tf=False):
+        if discard_tf:
+            pass
+        return {'self': self.state_dict()}
 
 class Deconv(nn.Module):
     def __init__(self, **kwargs):
@@ -314,14 +318,14 @@ class Deconv(nn.Module):
     def full_save(self, discard_tf=False):
         if discard_tf:
             pass
-        return {'deconv1': self.deconv_1.state_dict(),
-                'deconv2': self.deconv_2.state_dict(),
-                'deconv3': self.deconv_3.state_dict()}
+        return {'deconv_1': self.deconv_1.state_dict(),
+                'deconv_2': self.deconv_2.state_dict(),
+                'deconv_3': self.deconv_3.state_dict()}
 
 
 if __name__ == '__main__':
     tensor_input = torch.rand([10, 3, 224, 224])
-    net = Feat(num_layer=18, truncated=False, load_imagenet=True, unet=True)
+    net = Feat(num_layer=50, truncated=False, load_imagenet=True, unet=True)
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['feat'].size(),feat_output['res_1'].size(),feat_output['res_2'].size())
     print(net.get_training_layers('up_to_conv3'))

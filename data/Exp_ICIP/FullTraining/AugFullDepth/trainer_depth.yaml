@@ -1,0 +1,89 @@
+class: 'trainers.PoseTrainers.MultNetTrainer'
+param_class:
+    cuda_on: True
+    val_num_workers: 8
+    optimizers_params:
+        posenet_trainer:
+            associated_net: ['Main', 'Deconv']
+            optimizer_type: ADAM
+            param:
+                lr: 0.0001 # * 0.5
+                weight_decay: 0.001
+    training_pipeline:
+        [
+            #------------------ Main Forward -----------------#
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['batch', 'rgb' ], ]},
+                net_name: 'Main',
+                out_name: 'fw_main'
+            },
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['fw_main'], ], detach_inputs: false, dict: True},
+                net_name: 'Deconv',
+                out_name: 'maps'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.inverse,
+                param: {data_to_inv: ['maps'], },
+                out_name: 'fake_depth'
+            },
+            #-------------------- Losses ---------------------#
+            {
+             mode: 'loss',
+             name: 'l1loss',
+             func: 'loss_func.l1_modal_loss',
+             args: [['fake_depth'], ['batch', 'depth']],
+             param: {no_zeros: True, listed_maps: False}
+            },
+            {
+             mode: 'backprop',
+             name: 'deconv_backprop',
+             trainer: 'posenet_trainer'
+            },
+            #-------------------------------------------------#
+        ]
+    eval_forwards:
+        data: []
+        queries:
+            [
+                #------------------ Main Forward -----------------#
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false, input_targets: [['batch', 'rgb' ], ]},
+                    net_name: 'Main',
+                    out_name: 'fw_main'
+                },
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false, input_targets: [['fw_main'], ]},
+                    net_name: 'Deconv',
+                    out_name: 'maps'
+                },
+                {
+                    mode: minning,
+                    func: b_wrapper.inverse,
+                    param: {data_to_inv: ['maps'], },
+                    out_name: 'fake_depth'
+                },
+            ]
+    access_pose: [['fake_depth'], ['batch', 'depth']]
+    build_model_func: torch.cat
+eval_class: 'score.Functions.Reconstruction_Error'
+param_eval_class:
+    pooling_type: 'mean'
+test_func:
+    med_err:
+        class: 'score.Functions.Reconstruction_Error'
+        param_class:
+            pooling_type: 'median'
+    mean_err:
+        class: 'score.Functions.Reconstruction_Error'
+        param_class:
+            pooling_type: 'mean'

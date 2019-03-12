@@ -173,6 +173,34 @@ class MeanDistance:
         return 'Mean distance to closest candidate under {}m (lower is better)'.format(self.d_max)
 
 
+class PoseAccuracy:
+    def __init__(self, **kwargs):
+        self.distance_threshold = kwargs.pop('distance_threshold', 0.05)
+        self.angle_threshold = kwargs.pop('angle_threshold', 5)
+        if kwargs:
+            logger.error('Unexpected **kwargs: %r' % kwargs)
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    def __call__(self, errors):
+        dist_acc = np.array(errors['position']) < self.distance_threshold
+        angle_acc = np.array(errors['orientation']) < self.angle_threshold
+        try:
+            score = dict(zip(*np.unique(np.logical_and(dist_acc, angle_acc), return_counts=True)))[True] / len(errors)
+        except KeyError:
+            score = 0.0
+
+        return score
+
+    def __str__(self):
+        return 'Loc accuracy (below {} meters and {} degrees)'.format(self.distance_threshold, self.angle_threshold)
+
+    @staticmethod
+    def rank_score(new_score, old_score):
+        if old_score is None:
+            return True
+        else:
+            return new_score <= old_score
+
 class GlobalPoseError:
     def __init__(self, **kwargs):
         self.pooling_type = kwargs.pop('pooling_type', 'median')
@@ -193,6 +221,15 @@ class GlobalPoseError:
     def __str__(self):
         return '{} error on {}'.format(self.pooling_type.capitalize(), self.data_type)
 
+    @staticmethod
+    def rank_score(new_score, old_score):
+        if old_score is None:
+            return True
+        else:
+            return new_score <= old_score
+
+
+class MinLossRanking:
     @staticmethod
     def rank_score(new_score, old_score):
         if old_score is None:

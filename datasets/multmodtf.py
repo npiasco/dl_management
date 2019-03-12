@@ -6,9 +6,36 @@ import setlog
 import torch.nn.functional as nn_func
 import torch
 import matplotlib.pyplot as plt
+import random
 
 
 logger = setlog.get_logger(__name__)
+
+
+class RandomVerticalFlip(tf.RandomVerticalFlip):
+    def __init__(self, p=0.5):
+        tf.RandomVerticalFlip.__init__(self, p=p)
+
+    def __call__(self, sample):
+        for name, mod in sample.items():
+            if name != 'K':
+                if random.random() < self.p:
+                    sample[name] = func.vflip(mod)
+
+        return sample
+
+
+class RandomHorizontalFlip(tf.RandomHorizontalFlip):
+    def __init__(self, p=0.5):
+        tf.RandomHorizontalFlip.__init__(self, p=p)
+
+    def __call__(self, sample):
+        for name, mod in sample.items():
+            if name != 'K':
+                if random.random() < self.p:
+                    sample[name] = func.hflip(mod)
+
+        return sample
 
 
 class RandomCrop(tf.RandomCrop):

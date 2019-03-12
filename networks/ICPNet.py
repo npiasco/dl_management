@@ -356,6 +356,7 @@ class MatchNet(nn.Module):
         self.fact = kwargs.pop('fact', 2)
         self.reject_ratio = kwargs.pop('reject_ratio', 1)
         self.desc_p = kwargs.pop('desc_p', 2)
+        self.matching_ratio = kwargs.pop('matching_ratio', 0.9)
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
         self.outlier_filter = kwargs.pop('outlier_filter', True)
         self.use_dst_pt = kwargs.pop('use_dst_pt', True)
@@ -363,7 +364,9 @@ class MatchNet(nn.Module):
         self.normalize_desc = kwargs.pop('normalize_desc', True)
         self.bidirectional = kwargs.pop('bidirectional', False)
         self.n_neighbors = kwargs.pop('n_neighbors', 10)
+        self.nn_ratio = kwargs.pop('nn_ratio', 0.1)
         knn = kwargs.pop('knn', 'soft')
+        knn_metric = kwargs.pop('knn_metric', 'minkowski')
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -389,9 +392,28 @@ class MatchNet(nn.Module):
         elif knn == 'fast_soft_knn':
             self.knn = self.fast_soft_knn
             self.outlier_filter = False
-            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=self.n_neighbors)
+            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=self.n_neighbors, metric=knn_metric)
+        elif knn == 'bidirectional':
+            self.hard = True
+            self.knn = self.bidirectional_matching
+            self.outlier_filter = False
+            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=1, metric=knn_metric)
+        elif knn == 'ratio':
+            self.hard = True
+            self.knn = self.matching_w_ratio
+            self.outlier_filter = False
+            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=2, metric=knn_metric)
+        elif knn == 'nearest_match':
+            self.hard = True
+            self.knn = self.nearest_match
+            self.outlier_filter = False
+            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=50, metric=knn_metric)
+        elif knn == 'desc_reweighting':
+            self.knn = self.desc_reweighting
+            self.outlier_filter = False
+            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=self.n_neighbors, metric=knn_metric)
         else:
-            raise('Unknown knn type {}'.format(knn))
+            raise NotImplementedError('Unknown knn type {}'.format(knn))
 
         self.softmax_1d = nn.Softmax(dim=1)
         self.softmax_0d = nn.Softmax(dim=0)
@@ -534,6 +556,72 @@ class MatchNet(nn.Module):
 
         return pc_nearest, indexor
 
+
+    def matching_w_ratio(self, pc1, pc2, desc1, desc2):
+        d1 = desc1.view(desc1.size(0), -1)
+        d2 = desc2.view(desc2.size(0), -1)
+        if self.normalize_desc:
+            d1 = func_nn.normalize(d1, dim=0)
+            d2 = func_nn.normalize(d2, dim=0)
+        d1_cpu = d1.detach().t().cpu().numpy()
+
+        if not self.fitted:
+            self.fit(desc2)
+            self.fitted = False
+
+        distances, idx_nn_2 = self.nn_computor.kneighbors(d1_cpu, return_distance=True)
+
+        ratio = distances[:, 0]/distances[:, 1]
+
+        pc_nearest = pc2.clone().detach()[:, idx_nn_2[:, 0]]
+        return pc_nearest, pc1.new_tensor((ratio < self.matching_ratio).astype(int))
+
+
+    def nearest_match(self, pc1, pc2, desc1, desc2):
+        d1 = desc1.view(desc1.size(0), -1)
+        d2 = desc2.view(desc2.size(0), -1)
+        if self.normalize_desc:
+            d1 = func_nn.normalize(d1, dim=0)
+            d2 = func_nn.normalize(d2, dim=0)
+
+        if not self.fitted:
+            self.fit(pc2)
+            self.fitted = False
+        n_neighbors = int(pc1.size(1)*self.nn_ratio)
+        idx_nn = self.nn_computor.kneighbors(pc1.detach().t().cpu().numpy(), return_distance=False,
+                                             n_neighbors=n_neighbors)
+        d_matrix = torch.sum((d1.unsqueeze(-1) - d2[:, idx_nn]) ** 2, 0)
+        sorted = np.argsort(d_matrix.cpu().numpy())
+
+        ratio = d_matrix[np.arange(sorted.shape[0]), sorted[:, 0]]/d_matrix[np.arange(sorted.shape[0]), sorted[:, 1]]
+
+        pc_nearest = pc2.clone()[:, idx_nn[np.arange(sorted.shape[0]), sorted[:, 0]]]
+
+        return pc_nearest, ratio < self.matching_ratio
+
+
+    def bidirectional_matching(self, pc1, pc2, desc1, desc2):
+        d1 = desc1.view(desc1.size(0), -1)
+        d2 = desc2.view(desc2.size(0), -1)
+        if self.normalize_desc:
+            d1 = func_nn.normalize(d1, dim=0)
+            d2 = func_nn.normalize(d2, dim=0)
+        d1_cpu = d1.detach().t().cpu().numpy()
+
+        if not self.fitted:
+            self.fit(desc2)
+            self.fitted = False
+
+        idx_nn_2 = self.nn_computor.kneighbors(d1_cpu, return_distance=False)[:, 0]
+
+        bi_nn_computor = neighbors.NearestNeighbors(n_neighbors=1, metric='minkowski')
+        bi_nn_computor.fit(d1_cpu)
+        idx_nn_1 = bi_nn_computor.kneighbors(d2.detach().t().cpu().numpy(), return_distance=False)[:, 0]
+
+        pc_nearest = pc2.clone().detach()[:, idx_nn_2]
+        return pc_nearest, pc1.new_tensor((np.arange(idx_nn_2.shape[0]) == idx_nn_1[idx_nn_2]).astype(int))
+
+
     def fast_soft_knn(self, pc1, pc2, desc1, desc2):
         d1 = desc1.view(desc1.size(0), -1)
         d2 = desc2.view(desc2.size(0), -1)
@@ -547,6 +635,28 @@ class MatchNet(nn.Module):
             self.fitted = False
 
         idx_nn_2 = self.nn_computor.kneighbors(d1_cpu, return_distance=False)
+
+        d_matrix = torch.sum((d1.unsqueeze(-1) - d2[:, idx_nn_2]) ** 2, 0)
+        d_matrix = self.softmax_1d(-self.fact * d_matrix)
+
+        pc_nearest = torch.sum(pc2[:, idx_nn_2] * d_matrix, -1)
+        return pc_nearest
+
+    def desc_reweighting(self, pc1, pc2, desc1, desc2):
+        p1 = pc1.view(pc1.size(0), -1)
+        p2 = pc2.view(pc2.size(0), -1)
+        d1 = desc1.view(desc1.size(0), -1)
+        d2 = desc2.view(desc2.size(0), -1)
+        if self.normalize_desc:
+            d1 = func_nn.normalize(d1, dim=0)
+            d2 = func_nn.normalize(d2, dim=0)
+        p1_cpu = p1.detach().t().cpu().numpy()
+
+        if not self.fitted:
+            self.fit(p2)
+            self.fitted = False
+
+        idx_nn_2 = self.nn_computor.kneighbors(p1_cpu, return_distance=False)
 
         d_matrix = torch.sum((d1.unsqueeze(-1) - d2[:, idx_nn_2]) ** 2, 0)
         d_matrix = self.softmax_1d(-self.fact * d_matrix)
@@ -609,7 +719,10 @@ class MatchNet(nn.Module):
             if self.outlier_filter:
                 indexor[i] = self.soft_outlier_rejection(pc, pc_nearest[i])
 
-        return {'nn': pc_nearest, 'inliers': indexor.int()}
+        if self.hard or self.outlier_filter:
+            return {'nn': pc_nearest, 'inliers': indexor.int()}
+        else:
+            return {'nn': pc_nearest,}
 
 
 def normalize_rotmat(R):

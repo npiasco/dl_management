@@ -69,6 +69,70 @@ class DeploymentNet(nn.Module):
 
         return desc
 
+
+class UpConv(nn.Module):
+    def __init__(self, in_channels, out_channels, **kwargs):
+        nn.Module.__init__(self)
+        self.scale_factor = kwargs.pop('scale_factor', 2)
+        kernel_size = kwargs.pop('kernel_size', 3)
+        padding = kwargs.pop('padding', 0)
+        stride = kwargs.pop('stride', 1)
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        self.conv = nn.Conv2d(in_channels, out_channels,
+                              kernel_size=kernel_size,
+                              padding=padding,
+                              stride=stride)
+
+    def forward(self, x):
+        upx = nn.functional.interpolate(x, scale_factor=self.scale_factor)
+        x = self.conv(upx)
+
+        return x
+
+
+class PixelRnn(nn.Module):
+    def __init__(self, in_channels, out_channels, **kwargs):
+        nn.Module.__init__(self)
+        rec_module = kwargs.pop('rec_module', 'gru')
+        num_layers = kwargs.pop('num_layers', 1)
+        bidirectional = kwargs.pop('bidirectional', True)
+        self.padding = kwargs.pop('padding', 0)
+        self.kernel_size = kwargs.pop('kernel_size', 1)
+        self.stride = kwargs.pop('stride', 1)
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        if rec_module == 'gru':
+            self.h_rec_module = nn.GRU(input_size=in_channels, hidden_size=out_channels,
+                                       num_layers=num_layers, bidirectional=bidirectional)
+            self.v_rec_module = nn.GRU(input_size=in_channels, hidden_size=out_channels,
+                                       num_layers=num_layers, bidirectional=bidirectional)
+        elif rec_module == 'lstm':
+            self.h_rec_module = nn.LSTM(input_size=in_channels, hidden_size=out_channels,
+                                        num_layers=num_layers, bidirectional=bidirectional)
+            self.v_rec_module = nn.LSTM(input_size=in_channels, hidden_size=out_channels,
+                                        num_layers=num_layers, bidirectional=bidirectional)
+        else:
+            raise NotImplementedError('No recurent module named {}'.format(rec_module))
+
+        self.h0_size = (num_layers*(2 if bidirectional else 1), out_channels)
+
+    def forward(self, x):
+        output_h = list()
+        output_v = list()
+        for line in x.transpose(0, 2).transpose(1, 3):
+            output, _ = self.h_rec_module(line)
+            output_h.append(output.transpose(0, 1).transpose(1, 2))
+        for col in x.transpose(0, 2).transpose(1, 3).transpose(0, 1):
+            output, _ = self.v_rec_module(col)
+            output_v.append(output.transpose(0, 1).transpose(1, 2))
+
+        x = torch.cat((torch.stack(output_h, dim=2), torch.stack(output_v, dim=3)), dim=1)
+        return x
+
+
 class PixEncoder(nn.Module):
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
@@ -152,6 +216,7 @@ class PixDecoder(nn.Module):
         k_size = kwargs.pop('k_size', 2)
         norm_layer = kwargs.pop('norm_layer', 'group')
         div_fact = kwargs.pop('div_fact', 1)
+        dropout = kwargs.pop('dropout', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -186,6 +251,13 @@ class PixDecoder(nn.Module):
             ('bn3', norm_layer_func(int(256 / d_fact))),
             ('relu3', nn.ReLU(inplace=True)),
         ]
+
+        if dropout:
+            base_archi.append(('dp2', nn.Dropout2d(dropout)))
+            base_archi.insert(12, ('dp3', nn.Dropout2d(dropout)))
+            base_archi.insert(9, ('dp4', nn.Dropout2d(dropout)))
+            base_archi.insert(6, ('dp5', nn.Dropout2d(dropout)))
+            base_archi.insert(3, ('dp6', nn.Dropout2d(dropout)))
 
         end_div_4 = [
             ('conv2', nn.Conv2d(int(256 / d_fact * 2), int(out_channel), kernel_size=k_size*2+1, stride=1,
@@ -246,6 +318,144 @@ class PixDecoder(nn.Module):
             layers_to_train = self.layers_to_train
         if layers_to_train == 'all':
             return [{'params': self.feature.parameters()}]
+        elif layers_to_train == 'no':
+            return []
+
+    def full_save(self, discard_tf=False):
+        if discard_tf:
+            raise NotImplementedError('Functionality not implemented')
+        return {'feature': self.feature.state_dict(), }
+
+
+class PixDecoderMultiscale(nn.Module):
+    def __init__(self, **kwargs):
+        nn.Module.__init__(self)
+
+        self.layers_to_train = kwargs.pop('layers_to_train', 'all')
+        d_fact = kwargs.pop('d_fact', 1)
+        k_size = kwargs.pop('k_size', 2)
+        norm_layer = kwargs.pop('norm_layer', 'group')
+        div_fact = kwargs.pop('div_fact', 1)
+        pixel_rnn = kwargs.pop('pixel_rnn', False)
+        rnn_type = kwargs.pop('rnn_type', 'gru')
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        if div_fact not in [1, 2, 4]:
+            raise ValueError('Output is not divisible by {}'.format(div_fact))
+
+        if norm_layer == 'group':
+            norm_layer_func = lambda x: copy.deepcopy(nn.GroupNorm(x//2, x))
+        elif norm_layer == 'batch':
+            norm_layer_func = lambda x: copy.deepcopy(nn.BatchNorm2d(x))
+
+        self.block_7 = nn.Sequential(coll.OrderedDict([
+            ('map', nn.Sequential(coll.OrderedDict([
+                ('refpad7', nn.ReplicationPad2d((k_size + 1) // 2)),
+                ('map7', nn.Conv2d(int(512 / d_fact), 1, kernel_size=k_size*2 + 1, stride=1,
+                                   padding=(k_size + 1) // 2)),
+                ('sig', nn.Sigmoid()),])),
+             ),
+
+            ('conv', nn.Sequential(coll.OrderedDict([
+                ('conv7', (
+                    PixelRnn(int(512 / d_fact), int(128 / d_fact), rec_module=rnn_type) if pixel_rnn else
+                    nn.Conv2d(int(512 / d_fact), int(512 / d_fact), kernel_size=k_size + 1, stride=1,
+                              padding=(k_size + 1) // 2))
+                 ),
+                ('bn7', norm_layer_func(int(512 / d_fact))),
+                ('relu7', nn.ReLU(inplace=True)),]))
+             )
+        ]))
+        self.block_6 = self.build_block(int(512 / d_fact), int(512 / d_fact), k_size, norm_layer_func, 6,
+                                        pixel_rnn, rnn_type)
+        self.block_5 = self.build_block_up(int(512 / d_fact), int(512 / d_fact), k_size, norm_layer_func, 5)
+        self.block_4 = self.build_block(int(512 / d_fact), int(512/ d_fact), k_size, norm_layer_func, 4,
+                                        pixel_rnn, rnn_type)
+        self.block_3 = self.build_block_up(int(512/ d_fact), int(256/ d_fact), k_size, norm_layer_func, 3)
+        self.block_2 = self.build_block(int(256/ d_fact), int(128/ d_fact), k_size, norm_layer_func, 2)
+        self.block_1 = self.build_block_up(int(128/ d_fact), int(64/ d_fact), k_size, norm_layer_func, 1)
+
+        if div_fact == 2:
+            self.blocks = [self.block_7, self.block_6, self.block_5, self.block_4, self.block_3, self.block_2, self.block_1]
+        elif div_fact == 4:
+            self.blocks = [self.block_7, self.block_6, self.block_5, self.block_4, self.block_3]
+        elif div_fact == 8:
+            self.blocks = [self.block_7, self.block_6, self.block_5, ]
+        else:
+            logger.error('Unimplemeted div factor {}'.format(div_fact))
+            raise NotImplementedError()
+
+        logger.info('Final architecture is:')
+        logger.info(self.blocks)
+
+    @staticmethod
+    def build_block_up(input_depth, output_depth, k_size, norm_layer_func, i):
+        block = nn.Sequential(coll.OrderedDict([
+            ('conv', nn.Sequential(coll.OrderedDict([
+                ('conv{}'.format(i), UpConv(input_depth, input_depth, kernel_size=k_size + 1, stride=1,
+                                            padding=((k_size + 1) // 2), scale_factor=2)),
+                ('bn{}'.format(i), norm_layer_func(input_depth)),
+                ('relu{}'.format(i), nn.ReLU(inplace=True)),
+            ])),
+             ),
+            ('fuse', nn.Sequential(coll.OrderedDict([
+                ('conv{}'.format(i), nn.Conv2d(int(input_depth * 2 + 1), output_depth, kernel_size=k_size +1,
+                                                        stride=1, padding=(k_size + 1) // 2)),
+                ('bn{}'.format(i), norm_layer_func(output_depth)),
+                ('relu{}'.format(i), nn.ReLU(inplace=True)),
+            ])),
+             ),
+            ('map', nn.Sequential(coll.OrderedDict([
+                ('refpad{}'.format(i), nn.ReplicationPad2d((k_size + 1) // 2)),
+                ('map{}'.format(i), nn.Conv2d(output_depth, 1, kernel_size=k_size + 1, stride=1)),
+                ('sig', nn.Sigmoid()),
+            ])),
+             ),
+        ]))
+
+        return block
+
+    @staticmethod
+    def build_block(input_depth, output_depth, k_size, norm_layer_func, i, pixel_rnn=False, rnn_type='gru'):
+        block = nn.Sequential(coll.OrderedDict([
+            ('conv', nn.Sequential(coll.OrderedDict([
+                ('conv{}'.format(i), (
+                    PixelRnn(int(input_depth * 2), int(output_depth / 4), rec_module=rnn_type) if pixel_rnn else
+                    nn.Conv2d(int(input_depth * 2), output_depth, kernel_size=k_size + 1,
+                              stride=1, padding=(k_size + 1) // 2))
+                 ),
+                ('bn{}'.format(i), norm_layer_func(output_depth)),
+                ('relu{}'.format(i), nn.ReLU(inplace=True)),
+            ])),
+             ),
+        ]))
+
+        return block
+
+    def forward(self, unet):
+        output = list()
+        for i, block in enumerate(self.blocks):
+            name = list(dict(block.named_children())['conv'].named_children())[0][0]
+            if i == 0:
+                x = dict(block.named_children())['conv'](unet[name])
+                output.append(dict(block.named_children())['map'](x))
+            elif 'map' in dict(block.named_children()).keys():
+                x = dict(block.named_children())['conv'](x)
+                upsampled_map = nn.functional.interpolate(output[-1], scale_factor=2, mode='bilinear', align_corners=True)
+                x = dict(block.named_children())['fuse'](torch.cat((upsampled_map, unet[name], x), dim=1))
+                output.append(dict(block.named_children())['map'](x))
+            else:
+                x = block(torch.cat((unet[name], x), dim=1))
+
+        return output
+
+    def get_training_layers(self, layers_to_train=None):
+        if layers_to_train is None:
+            layers_to_train = self.layers_to_train
+        if layers_to_train == 'all':
+            return [{'params': block.parameters()} for block in self.blocks]
         elif layers_to_train == 'no':
             return []
 
@@ -323,8 +533,9 @@ class Softlier(nn.Module):
 
 
 if __name__ == '__main__':
-    input_size = 224//2
-    tensor_input = torch.rand([1, 3, input_size, input_size])
+    input_size = 448//2
+    tensor_input = torch.rand([2, 3, input_size, int(input_size/2)]).cuda()
+    print(tensor_input.size())
     '''
     net = DeploymentNet()
 
@@ -339,15 +550,17 @@ if __name__ == '__main__':
 
     torch.save(net.state_dict(), 'default.pth')
     '''
-    enc = PixEncoder(k_size=4, d_fact=2)
-    dec= PixDecoder(k_size=4, d_fact=2, out_channel=1, div_fact=2)
-
+    enc = PixEncoder(k_size=4, d_fact=2).cuda()
+    #dec= PixDecoder(k_size=4, d_fact=2, out_channel=1, div_fact=2, dropout=0.1)
+    dec = PixDecoderMultiscale(k_size=4, d_fact=2, div_fact=2, pixel_rnn=True).cuda()
     feat_output = enc(tensor_input)
     output = dec(feat_output)
-    print(output.size())
-    print(feat_output['conv1'].size())
-    #print([res.size() for res in feat_output.values()])
+    for out in output:
+        print(out.size())
 
-    desc_feat = torch.rand(50, 64)
-    softlier = Softlier(input_size=64, num_inter_layers=1)
-    print(softlier(desc_feat))
+    print(dec.get_training_layers())
+
+    rec_mod = PixelRnn(3, 1, ).cuda()
+
+    out_rec = rec_mod(tensor_input)
+    print(out_rec.size())

@@ -220,7 +220,10 @@ class BaseMultNetTrainer:
         self.optimizers = self.init_optimizers(self.optimizers_params)
 
         for name, network in self.networks.items():
-            network.load_state_dict(datas['network_' + name])
+            try:
+                network.load_state_dict(datas['network_' + name])
+            except KeyError:
+                logger.warning("Can't load {}".format('network_' + name))
             self.cuda_func(network)
 
         for name, optimizer in self.optimizers.items():

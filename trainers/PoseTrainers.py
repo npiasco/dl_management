@@ -367,16 +367,27 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
             if len(self.val_score) <= ep:
-                if isinstance(score_function, ScoreFunc.Reconstruction_Error):
-                    errors = self._compute_rerror(self.networks, dataset['queries'], dataset['data'])
+                if isinstance(score_function, ScoreFunc.MinLossRanking):
+                    mean_loss = 0
+                    for loss in self.loss_log.values():
+                        try:
+                            mean_loss += sum(loss)/len(loss)
+                        except ZeroDivisionError:
+                            pass
+                    self.val_score.append(mean_loss)
+                    if len(self.val_score) == 1 or len(self.val_score) == 2 or self.best_net[0] > mean_loss:
+                        self._save_current_net(mean_loss)
                 else:
-                    errors = self._compute_errors(self.networks, dataset['queries'], dataset['data'])
+                    if isinstance(score_function, ScoreFunc.Reconstruction_Error):
+                        errors = self._compute_rerror(self.networks, dataset['queries'], dataset['data'])
+                    else:
+                        errors = self._compute_errors(self.networks, dataset['queries'], dataset['data'])
 
-                score = score_function(errors)
+                    score = score_function(errors)
 
-                self.val_score.append(score)
-                if score_function.rank_score(score, self.best_net[0]):
-                    self._save_current_net(score)
+                    self.val_score.append(score)
+                    if score_function.rank_score(score, self.best_net[0]):
+                        self._save_current_net(score)
 
             logger.info('Score is: {}'.format(self.val_score[ep]))
 
@@ -395,7 +406,10 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             if not final:
                 for name, network in self.networks.items():
                     nets_to_test[name] = copy.deepcopy(network)
-                    nets_to_test[name].load_state_dict(self.best_net[1][name])
+                    try:
+                        nets_to_test[name].load_state_dict(self.best_net[1][name])
+                    except KeyError:
+                        logger.warning("Unable to load best weights for net {}".format(name))
             else:
                 nets_to_test = self.networks
 
@@ -410,7 +424,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             return results
 
     def _compute_rerror(self, networks, queries, dataset):
-        dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
+        #dataset_loader = utils.data.DataLoader(dataset, batch_size=1, num_workers=self.val_num_workers)
         queries_loader = utils.data.DataLoader(queries, batch_size=1, num_workers=self.val_num_workers)
 
         for network in networks.values():
@@ -419,7 +433,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         errors = list()
         # Forward pass
         logger.info('Computing dataset/queries reconstruction error')
-        for dataloader in (dataset_loader, queries_loader):
+        for dataloader in (queries_loader, ):
             for batch in tqdm.tqdm(dataloader):
                 variables = {'batch': self.batch_to_device(batch)}
                 for action in self.eval_forwards['queries']:
@@ -437,6 +451,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         return errors
 
     def _compute_errors(self, networks, queries, dataset):
+        verbose = False
         for network in networks.values():
             network.eval()
 
@@ -444,33 +459,34 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         queries_loader = utils.data.DataLoader(queries, batch_size=1, num_workers=self.val_num_workers)
 
         logger.info('Computing reference model')
-        model = None
+        data_variables = dict()
         for batch in tqdm.tqdm(dataset_loader):
-            variables = {'batch': self.batch_to_device(batch)}
+            data_variables['batch'] = self.batch_to_device(batch)
             for action in self.eval_forwards['data']:
-                variables = self._sequential_forward(action, variables, networks)
-
-            if model is None:
-                model =  recc_acces(variables, ['model',])
-            else:
-                model = self.build_model((model, recc_acces(variables, ['model',])))
+                data_variables = self._sequential_forward(action, data_variables, networks)
 
         errors = {
             'position': list(),
             'orientation': list()
         }
         logger.info('Computing position and orientation errors')
-        for query in tqdm.tqdm(queries_loader):
-            variables = {'batch': self.batch_to_device(query)}
-            variables['model'] = model
+        for i, query in tqdm.tqdm(enumerate(queries_loader)):
+            variables = {'batch': self.batch_to_device(query), 'ref_data': dataset}
+            if 'db' in data_variables.keys():
+                variables['db'] = data_variables['db']
+            #variables['model'] = model
             for action in self.eval_forwards['queries']:
                 variables = self._sequential_forward(action, variables, networks)
 
             pose = recc_acces(variables, self.access_pose)
             errors['position'].append(np.linalg.norm(pose['p'].cpu().detach().numpy() -
-                                                     query['pose']['position'].cpu().numpy()))
+                                                     query['pose']['p'].cpu().numpy()))
             errors['orientation'].append(self.distance_between_q(pose['q'].cpu().detach().numpy()[0],
-                                                                 query['pose']['orientation'].cpu().numpy()[0]))
+                                                                 query['pose']['q'].cpu().numpy()[0]))
+            if verbose:
+                print('Query {} Position err: {} / Orientation err: {}'.format(i,
+                                                                               errors['position'][-1],
+                                                                               errors['orientation'][-1]))
         return errors
 
     @staticmethod

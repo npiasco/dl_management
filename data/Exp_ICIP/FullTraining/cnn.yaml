@@ -1,0 +1,43 @@
+Main:
+    class: 'networks.CustomArchi.PixEncoder'
+    param_class:
+        layers_to_train: 'all'
+        k_size: 4
+        d_fact: 2
+
+Deconv:
+    class: 'networks.CustomArchi.PixDecoder'
+    param_class:
+        layers_to_train: 'no'
+        k_size: 4
+        d_fact: 2
+        out_channel: 1
+        div_fact: 4
+
+MatchNet:
+    class: 'networks.ICPNet.MatchNet'
+    param_class:
+        normalize_desc: True
+        knn: 'fast_soft_knn'
+        n_neighbors: 1
+        knn_metric: 'minkowski'
+
+Desc:
+    class: 'networks.FeatAggregation.Concat'
+    param_class:
+        norm: False
+        norm_x2: False
+        norm_x1: False
+        main_ratio: 1.0
+
+FeatDesc:
+    class: 'networks.Aggregation.RMAC'
+    param_class:
+        R: 1
+        norm: True
+
+init_weights:
+    Main:
+        feature: '../PoseReg/ICP/7Scenes/DepthFull224/Main_feature.pth'
+    Deconv:
+        feature: '../PoseReg/ICP/7Scenes/DepthFull224/Deconv_feature.pth'

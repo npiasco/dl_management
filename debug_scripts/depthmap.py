@@ -32,3 +32,35 @@ plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
 plt.colorbar()
 
 plt.show()
+
+
+'''
+import matplotlib.pyplot as plt
+import torchvision as torchvis
+import torch
+import math
+
+ccmap = plt.get_cmap('jet', lut=1024)
+
+mod = new_depth_maps.unsqueeze(0)
+trumode = torch.nn.functional.interpolate(sample['depth'].unsqueeze(0), scale_factor=0.5)
+
+im = new_image.unsqueeze(0)
+truim = torch.nn.functional.interpolate(sample['rgb'].unsqueeze(0), scale_factor=0.5)
+
+
+
+fig = plt.figure(1)
+images_batch = torch.cat((mod, trumode,))
+grid = torchvis.utils.make_grid(images_batch, nrow=2)
+plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
+plt.colorbar()
+
+
+
+fig = plt.figure(2)
+images_batch = torch.cat((im, truim,))
+grid = torchvis.utils.make_grid(images_batch, nrow=2)
+plt.imshow(grid.numpy().transpose(1, 2, 0))
+plt.show()
+'''

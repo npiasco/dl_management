@@ -4,7 +4,6 @@ import sklearn.linear_model
 import sklearn.base
 
 
-
 logger = setlog.get_logger(__name__)
 
 
@@ -39,21 +38,31 @@ class PoseEstimator(sklearn.base.BaseEstimator):
 
     def score(self, X, y):
         y_est = self.predict(X)
+        '''
         u = np.sum(np.sum((y-y_est)**2, 1))
         v = np.sum(np.sum((y-np.mean(y, 0))**2, 1))
         return 1-u/v
-        #        return  np.mean( (np.sum((y-y_est)**2, 1)<self.threshold) )
+        '''
+        '''
+        u = np.sum((y - y_est) ** 2, 1)
+        v = np.sum((y - np.mean(y, 0)) ** 2, 1)
+        return np.average(1 - u / v, weights=v)
+        '''
+        return  1 - np.mean((np.sum((y-y_est)**2, 1)))
 
     def predict(self, X):
         return np.matmul(self.T, X.transpose(1,0)).transpose(1,0)
 
 
 def ransac_pose_estimation(pt, pt_nn):
-    ransac = sklearn.linear_model.RANSACRegressor(base_estimator=PoseEstimator(), min_samples=0.1, max_trials=100)
+    ransac = sklearn.linear_model.RANSACRegressor(base_estimator=PoseEstimator(), min_samples=0.5, max_trials=100,
+                                                  residual_threshold=0.4, loss='squared_loss')
     ransac.fit(pt.t().cpu().numpy(), pt_nn.t().cpu().numpy())
+    fscore = ransac.score(pt.t().cpu().numpy(), pt_nn.t().cpu().numpy())
     logger.debug('Ransac score {} in {} iteration'.format(ransac.score(pt.t().cpu().numpy(), pt_nn.t().cpu().numpy()),
                                                           ransac.n_trials_))
-    return {'T': pt.new_tensor(ransac.estimator_.T).unsqueeze(0)}
+    return {'T': pt.new_tensor(ransac.estimator_.T).unsqueeze(0),
+            'score': fscore, 'inliers_ratio': sum(ransac.inlier_mask_)/len(ransac.inlier_mask_)}
 
 
 

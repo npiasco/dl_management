@@ -55,12 +55,19 @@ class Concat(nn.Module):
         nn.Module.__init__(self)
 
         self.norm = kwargs.pop('norm', True)
+        self.norm_x1 = kwargs.pop('norm_x1', False)
+        self.norm_x2 = kwargs.pop('norm_x2', False)
         self.main_ratio = kwargs.pop('main_ratio', 1)
         self.aux_ratio = kwargs.pop('aux_ratio', 1)
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     def forward(self, x1, x2):
+
+        if self.norm_x1:
+            x1 = func.normalize(x1)
+        if self.norm_x2:
+            x2 = func.normalize(x2)
 
         x = torch.cat((x1*self.main_ratio,
                        x2*self.aux_ratio), dim=1)

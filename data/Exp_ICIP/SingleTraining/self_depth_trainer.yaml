@@ -1,0 +1,110 @@
+class: 'trainers.PoseTrainers.MultNetTrainer'
+param_class:
+    #cuda_on: False
+    val_num_workers: 8
+    optimizers_params:
+        posenet_trainer:
+            associated_net: ['Main', 'Deconv']
+            optimizer_type: ADAM
+            param:
+                lr: 0.00005 # * 0.5
+                weight_decay: 0.001
+    training_pipeline:
+        [
+            #------------------ Main Forward -----------------#
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['batch', 0, 'rgb'], ]},
+                net_name: 'Main',
+                out_name: 'fw_main'
+            },
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['fw_main'], ], detach_inputs: false, dict: True},
+                net_name: 'Deconv',
+                out_name: 'maps'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.inverse,
+                param: {data_to_inv: ['maps'], },
+                out_name: 'fake_depth'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.resize,
+                param: {inputs: ['batch', 0, 'rgb'], scale_factor: 1, flatten: false},
+                out_name: 'resized_source'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.bilinear_wrapping,
+                param: {img_source: ['rgb'], depth_map: ['fake_depth'], Ks: ['K'], multiple_proj: batch,
+                #param: {img_source: ['batch', 1, 'rgb'], depth_map: ['batch', 0, 'depth'], Ks: ['batch', 1, 'K'],
+                Kt: ['batch', 0, 'K'], T_s: ['pose', 'T'], T_t: ['batch', 0, 'pose', 'T']},
+                out_name: 'wrapped_images'
+            },
+            #-------------------- Losses ---------------------#
+            {
+             mode: 'loss',
+             name: 'simloss',
+             func: 'loss_func.image_similarity',
+             args: [['wrapped_images'], ['resized_source']],
+             param: {no_zeros: False, p: 1}
+            },
+            {
+             mode: 'loss',
+             name: 'regloss',
+             func: 'loss_func.reg_loss',
+             args: [['fake_depth'], ['resized_source']],
+             param: {reduce_factor: 1.0, fact: 0.002}
+            },
+            {
+             mode: 'backprop',
+             name: 'deconv_backprop',
+             trainer: 'posenet_trainer'
+            },
+            #-------------------------------------------------#
+        ]
+    eval_forwards:
+        data: []
+        queries:
+            [
+                #------------------ Main Forward -----------------#
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false, input_targets: [['batch', 'rgb' ], ]},
+                    net_name: 'Main',
+                    out_name: 'fw_main'
+                },
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false, input_targets: [['fw_main'], ]},
+                    net_name: 'Deconv',
+                    out_name: 'maps'
+                },
+                {
+                    mode: minning,
+                    func: b_wrapper.inverse,
+                    param: {data_to_inv: ['maps'], },
+                    out_name: 'fake_depth'
+                },
+            ]
+    access_pose: [['fake_depth'], ['batch', 'depth']]
+    build_model_func: torch.cat
+eval_class: 'score.Functions.Reconstruction_Error'
+param_eval_class:
+    pooling_type: 'mean'
+test_func:
+    med_err:
+        class: 'score.Functions.Reconstruction_Error'
+        param_class:
+            pooling_type: 'median'
+    mean_err:
+        class: 'score.Functions.Reconstruction_Error'
+        param_class:
+            pooling_type: 'mean'

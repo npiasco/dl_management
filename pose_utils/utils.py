@@ -1,5 +1,6 @@
 import setlog
 import torch
+import networks.ResNet as Resnet
 import matplotlib.pyplot as plt
 import os
 import re
@@ -342,9 +343,15 @@ def get_local_map(**kwargs):
         if cnn_depth:
             if no_grad:
                 with torch.no_grad():
-                    depth = cnn_dec(out_enc).squeeze(0)
+                    if isinstance(cnn_dec, Resnet.Deconv):
+                        depth = cnn_dec(out_enc['feat'], out_enc['res_1'], out_enc['res_2']).squeeze(0)
+                    else:
+                        depth = cnn_dec(out_enc).squeeze(0)
             else:
-                depth = cnn_dec(out_enc).squeeze(0)
+                if isinstance(cnn_dec, Resnet.Deconv):
+                    depth = cnn_dec(out_enc['feat'], out_enc['res_1'], out_enc['res_2']).squeeze(0)
+                else:
+                    depth = cnn_dec(out_enc).squeeze(0)
 
             depth = torch.reciprocal(depth.clamp(min=1e-8)) - 1  # Need to inverse the depth
             pcs.append(
@@ -384,6 +391,7 @@ def get_local_map(**kwargs):
         cnn_desc_out = torch.cat(descs, 1)
     logger.debug('Final points before pruning cloud has {} points'.format(final_pc.size(1)))
     if not isinstance(output_size, bool):
+        torch.manual_seed(42)
         indexor = torch.randperm(final_pc.size(1))
         final_pc = final_pc[:, indexor]
         final_pc = final_pc[:, :output_size]
