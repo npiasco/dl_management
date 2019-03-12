@@ -18,6 +18,7 @@ import copy
 import time
 import score.Functions as ScoreFunc
 import sklearn.neighbors as skn
+import csv
 
 
 logger = setlog.get_logger(__name__)
@@ -401,7 +402,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
 
         return errors
 
-    def _compute_sim(self, networks, queries, dataset):
+    def _compute_sim(self, networks, queries, dataset, res_file=True):
         batch_size = 30
         k_nn = 50
         dataset_loader = utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=self.val_num_workers)
@@ -452,6 +453,12 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
 
         ranked = [list(np.linalg.norm(queries_feats['poses'][i, :2].cpu().numpy() - dataset_feats['poses'][id, :2].cpu().numpy(), axis=1))
                   for i, id in enumerate(idx)]
+
+        if res_file:
+            with open('res_file.csv', 'w') as csvfile:
+                spamwriter = csv.writer(csvfile, delimiter=',')
+                for i, id in enumerate(idx):
+                    spamwriter.writerow(list(zip(id, ranked[i])))
 
         return ranked
 
