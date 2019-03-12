@@ -13,7 +13,7 @@ import trainers.bilinear_sampler as bsm
 logger = setlog.get_logger(__name__)
 
 
-def bilinear_wrapping(variables, **kwargs):
+def bilinear_wrapping(variables, **kwargs) :
     img_source = kwargs.pop('img_source', None)
     depth_map = kwargs.pop('depth_map', None)
     Ks = kwargs.pop('Ks', None)
@@ -23,7 +23,6 @@ def bilinear_wrapping(variables, **kwargs):
     multiple_proj = kwargs.pop('multiple_proj', False)
     resize_K = kwargs.pop('resize_K', False)
     param_sampler = kwargs.pop('param_sampler', dict())
-
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -84,6 +83,7 @@ def pnp(nets, variable, **kwargs):
     K = kwargs.pop('K', None)
     init_T = kwargs.pop('init_T', None)
     inv_init_T = kwargs.pop('inv_init_T', None)
+    relative_pnp = kwargs.pop('relative_pnp', False)
     param_pnp = kwargs.pop('param_pnp', dict())
 
     if kwargs:
@@ -96,15 +96,23 @@ def pnp(nets, variable, **kwargs):
     init_T = recc_acces(variable, init_T)
     K = recc_acces(variable, K)
 
-    if init_T.size(0) != 1:
-        raise NotImplementedError('No implementation of batched ICP')
-    if inv_init_T:
-        init_T = init_T[0, :].inverse().unsqueeze(0)
+    if relative_pnp:
+        init_T = [T['T'] for T in init_T]
+        pc_ref = [init_T[i].matmul(pc) for i, pc in enumerate(pc_ref)]
+        PnP_out = PnP.PnPfrom2D(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K,
+                                desc_function=(nets[0] if len(nets) > 1 else None),
+                                match_function=(nets[1] if len(nets) > 1 else nets[0]),
+                                pnp_param=param_pnp)
+    else:
+        if init_T.size(0) != 1:
+            raise NotImplementedError('No implementation of batched PnP')
+        if inv_init_T:
+            init_T = init_T[0, :].inverse().unsqueeze(0)
 
-    PnP_out = PnP.PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K,
-                    desc_function=(nets[0] if len(nets)>1 else None),
-                    match_function=(nets[1] if len(nets)>1 else nets[0]),
-                    **param_pnp)
+        PnP_out = PnP.PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K,
+                          desc_function=(nets[0] if len(nets)>1 else None),
+                          match_function=(nets[1] if len(nets)>1 else nets[0]),
+                          **param_pnp)
 
     if inv_init_T:
         PnP_out['T'] = PnP_out['T'][0, :].inverse().unsqueeze(0)
@@ -209,21 +217,32 @@ def add_variable(variable, **kwargs):
 
 
 def inverse(variable, **kwargs):
-    data_to_inv = kwargs.pop('data_to_inv', None)
+    data_to_inv_name = kwargs.pop('data_to_inv', None)
     offset = kwargs.pop('offset', -1)
     eps = kwargs.pop('eps', 1e-8)
     fact = kwargs.pop('fact', 1)
     bounded = kwargs.pop('bounded', False)
+    multiples_instance = kwargs.pop('multiples_instance', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    data_to_inv = recc_acces(variable, data_to_inv)
+    data_to_inv = recc_acces(variable, data_to_inv_name)
 
-    if not bounded:
-        inv_data = torch.reciprocal(data_to_inv.clamp(min=eps)*fact) + offset
+    if multiples_instance:
+        inv_data = [inverse(variable,
+                            data_to_inv=data_to_inv_name + [i],
+                            offset=offset,
+                            eps=eps,
+                            fact=fact,
+                            bounded=bounded,
+                            multiples_instance=False) for i in range(len(data_to_inv))]
     else:
-        inv_data = torch.reciprocal(data_to_inv*fact + offset)
+
+        if not bounded:
+            inv_data = torch.reciprocal(data_to_inv.clamp(min=eps)*fact) + offset
+        else:
+            inv_data = torch.reciprocal(data_to_inv*fact + offset)
 
 
     return inv_data
@@ -370,34 +389,52 @@ def batched_depth_map_to_pc(variable, **kwargs):
     remove_zeros = kwargs.pop('remove_zeros', False)
     eps = kwargs.pop('eps', 1e-8)
     scale_factor = kwargs.pop('scale_factor', None)
+    multiples_instance = kwargs.pop('multiples_instance', False)
+    modify_K = kwargs.pop('modify_K', True)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     batched_depth_maps = recc_acces(variable, depth_maps)
-    K = recc_acces(variable, K)
 
-    if scale_factor is not None:
-        if (1/scale_factor)%2 != 0:
-            raise ValueError('Scale factor is not a multiple of 2 (1/scale is {})'.format(1/scale_factor))
-        K[:, :2, :] *= scale_factor
-        batched_depth_maps = nn_func.interpolate(batched_depth_maps, scale_factor=scale_factor, mode='nearest')
-
-    n_batch, _, height, width = batched_depth_maps.size()
-    if remove_zeros:
-        if n_batch != 1:
-            raise ArithmeticError("Can't stack pc when removing zerors values! (batch_size!=1)")
+    if multiples_instance:
+        batched_pc = [batched_depth_map_to_pc(variable,
+                                              depth_maps=depth_maps + [i],
+                                              K=K,
+                                              inverse_depth=inverse_depth,
+                                              remove_zeros=remove_zeros,
+                                              eps=eps,
+                                              scale_factor=scale_factor,
+                                              multiples_instance=False,
+                                              modify_K=False) for i in range(len(batched_depth_maps))]
     else:
-        batched_pc = batched_depth_maps.new_zeros(n_batch, 4, height*width)
-
-    for i, depth_maps in enumerate(batched_depth_maps):
-        if inverse_depth:
-            depth_maps = torch.reciprocal(depth_maps.clamp(min=eps)) - 1
-        if remove_zeros:
-            batched_pc, indexor = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros)
-            batched_pc = {'pc': batched_pc.unsqueeze(0), 'index': indexor}
+        if modify_K:
+            K = recc_acces(variable, K)
+            if scale_factor is not None:
+                if (1 / scale_factor) % 2 != 0:
+                    raise ValueError('Scale factor is not a multiple of 2 (1/scale is {})'.format(1 / scale_factor))
+                K[:, :2, :] *= scale_factor
         else:
-            batched_pc[i, :, :] = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros)
+            K = recc_acces(variable, K).clone().detach()
+
+        if scale_factor is not None:
+            batched_depth_maps = nn_func.interpolate(batched_depth_maps, scale_factor=scale_factor, mode='nearest')
+
+        n_batch, _, height, width = batched_depth_maps.size()
+        if remove_zeros:
+            if n_batch != 1:
+                raise ArithmeticError("Can't stack pc when removing zeros values! (batch_size!=1)")
+        else:
+            batched_pc = batched_depth_maps.new_zeros(n_batch, 4, height*width)
+
+        for i, depth_maps in enumerate(batched_depth_maps):
+            if inverse_depth:
+                depth_maps = torch.reciprocal(depth_maps.clamp(min=eps)) - 1
+            if remove_zeros:
+                batched_pc, indexor = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros)
+                batched_pc = {'pc': batched_pc.unsqueeze(0), 'index': indexor}
+            else:
+                batched_pc[i, :, :] = utils.depth_map_to_pc(depth_maps, K[i], remove_zeros)
 
     return batched_pc
 
@@ -420,17 +457,27 @@ def resize(variable, **kwargs):
     scale_factor = kwargs.pop('scale_factor', None)
     flatten = kwargs.pop('flatten', True)
     mode = kwargs.pop('mode', 'nearest')
+    multiples_instance = kwargs.pop('multiples_instance', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    inputs = recc_acces(variable, inputs)
-    if mode == 'bilinear':
-        inputs = nn_func.interpolate(inputs, scale_factor=scale_factor, mode=mode, align_corners=True)
+    if multiples_instance:
+        inputs_var = recc_acces(variable, inputs[:1]) # Special treatment because of the double recc access
+        inputs = [resize(variable,
+                         inputs=inputs[:1] + [i] + inputs[1:],
+                         scale_factor=scale_factor,
+                         flatten=flatten,
+                         mode=mode,
+                         multiples_instance=False) for i in range(len(inputs_var))]
     else:
-        inputs = nn_func.interpolate(inputs, scale_factor=scale_factor, mode=mode)
-    if flatten:
-        inputs = inputs.view(inputs.size(0),inputs.size(1), -1)
+        inputs = recc_acces(variable, inputs)
+        if mode == 'bilinear':
+            inputs = nn_func.interpolate(inputs, scale_factor=scale_factor, mode=mode, align_corners=True)
+        else:
+            inputs = nn_func.interpolate(inputs, scale_factor=scale_factor, mode=mode)
+        if flatten:
+            inputs = inputs.view(inputs.size(0),inputs.size(1), -1)
 
     return inputs
 
