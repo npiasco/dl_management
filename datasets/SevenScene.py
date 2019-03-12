@@ -37,7 +37,7 @@ def matrix_2_quaternion(mat):
     '''
     quat = rot_to_quat(rot)
 
-    return {'position': pos, 'orientation': quat, 'T': mat}
+    return {'p': pos, 'q': quat, 'T': mat}
 
 
 class Base(utils.Dataset):
@@ -105,6 +105,19 @@ class Base(utils.Dataset):
 
         return sample
 
+    def get_position(self, idx):
+        fold, num = self.data[idx]
+        pose_file = self.folders[fold] + 'frame-' + num + '.pose.txt'
+        pose = np.ndarray((4, 4), dtype=np.float32)
+        with open(pose_file, 'r') as pose_file_pt:
+            for i, line in enumerate(pose_file_pt):
+                for j, c in enumerate(line.split('\t')):
+                    try:
+                        pose[i, j] = float(c)
+                    except ValueError:
+                        pass
+        return pose[:3, 3]
+
 class MultiDataset(utils.Dataset):
     def __init__(self, **kwargs):
         utils.Dataset.__init__(self)
@@ -120,12 +133,17 @@ class MultiDataset(utils.Dataset):
 
         if type == 'train':
             self.datasets = [Train(root=root + folder, transform=transform, **general_options) for folder in folders]
+        if type == 'seq':
+            self.datasets = [TrainSequence(root=root + folder, transform=transform, **general_options) for folder in
+                             folders]
         elif type == 'aug_train':
             self.datasets = [Train(root=root + folder, transform=transform, **general_options) for folder in folders]
             self.datasets += [AugmentedTrain(root=root + folder, transform=transform, **general_options)
                               for folder in folders]
         elif type == 'val':
             self.datasets = [Val(root=root + folder, transform=transform,  **general_options) for folder in folders]
+        elif type == 'test':
+            self.datasets = [Test(root=root + folder, transform=transform,  **general_options) for folder in folders]
         else:
             raise AttributeError('No implementation for type {}'.format(type))
 
@@ -189,6 +207,7 @@ class TrainSequence(Train):
         self.num_samples = kwargs.pop('num_samples', 2)
         self.spacing = kwargs.pop('spacing', 20)
         self.random = kwargs.pop('random', True)
+        load_fast = kwargs.pop('load_fast', True)
 
         Train.__init__(self, **kwargs)
 
@@ -205,17 +224,29 @@ class TrainSequence(Train):
                             pass
             self.poses.append(pose)
 
-    def __getitem__(self, idx):
-        T = self.poses[idx]
-        InvnpT = np.linalg.inv(T)
+        logger.info('Relative pose computation')
         eye_mat = np.eye(4, 4)
-        d_poses = [np.linalg.norm(eye_mat - np.matmul(pose, InvnpT)) for pose in self.poses]
-        nearest_idx = np.argsort(d_poses)
+        if not load_fast:
+            self.r_poses = [np.argsort([np.linalg.norm(eye_mat - np.matmul(pose, np.linalg.inv(InvnpT)))
+                                        for pose in self.poses])
+                            for InvnpT in self.poses]
+
+    def __getitem__(self, idx):
+
+        if not hasattr(self, 'r_poses'):
+            T = self.poses[idx]
+            InvnpT = np.linalg.inv(T)
+            eye_mat = np.eye(4, 4)
+            d_poses = [np.linalg.norm(eye_mat - np.matmul(pose, InvnpT)) for pose in self.poses]
+            nearest_idx = np.argsort(d_poses)
+        else:
+            nearest_idx = copy.deepcopy(self.r_poses[idx])
+
         if self.random:
             nearest_idx = nearest_idx[1:(self.num_samples * self.spacing)]
             indexor = torch.randperm(self.num_samples * self.spacing-1).numpy()
             nearest_idx = nearest_idx[indexor]
-            nearest_idx.put(0, idx)
+            nearest_idx = np.concatenate([[idx], nearest_idx])
 
         samples = list()
         for i in range(0, self.num_samples * self.spacing, self.spacing):
@@ -253,6 +284,7 @@ class Test(Base):
             'rgb': (tf.ToTensor(),),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
+        light = kwargs.pop('light', False)
         Base.__init__(self,
                       transform=kwargs.pop('transform', default_tf),
                       **kwargs)
@@ -264,6 +296,10 @@ class Test(Base):
                 self.folders.append(self.root_path + fold)
 
         self.load_data()
+
+        if light:
+            step = 10
+            self.data = [dat for i, dat in enumerate(self.data) if i % step == 0]
 
 
 class Val(Base):
@@ -295,9 +331,9 @@ class Val(Base):
             self.data = self.data[round(len(self.data)*pruning):]
 
 
-def show_batch(sample_batched):
+def show_batch(sample_batched,  n_row=4):
     """Show image with landmarks for a batch of samples."""
-    grid = torchvis.utils.make_grid(sample_batched['rgb'])
+    grid = torchvis.utils.make_grid(sample_batched['rgb'], nrow=n_row)
     plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
 def show_seq_batch(sample_batched):
@@ -306,10 +342,10 @@ def show_seq_batch(sample_batched):
     plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
 
-def show_batch_mono(sample_batched):
+def show_batch_mono(sample_batched, n_row=4):
     """Show image with landmarks for a batch of samples."""
     depth = sample_batched['depth']  # /torch.max(sample_batched['depth'])
-    grid = torchvis.utils.make_grid(depth)
+    grid = torchvis.utils.make_grid(depth, nrow=n_row)
     plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
 
@@ -317,7 +353,7 @@ if __name__ == '__main__':
 
     logger.setLevel('INFO')
     test_tf = {
-            'first': (tf.Resize(256), tf.CenterCrop(256), tf.RandomHorizontalFlip(), tf.RandomVerticalFlip()),
+            'first': (tf.Resize(256), tf.CenterCrop(256), ),
             'rgb': (tf.ToTensor(), ),
             'depth': (tf.ToTensor(), tf.DepthTransform())
         }
@@ -326,34 +362,36 @@ if __name__ == '__main__':
             'rgb': (tf.ToTensor(),),
         }
     root = os.environ['SEVENSCENES'] + 'heads/'
-
+    '''
     train_dataset = Train(root=root,
                           transform=test_tf)
 
     train_dataset_wo_tf = Train(root=root,
                                 transform=test_tf_wo_tf,
                                 used_mod=('rgb',))
-    test_dataset = Test(root=root)
+    '''
+    test_dataset = Test(root=root, light=True)
+    '''
     val_dataset = Val(root=root)
 
     print(len(train_dataset))
     print(len(test_dataset))
     print(len(val_dataset))
-
-    train_seq_dataset = Train(root=root,
-                              transform=test_tf,
-                              )
+    '''
+    train_seq_dataset = TrainSequence(root=root, transform=test_tf,
+                                      num_samples=2, spacing=10, random=True)
     val_seq_dataset = Val(root=root,
                               transform=test_tf,
                               )
 
     mult_train_seq_dataset = MultiDataset(type='val', root=os.environ['SEVENSCENES'],
-                                          folders=['chess/', 'heads/'], transform=test_tf,
+                                          folders=['fire/', 'heads/'], transform=test_tf,
                                           general_options={'used_mod': ('rgb',)})
 
     mult_train_seq_dataset.used_mod = ('depth',)
+
     #dataloader = data.DataLoader(mult_train_seq_dataset, batch_size=16, shuffle=False, num_workers=8)
-    dataloader = data.DataLoader(val_seq_dataset, batch_size=16, shuffle=False, num_workers=8)
+    dataloader = data.DataLoader(train_seq_dataset, batch_size=1, shuffle=False, num_workers=0)
     '''
     dataloader_wo_tf = data.DataLoader(train_dataset_wo_tf, batch_size=8, shuffle=False, num_workers=2)
     plt.figure(1)
@@ -369,11 +407,16 @@ if __name__ == '__main__':
     fig = plt.figure(1)
     print(len(train_seq_dataset))
     print(len(val_seq_dataset))
+    print(len(test_dataset))
     for i, b in enumerate(dataloader):
         #show_seq_batch(b)
         fig.clear()
-        #show_batch(b)
+        show_seq_batch(b)
+        plt.pause(0.75)
+        '''
+        fig.clear()
         show_batch_mono(b)
         print(i)
-        plt.pause(0.5)
+        plt.pause(0.2)
+        '''
         del b

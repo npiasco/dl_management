@@ -366,7 +366,7 @@ def soft_icp(pc_ref, pc_to_align, init_T, **kwargs):
     real_error = dist
     return T, real_error
 
-def PoseFromMatching(pc1, pc2):
+def PoseFromMatching(pc1, pc2, inliers_threshold=0.05):
     pc2_centroid = torch.mean(pc2[:3, :], -1).unsqueeze(-1)
     pc2_centred = pc2[:3, :] - pc2_centroid
 
@@ -391,17 +391,24 @@ def PoseFromMatching(pc1, pc2):
     T[:3, 3] = t.squeeze()
     T[3, 3] = 1
 
-    return {'T':T, 'q': utils.rot_to_quat(R), 't': t}
+    dists = torch.norm(pc2 - torch.matmul(T, pc1), dim=0)
+    score = torch.mean(dists).item()
+
+    inliers_ratio = torch.sum(dists < inliers_threshold).item() / pc1.size(1)
+
+
+    return {'T':T, 'score': score, 'inliers_ratio': inliers_ratio}
 
 
 def ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, **kwargs):
     verbose = kwargs.pop('verbose', False)
     outliers_filter = kwargs.pop('outliers_filter', False)
     iter = kwargs.pop('iter', 200)
-    epsilon = kwargs.pop('epsilon', 1e-6)
+    epsilon = kwargs.pop('epsilon', 1e-5)
     match_function = kwargs.pop('match_function',  None)
     pose_function = kwargs.pop('pose_function', None)
     desc_function = kwargs.pop('desc_function', None)
+    fit_pc = kwargs.pop('fit_pc', False)
 
     timing = False
     if timing:
@@ -419,12 +426,18 @@ def ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, **kwargs):
 
     T = init_T
 
+    #pc_ref = pc_ref[:3, :]
+    #pc_to_align = pc_to_align[:3, :]
+
     if desc_function is not None:
         desc_ref = desc_function(pc_ref, desc_ref)
     else:
         desc_ref = pc_ref
 
-    match_function.fit(desc_ref[0])
+    if fit_pc:
+        match_function.fit(pc_ref[0])
+    else:
+        match_function.fit(desc_ref[0])
     teye = torch.eye(4, 4).to(pc_to_align.device)
 
     for i in range(iter):
@@ -476,7 +489,9 @@ def ICPwNet(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, **kwargs):
     if timing:
         print('ICP converge on {}s'.format(time.time() - t_beg))
 
-    return T
+    logger.info('Final RANSAC score is {} ({}% inliers)'.format(new_T['score'], new_T['inliers_ratio']))
+
+    return {'T': T, 'inliers': new_T['inliers_ratio'], 'score': new_T['score']}
 
 
 if __name__ == '__main__':

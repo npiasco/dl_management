@@ -8,6 +8,26 @@ import random as rand
 logger = setlog.get_logger(__name__)
 
 
+def SSIM(im1, im2, **kwargs):
+    C1 = kwargs.pop('C1', 0.01 ** 2)
+    C2 = kwargs.pop('C2', 0.03 ** 2)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    mu_x = func.avg_pool2d(im1, 3, 1)
+    mu_y = func.avg_pool2d(im2, 3, 1)
+
+    sigma_x = func.avg_pool2d(im1 ** 2, 3, 1) - mu_x ** 2
+    sigma_y = func.avg_pool2d(im2 ** 2, 3, 1) - mu_y ** 2
+    sigma_xy = func.avg_pool2d(im1 * im2, 3, 1) - mu_x * mu_y
+
+    SSIM_n = (2 * mu_x * mu_y + C1) * (2 * sigma_xy + C2)
+    SSIM_d = (mu_x ** 2 + mu_y ** 2 + C1) * (sigma_x + sigma_y + C2)
+
+    return SSIM_n / SSIM_d
+
+
 def simple_fact_loss(value, fact=1):
 
     return torch.mean(value)*fact
@@ -201,7 +221,7 @@ def adaptive_triplet_loss(anchor, positives, negatives, **kwargs):
                 tt_loss += c_loss
 
             if adaptive_factor:
-                cpt += 1 if c_loss.data[0]>0 else 0
+                cpt += 1 if c_loss.item()>0 else 0
             else:
                 cpt += 1
 
@@ -233,12 +253,55 @@ def reg_loss(map_to_reg, im_ori, **kwargs):
     if reduce_factor:
         im_ori = func.interpolate(im_ori, scale_factor=reduce_factor, mode='bilinear', align_corners=True)
 
-    dx_im = torch.exp(-1 * torch.abs(im_ori[:, :, :, :-1] - im_ori[:, :, :, 1:]))
-    dy_im = torch.exp(-1 * torch.abs(im_ori[:, :, :-1, :] - im_ori[:, :, 1:, :]))
+    dx_im = torch.exp(-1 * torch.mean(torch.abs(im_ori[:, :, :, :-1] - im_ori[:, :, :, 1:]), dim=1, keepdim=True))
+    dy_im = torch.exp(-1 * torch.mean(torch.abs(im_ori[:, :, :-1, :] - im_ori[:, :, 1:, :]), dim=1, keepdim=True))
     dx_mod = torch.abs(map_to_reg[:, :, :, :-1] - map_to_reg[:, :, :, 1:])
     dy_mod = torch.abs(map_to_reg[:, :, :-1, :] - map_to_reg[:, :, 1:, :])
 
     loss = fact * (torch.sum(dx_im*dx_mod) + torch.sum(dy_im*dy_mod)) / map_to_reg.numel()
+
+    return loss
+
+
+def image_similarity(predicted_im, gt_im, **kwargs):
+    p = kwargs.pop('p', 'L1')
+    factor = kwargs.pop('factor', 1)
+    no_zeros = kwargs.pop('no_zeros', False)
+    alpha = kwargs.pop('alpha', 0.5)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    if isinstance(predicted_im, list):
+        loss = 0
+        for i in range(len(predicted_im)):
+            loss +=  image_similarity(predicted_im[i], gt_im, p=p, factor=factor/len(predicted_im), no_zeros=no_zeros)
+    else:
+        if no_zeros:
+            zeros_idx = torch.max(predicted_im == predicted_im.new_zeros(predicted_im.size()), dim=1)[0].byte()
+            zero_mask = predicted_im.new_ones(predicted_im.size())
+
+            if torch.sum(zeros_idx ).item() != 0:
+                zero_mask.transpose(1, 3).transpose(1,2)[zeros_idx ] = predicted_im.new_zeros(3)
+
+            gt_im = gt_im*zero_mask
+
+        if p == 'L1':
+            loss = factor * func.l1_loss(predicted_im, gt_im)
+        elif p == 'L2':
+            loss = factor * func.mse_loss(predicted_im, gt_im)
+        elif p == 'sum':
+            loss = factor * torch.sum(torch.abs(predicted_im - gt_im))
+        elif p == 'SSIM':
+            ssim = SSIM(predicted_im, gt_im)
+            loss = torch.mean(((1 - ssim) / 2).clamp(min=0, max=1))
+        elif p == 'mixed':
+            ssim = SSIM(predicted_im, gt_im)
+            lssim = torch.mean(((1 - ssim) / 2).clamp(min=0, max=1))
+            l1 = func.l1_loss(predicted_im, gt_im)
+            loss = l1*alpha + lssim *(1-alpha)
+        else:
+            raise AttributeError('No behaviour for p = {}'.format(p))
 
     return loss
 
@@ -260,11 +323,20 @@ def l1_modal_loss(predicted_maps, gt_maps, **kwargs):
         gt_w_grad = gt_maps
 
     if no_zeros:
-        gt_w_grad = gt_w_grad.view(1, -1).transpose(0, 1)
-        predicted = predicted.view(1, -1).transpose(0, 1)
-        non_zeros_idx = gt_w_grad.nonzero()
-        gt = gt_w_grad[non_zeros_idx][:, 0]
-        predicted = predicted[non_zeros_idx][:, 0]
+        if predicted_maps.size(1) > 1:
+            zeros_idx = torch.max(predicted_maps == predicted_maps.new_zeros(predicted_maps.size()), dim=1)[0].byte()
+            zero_mask = predicted_maps.new_ones(predicted_maps.size())
+
+            if torch.sum(zeros_idx ).item() != 0:
+                zero_mask.transpose(1, 3).transpose(1,2)[zeros_idx ] = predicted_maps.new_zeros(3)
+
+            gt = gt_maps*zero_mask
+        else:
+            gt_w_grad = gt_w_grad.view(1, -1).transpose(0, 1)
+            predicted = predicted.view(1, -1).transpose(0, 1)
+            non_zeros_idx = gt_w_grad.nonzero()
+            gt = gt_w_grad[non_zeros_idx][:, 0]
+            predicted = predicted[non_zeros_idx][:, 0]
     else:
         gt = gt_w_grad
 
@@ -274,6 +346,8 @@ def l1_modal_loss(predicted_maps, gt_maps, **kwargs):
         loss = factor * func.l1_loss(predicted, gt)
     elif p == 2:
         loss = factor * func.mse_loss(predicted, gt)
+    elif p == 'sum':
+        loss = factor * torch.sum(torch.abs(predicted - gt))
     else:
         raise AttributeError('No behaviour for p = {}'.format(p))
 

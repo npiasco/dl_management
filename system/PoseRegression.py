@@ -6,6 +6,7 @@ import system.BaseClass as BaseClass
 import torch
 import copy
 import datasets.SevenScene              # Needed for class creation with eval
+import datasets.PoseCambridge
 import trainers.loss_functions
 import trainers.PoseTrainers
 import networks.Pose
@@ -16,6 +17,8 @@ import matplotlib.pyplot as plt
 import torch.utils.data as data
 import torchvision as torchvis
 import pose_utils.utils as pc_utils
+import sklearn.preprocessing as skpre
+import sklearn.cluster as skclust
 
 
 logger = setlog.get_logger(__name__)
@@ -97,7 +100,7 @@ class MultNet(Default):
         self.dataset_file = kwargs.pop('dataset_file', 'dataset.yaml')
         BaseClass.Base.__init__(self, **kwargs)
 
-        env_var = os.environ['SEVENSCENES']
+        env_var = 'SEVENSCENES'
 
         with open(self.root + self.dataset_file, 'rt') as f:
             dataset_params = yaml.safe_load(f)
@@ -105,13 +108,18 @@ class MultNet(Default):
             logger.debug(yaml.safe_dump(dataset_params))
 
         self.data = dict()
-        self.data['train'] = self.creat_dataset(dataset_params['train'], env_var)
+        self.data['train'] = self.creat_dataset(dataset_params['train'],
+                                                os.environ[dataset_params['train'].get('env', env_var)])
         self.data['test'] = dict()
-        self.data['test']['queries'] = self.creat_dataset(dataset_params['test']['queries'], env_var)
-        self.data['test']['data'] = self.creat_dataset(dataset_params['test']['data'], env_var)
+        self.data['test']['queries'] = self.creat_dataset(dataset_params['test']['queries'],
+                                                          os.environ[dataset_params['test']['queries'].get('env', env_var)])
+        self.data['test']['data'] = self.creat_dataset(dataset_params['test']['data'],
+                                                       os.environ[dataset_params['test']['data'].get('env', env_var)])
         self.data['val'] = dict()
-        self.data['val']['queries'] = self.creat_dataset(dataset_params['val']['queries'], env_var)
-        self.data['val']['data'] = self.creat_dataset(dataset_params['val']['data'], env_var)
+        self.data['val']['queries'] = self.creat_dataset(dataset_params['val']['queries'],
+                                                         os.environ[dataset_params['val']['queries'].get('env', env_var)])
+        self.data['val']['data'] = self.creat_dataset(dataset_params['val']['data'],
+                                                      os.environ[dataset_params['val']['data'].get('env', env_var)])
 
         net = self.creat_network(self.network_params)
 
@@ -176,8 +184,132 @@ class MultNet(Default):
         self.data['test']['data'].used_mod = self.testing_mod
         BaseClass.Base.test(self)
 
-    def compute_mean_std(self, jobs=16, **kwargs):
+    def threshold_selection(self, final=False, n_values=200, beg=0.5, end=1.0, dataset='val', load=False):
+        if not load:
+            nets_to_test = self.trainer.networks
+            if not final:
+                nets_to_test = dict()
+                for name, network in self.trainer.networks.items():
+                    nets_to_test[name] = copy.deepcopy(network)
+                    try:
+                        nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
+                    except KeyError:
+                        logger.warning("Unable to load best weights for net {}".format(name))
 
+            for network in nets_to_test.values():
+                network.eval()
+
+            dtload = data.DataLoader(self.data[dataset]['data'], batch_size=1, shuffle=False, num_workers=8)
+            variables = dict()
+            logger.info('Db feats computating...')
+            for b in tqdm.tqdm(dtload):
+                with torch.no_grad():
+                    for action in self.trainer.eval_forwards['data']:
+                        variables['batch'] =  self.trainer.batch_to_device(b)
+                        variables = self.trainer._sequential_forward(action, variables, nets_to_test)
+
+            dtload = data.DataLoader(self.data[dataset]['queries'], batch_size=1, shuffle=False, num_workers=8)
+
+            scores = list()
+            pose_err = {'p': list(), 'q': list()}
+            refined_pose_err = {'p': list(), 'q': list()}
+
+            for b in tqdm.tqdm(dtload):
+                with torch.no_grad():
+                    variables['batch'] = self.trainer.batch_to_device(b)
+
+                    for action in self.trainer.eval_forwards['queries']:
+                        variables = self.trainer._sequential_forward(action, variables, nets_to_test)
+
+                    gt_pose = trainers.minning_function.recc_acces(variables, ['batch', 'pose'])
+                    pose = trainers.minning_function.recc_acces(variables, ['posenet_pose'])
+                    refined_pose = trainers.minning_function.recc_acces(variables, ['icp_pose'])
+                    scores.append(refined_pose['score'])
+                    pose_err['p'].append(torch.norm(gt_pose['p'].squeeze() - pose['p'].squeeze()).item())
+                    pose_err['q'].append(2*torch.acos(torch.abs(gt_pose['q'].squeeze().dot(pose['q'].squeeze())))*180/3.14159260)
+                    refined_pose_err['p'].append(torch.norm(gt_pose['p'].squeeze() - refined_pose['p'].squeeze()).item())
+                    refined_pose_err['q'].append(2 * torch.acos(torch.abs(gt_pose['q'].squeeze().dot(refined_pose['q'].squeeze()))) * 180 / 3.14159260)
+
+            torch.save(scores, 'th_score.pth')
+            torch.save(pose_err, 'th_pose.pth')
+            torch.save(refined_pose_err, 'th_refined.pth')
+        else:
+            scores = torch.load('th_score.pth', map_location='cpu')
+            pose_err = torch.load('th_pose.pth', map_location='cpu')
+            refined_pose_err = torch.load('th_refined.pth', map_location='cpu')
+
+        step = (end - beg)/n_values
+
+        step_list = [s*step for s in range(round(beg/step), round(end/step) + 1)]
+        tscores = torch.tensor(scores)
+        position_err = torch.tensor(pose_err['p'])*1e2 # cm
+        ref_position_err = torch.tensor(refined_pose_err['p'])*1e2 # cm
+        med_position_curve = [torch.median(
+            torch.cat([position_err[tscores < step_score], ref_position_err[tscores >= step_score]])).item()
+                          for step_score in step_list]
+        mean_position_curve = [torch.mean(
+            torch.cat([position_err[tscores < step_score], ref_position_err[tscores >= step_score]])).item()
+                          for step_score in step_list]
+
+
+        ori_err = torch.tensor(pose_err['q'])
+        ref_ori_err = torch.tensor(refined_pose_err['q'])
+        med_orientation_curve = [torch.median(
+            torch.cat([ori_err[tscores < step_score], ref_ori_err[tscores >= step_score]])).item()
+                          for step_score in step_list]
+        mean_orientation_curve = [torch.mean(
+            torch.cat([ori_err[tscores < step_score], ref_ori_err[tscores >= step_score]])).item()
+                          for step_score in step_list]
+
+
+        fig1 = plt.figure(1)
+        plt.plot(step_list, med_position_curve)
+        plt.plot(step_list, mean_position_curve)
+        plt.legend(['Med','Mean'])
+        plt.title('Position (m)')
+        fig2 = plt.figure(2)
+        plt.plot(step_list, med_orientation_curve)
+        plt.plot(step_list, mean_orientation_curve)
+        plt.title('Orientation (°)')
+        plt.legend(['Med', 'Mean'])
+        fig3 = plt.figure(3)
+        plt.plot(step_list, med_position_curve)
+        plt.plot(step_list, med_orientation_curve)
+
+        plt.show()
+
+    def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256,
+                       jobs=-1, mod='rgb', map_feat='conv7'):
+        self.trainer.networks['Main'].train()
+        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
+        logger.info('Computing feats for clustering')
+        feats = list()
+        with torch.no_grad():
+            for example in tqdm.tqdm(dataset_loader):
+                example = self.trainer.batch_to_device(example)
+                feat = self.trainer.networks['Main'](self.trainer.cuda_func(example[mod]))[map_feat]
+                max_sample = feat.size(2)*feat.size(3)
+                feat = feat.view(feat.size(0), size_feat, max_sample).transpose(1, 2).contiguous()
+                feat = feat.view(-1, size_feat).cpu().data.numpy()
+
+                feats.append(feat)
+
+        logger.info('Normalizing feats')
+        normalized_feats = list()
+        for feature in tqdm.tqdm(feats):
+            normalized_feats += [f.tolist() for f in feature]
+            if len(normalized_feats) >= n_ex:
+                break
+
+        normalized_feats = skpre.normalize(normalized_feats)
+        logger.info('Computing clusters')
+        kmean = skclust.KMeans(n_clusters=size_cluster, n_jobs=jobs)
+        kmean.fit(normalized_feats)
+        torch_clusters = torch.FloatTensor(kmean.cluster_centers_).unsqueeze(0).transpose(1, 2)
+
+        torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_clusters.pth')
+
+    def compute_mean_std(self, jobs=16, **kwargs):
         training = kwargs.pop('training', True)
         mod = kwargs.pop('mod', 'rgb')
         testing = kwargs.pop('testing', False)
@@ -270,13 +402,16 @@ class MultNet(Default):
             color[2] = 255
         pc_utils.model_to_ply(map_args=map_args, file_name=file_name, color=color)
 
-    def map_print(self, final=False, mod='rgb', aux_mod='depth', batch_size=1):
+    def map_print(self, final=False, mod='rgb', aux_mod='depth', batch_size=1, shuffle=False):
         nets_to_test = self.trainer.networks
         if not final:
             nets_to_test = dict()
             for name, network in self.trainer.networks.items():
                 nets_to_test[name] = copy.deepcopy(network)
-                nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
+                try:
+                    nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
+                except KeyError:
+                    logger.warning("Unable to load weights of network {}".format(name))
 
         for network in nets_to_test.values():
             network.eval()
@@ -285,7 +420,7 @@ class MultNet(Default):
         mode = 'queries'
         self.data[dataset][mode].used_mod = [mod, aux_mod]
 
-        dtload = data.DataLoader(self.data[dataset][mode], batch_size=batch_size, shuffle=True)
+        dtload = data.DataLoader(self.data[dataset][mode], batch_size=batch_size, shuffle=shuffle)
         #dtload = data.DataLoader(self.data['train'], batch_size=batch_size, shuffle=True)
         ccmap = plt.get_cmap('jet', lut=1024)
 
@@ -295,47 +430,49 @@ class MultNet(Default):
                 _, _, h, w = b[mod].size()
                 _, _, haux, waux = b[aux_mod].size()
                 main_mod = b[mod].contiguous().view(batch_size, 3, h, w)
-                modality = b[aux_mod].contiguous().view(batch_size, -1, haux, waux)
+
+                if aux_mod in ('rgb'):
+                    modality = torch.nn.functional.interpolate(
+                        torch.mean(b[aux_mod].contiguous().view(batch_size, -1, haux, waux), dim=1, keepdim=True),
+                        scale_factor=0.5,
+                        mode='nearest')
+                else:
+                    modality = b[aux_mod].contiguous().view(batch_size, -1, haux, waux)
 
                 variables = {'batch': b}
                 for action in self.trainer.eval_forwards['queries']:
                     variables = self.trainer._sequential_forward(action, variables, nets_to_test)
-                output = trainers.minning_function.recc_acces(variables, ['maps'])
+                output = trainers.minning_function.recc_acces(variables, self.trainer.access_pose[0])
+                if isinstance(output, list):
+                    plt.figure(0)
+                    images_batch = torch.cat((modality,
+                                              1 / output[-1] - 1,
+                                              torch.nn.functional.interpolate(1 / output[-2] - 1, scale_factor=2,
+                                                                              mode='nearest'),
+                                              torch.nn.functional.interpolate(1 / output[-3] - 1, scale_factor=4,
+                                                                              mode='nearest'),
+                                              torch.nn.functional.interpolate(1 / output[-4] - 1, scale_factor=8,
+                                                                              mode='nearest'))).cpu().detach()#.clamp(max=modality.max())
 
-                inv_output = 1/output - 1
-                mean = torch.mean(inv_output.view(inv_output.size(0), -1), 1)
-                for nb, im in enumerate(inv_output):
-                    inv_output[nb, im>mean[nb]*2] = 0
+                    grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
+                    plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0])
 
-                inv_mod = 1/(modality + 1)
-                if 'filters' in  variables.keys():
-                    filted_im = output.new_zeros(output.size())
-                    for nb, im in enumerate(trainers.minning_function.recc_acces(variables, ['fw_main', 'conv1'])):
-                        ch, h, w = im.size()
-                        filted_im[nb] = nets_to_test['Filter'](im.view(ch, -1).t()).t().view(1, h, w)
+                    output = output[-1]
 
             plt.figure(1)
-            images_batch = torch.cat((modality.cpu(), inv_mod.cpu(), inv_output.detach().cpu(), output.detach().cpu()))
-            grid = torchvis.utils.make_grid(images_batch, nrow=batch_size*2)
+            images_batch = torch.cat((modality, output)).cpu()
+            grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
             plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
             plt.colorbar()
 
             plt.figure(2)
-            images_batch = torch.cat((torch.abs(modality - inv_output.detach()).cpu(), torch.abs(inv_mod - output.detach()).cpu()))
+            images_batch = torch.cat((torch.abs(modality - output), )).detach().cpu()
             grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
             plt.imshow(grid.numpy().transpose(1, 2, 0), cmap=None)
 
             plt.figure(3)
             grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=batch_size)
             plt.imshow(grid.numpy().transpose(1, 2, 0))
-
-            if 'filters' in variables.keys():
-                plt.figure(4)
-                inv_output = inv_output*filted_im
-                images_batch = torch.cat((filted_im.cpu(), inv_output.cpu()))
-                grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
-                plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
-                plt.colorbar()
 
             plt.show()
 
@@ -345,7 +482,10 @@ class MultNet(Default):
             nets_to_test = dict()
             for name, network in self.trainer.networks.items():
                 nets_to_test[name] = copy.deepcopy(network)
-                nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
+                try:
+                    nets_to_test[name].load_state_dict(self.trainer.best_net[1][name])
+                except KeyError:
+                    logger.warning("Unable to load best weights for net {}".format(name))
 
         for network in nets_to_test.values():
             network.eval()
@@ -353,12 +493,21 @@ class MultNet(Default):
         dataset = 'test'
         mode = 'queries'
 
-        dtload = data.DataLoader(self.data[dataset][mode], batch_size=1)
+        dtload = data.DataLoader(self.data['test']['data'], batch_size=1, shuffle=False, num_workers=8)
+        variables = dict()
+        logger.info('Db feats computating...')
+        for b in tqdm.tqdm(dtload):
+            with torch.no_grad():
+                for action in self.trainer.eval_forwards['data']:
+                    variables['batch'] =  self.trainer.batch_to_device(b)
+                    variables = self.trainer._sequential_forward(action, variables, nets_to_test)
+
+        dtload = data.DataLoader(self.data[dataset][mode], batch_size=1, shuffle=False)
 
         for b in dtload:
             with torch.no_grad():
-                b = self.trainer.batch_to_device(b)
-                variables = {'batch': b}
+                variables['batch'] = self.trainer.batch_to_device(b)
+                variables['ref_data'] = self.data['test']['data']
 
                 for action in self.trainer.eval_forwards['queries']:
                     variables = self.trainer._sequential_forward(action, variables, nets_to_test)
@@ -367,7 +516,10 @@ class MultNet(Default):
             try:
                 ref_pc = trainers.minning_function.recc_acces(variables, ['model', 'pc']).squeeze()
             except (KeyError,TypeError):
-                ref_pc = trainers.minning_function.recc_acces(variables, ['model',]).squeeze()
+                try:
+                    ref_pc = trainers.minning_function.recc_acces(variables, ['model',]).squeeze()
+                except (KeyError, TypeError):
+                    ref_pc = trainers.minning_function.recc_acces(variables, ['ref_pcs', 0]).squeeze()
             #output_pose = trainers.minning_function.recc_acces(variables, ['Tf', 'T'])[0]
             #output_pose = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'T'])[0]
             output_pose = trainers.minning_function.recc_acces(variables, self.trainer.access_pose + ['T'])[0]
@@ -389,20 +541,20 @@ class MultNet(Default):
                 print('Posenet pose:')
                 print(posenet_pose)
 
-            print('Diff distance = {} m'.format(torch.norm(gt_pose[:, 3] - output_pose[:, 3]).item()))
-            gtq = trainers.minning_function.recc_acces(variables, ['batch', 'pose', 'orientation'])[0]
+            print('Diff distance = {} m'.format(torch.norm(gt_pose[:3, 3] - output_pose[:3, 3]).item()))
+            gtq = trainers.minning_function.recc_acces(variables, ['batch', 'pose', 'q'])[0]
             #q = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'q'])[0]
-            q = trainers.minning_function.recc_acces(variables, self.trainer.access_pose+ ['q'])[0]
+            q = trainers.minning_function.recc_acces(variables, self.trainer.access_pose + ['q'])[0]
             print('Diff orientation = {} deg'.format(2 * torch.acos(torch.abs(gtq.dot(q))) * 180 / 3.14159260))
             if 'posenet_pose' in variables.keys():
-                print('Diff distance = {} m (posenet)'.format(torch.norm(gt_pose[:, 3] - posenet_pose[:, 3]).item()))
+                print('Diff distance = {} m (posenet)'.format(torch.norm(gt_pose[:3, 3] - posenet_pose[:3, 3]).item()))
                 posenetq = trainers.minning_function.recc_acces(variables, ['posenet_pose', 'q'])[0]
-                print('Diff orientation = {} deg (posenet)'.format(2*torch.acos(torch.abs(gtq.dot(posenetq)))*180/3.14159260) )
+                print('Diff orientation = {} deg (posenet)'.format(2*torch.acos(torch.abs(gtq.dot(posenetq)))*180/3.14159260))
             if 'noised_T' in variables.keys():
                 noise_pose = trainers.minning_function.recc_acces(variables, ['noised_T']).squeeze()
                 print('Noised pose:')
                 print(noise_pose)
-                print('Diff distance = {} m (noise T)'.format(torch.norm(gt_pose[:, 3] - noise_pose[:, 3]).item()))
+                print('Diff distance = {} m (noise T)'.format(torch.norm(gt_pose[:3, 3] - noise_pose[:3, 3]).item()))
 
             fig = plt.figure(1)
             ax = fig.add_subplot(111, projection='3d')
@@ -411,6 +563,12 @@ class MultNet(Default):
             pc_utils.plt_pc(gt_pc.cpu(), ax, pas, 'c', size=2*plot_size, marker='*')
             if 'posenet_pose' in variables.keys():
                 pc_utils.plt_pc(posenet_pc.cpu(), ax, pas, 'm', size=2*plot_size, marker='o')
+                plt.plot([gt_pose[0, 3], posenet_pose[0, 3]],
+                         [gt_pose[1, 3], posenet_pose[1, 3]],
+                         [gt_pose[2, 3], posenet_pose[2, 3]], color='m')
+            plt.plot([gt_pose[0, 3], output_pose[0, 3]],
+                     [gt_pose[1, 3], output_pose[1, 3]],
+                     [gt_pose[2, 3], output_pose[2, 3]], color='r')
             pc_utils.plt_pc(output_pc.cpu(), ax, pas, 'r', size=2*plot_size, marker='o')
             centroid = torch.mean(ref_pc[:3, :], -1)
 

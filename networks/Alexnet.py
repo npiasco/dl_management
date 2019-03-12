@@ -306,8 +306,9 @@ class Deconv(nn.Module):
 
 
 if __name__ == '__main__':
-    tensor_input = torch.rand([10, 3, 224, 224])
-    net = Feat(unet=True, indices=True, norm_layer='group')
+    tensor_input = torch.rand([10, 3, 56, 56])
+    #net = Feat(unet=True, indices=True, norm_layer='group')
+    net = Feat(norm_layer='group')
     feat_output = net(auto.Variable(tensor_input))
     print(feat_output['feat'].size(),feat_output['res_1'].size(),feat_output['res_2'].size())
     import networks.ResNet as RNet
