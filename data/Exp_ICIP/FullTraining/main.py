@@ -12,11 +12,12 @@ import system.PoseRegression as System
 
 
 if __name__ == '__main__':
-    scene = 'heads'
+    scene = 'pumpkin'
     machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])],
-                             # trainer_file='feat_trainer.yaml',
+                             #trainer_file='feat_trainer.yaml',
                              trainer_file= 'trainers/' + scene + '.yaml',
-                             dataset_file = '../datasets/' + scene + '.yaml'
+                             dataset_file = '../datasets/' + scene + '.yaml',
+                             cnn_type='vladcnn.yaml'
                              )
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':

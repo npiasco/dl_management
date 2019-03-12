@@ -105,7 +105,7 @@ param_class:
                  func: 'b_wrapper.advanced_local_map_getter',
                  param: {T: ['posenet_pose', 'T'], descriptors_size: 128,
                  map_args: {scene: stairs/, frame_spacing: 50, output_size: 1500, no_grad: true, reduce_fact: 4,
-                 resize: 0.1166666667, num_pc: 8, cnn_depth: true, cnn_descriptor: 'conv2'}},
+                 resize: 0.1166666667, num_pc: 8, cnn_depth: false, cnn_descriptor: 'conv2'}},
                  net_name: ['Main', 'Deconv'],
                  out_name: 'model'
                 },
@@ -115,7 +115,7 @@ param_class:
                  param: {init_T: ['posenet_pose', 'T'], inv_init_T: False,
                  pc_to_align: ['pc'], pc_ref: ['model', 'pc'],
                  desc_to_align: ['desc'], desc_ref: ['model', 'desc'],
-                 filter_inliers: false, filter_score: 0.98,
+                 filter_inliers: false, filter_score: 0.94,
                  param_icp: {verbose: false, iter: 50, fit_pc: false}},
                  net_name: ['Desc', 'MatchNet', ],
                  out_name: 'icp_pose'

@@ -38,6 +38,6 @@ FeatDesc:
 
 init_weights:
     Main:
-        feature: '../../../PoseReg/ICP/7Scenes/DepthFull224/Main_feature.pth'
+        feature: '../../FullDepth/Main_feature.pth'
     Deconv:
-        feature: '../../../PoseReg/ICP/7Scenes/DepthFull224/Deconv_feature.pth'
+        feature: '../../FullDepth/Deconv_feature.pth'

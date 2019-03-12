@@ -18,7 +18,8 @@ MatchNet:
     class: 'networks.ICPNet.MatchNet'
     param_class:
         normalize_desc: True
-        knn: 'fast_soft_knn'
+        #knn: 'fast_soft_knn'
+        knn: 'bidirectional'
         n_neighbors: 1
         knn_metric: 'minkowski'
 
@@ -26,8 +27,8 @@ Desc:
     class: 'networks.FeatAggregation.Concat'
     param_class:
         norm: False
-        norm_x2: False
-        norm_x1: True
+        norm_x2: True
+        norm_x1: False
         main_ratio: 1.0
 
 FeatDesc:

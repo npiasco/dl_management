@@ -38,6 +38,7 @@ test:
         class: datasets.SevenScene.Test
         param_class:
             root: 'heads/'
+            light: true
             transform:
                 first:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}
