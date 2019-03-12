@@ -383,16 +383,27 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                 raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
             if len(self.val_score) <= ep:
-                if isinstance(score_function, ScoreFunc.Reconstruction_Error):
-                    errors = self._compute_rerror(self.networks, dataset['queries'], dataset['data'])
+                if isinstance(score_function, ScoreFunc.MinLossRanking):
+                    mean_loss = 0
+                    for loss in self.loss_log.values():
+                        try:
+                            mean_loss += sum(loss)/len(loss)
+                        except ZeroDivisionError:
+                            pass
+                    self.val_score.append(mean_loss)
+                    if len(self.val_score) == 1 or len(self.val_score) == 2 or self.best_net[0] > mean_loss:
+                        self._save_current_net(mean_loss)
                 else:
-                    errors = self._compute_errors(self.networks, dataset['queries'], dataset['data'])
+                    if isinstance(score_function, ScoreFunc.Reconstruction_Error):
+                        errors = self._compute_rerror(self.networks, dataset['queries'], dataset['data'])
+                    else:
+                        errors = self._compute_errors(self.networks, dataset['queries'], dataset['data'])
 
-                score = score_function(errors)
+                    score = score_function(errors)
 
-                self.val_score.append(score)
-                if score_function.rank_score(score, self.best_net[0]):
-                    self._save_current_net(score)
+                    self.val_score.append(score)
+                    if score_function.rank_score(score, self.best_net[0]):
+                        self._save_current_net(score)
 
             logger.info('Score is: {}'.format(self.val_score[ep]))
 
@@ -476,7 +487,7 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         }
         logger.info('Computing position and orientation errors')
         for i, query in tqdm.tqdm(enumerate(queries_loader)):
-            variables = {'batch': self.batch_to_device(query)}
+            variables = {'batch': self.batch_to_device(query), 'ref_data': dataset}
             if 'db' in data_variables.keys():
                 variables['db'] = data_variables['db']
             #variables['model'] = model
