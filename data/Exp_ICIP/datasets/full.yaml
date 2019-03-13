@@ -73,9 +73,12 @@ val:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                     - {class: 'datasets.multmodtf.DepthTransform', param_class:}
     data:
-        class: datasets.SevenScene.Val
+        class: datasets.SevenScene.MultiDataset
         param_class:
-            root: 'chess/'
+            root: ''
+            type: 'val'
+            folders: ['heads/', 'chess/', 'fire/', 'office/', 'pumpkin/', 'redkitchen/', 'stairs/']
+            general_options: {pruning: 0.95}
             transform:
                 first:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}

@@ -29,7 +29,7 @@ param_class:
             {
                 mode: minning,
                 func: b_wrapper.inverse,
-                param: {data_to_inv: ['maps', -1], },
+                param: {data_to_inv: ['maps', -1], fact: 10, bounded: True, offset: 0.02},
                 out_name: 'fake_depth1'
             },
             {
@@ -41,7 +41,7 @@ param_class:
             {
                 mode: minning,
                 func: b_wrapper.inverse,
-                param: {data_to_inv: ['maps', -2], },
+                param: {data_to_inv: ['maps', -2], fact: 10, bounded: True, offset: 0.02},
                 out_name: 'fake_depth2'
             },
             {
@@ -53,7 +53,7 @@ param_class:
             {
                 mode: minning,
                 func: b_wrapper.inverse,
-                param: {data_to_inv: ['maps', -3], },
+                param: {data_to_inv: ['maps', -3], fact: 10, bounded: True, offset: 0.02},
                 out_name: 'fake_depth3'
             },
             {
@@ -65,7 +65,7 @@ param_class:
             {
                 mode: minning,
                 func: b_wrapper.inverse,
-                param: {data_to_inv: ['maps', -4], },
+                param: {data_to_inv: ['maps', -4], fact: 10, bounded: True, offset: 0.2},
                 out_name: 'fake_depth4'
             },
             {
@@ -108,28 +108,35 @@ param_class:
              name: 'simloss1',
              func: 'loss_func.image_similarity',
              args: [['wrapped_images1'], ['resized_source1']],
-             param: {no_zeros: True, p: SSIM}
+             param: {no_zeros: True, p: 'mixed'}
             },
             {
              mode: 'loss',
              name: 'simloss2',
              func: 'loss_func.image_similarity',
              args: [['wrapped_images2'], ['resized_source2']],
-             param: {no_zeros: True, p: SSIM}
+             param: {no_zeros: True, p: 'mixed'}
             },
             {
              mode: 'loss',
              name: 'simloss3',
              func: 'loss_func.image_similarity',
              args: [['wrapped_images3'], ['resized_source3']],
-             param: {no_zeros: True, p: SSIM}
+             param: {no_zeros: True, p: 'mixed'}
             },
             {
              mode: 'loss',
              name: 'simloss4',
              func: 'loss_func.image_similarity',
              args: [['wrapped_images4'], ['resized_source4']],
-             param: {no_zeros: True, p: SSIM}
+             param: {no_zeros: True, p: 'mixed'}
+            },
+            {
+             mode: 'loss',
+             name: 'regloss1',
+             func: 'loss_func.reg_loss',
+             args: [['fake_depth1'], ['resized_source1']],
+             param: {reduce_factor: 1.0, fact: 0.0002}
             },
             {
              mode: 'backprop',
@@ -160,7 +167,7 @@ param_class:
                 {
                     mode: minning,
                     func: b_wrapper.inverse,
-                    param: {data_to_inv: ['maps', -1], },
+                    param: {data_to_inv: ['maps', -1], fact: 10, bounded: True, offset: 0.02},
                     out_name: 'fake_depth'
                 },
             ]
