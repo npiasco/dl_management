@@ -196,7 +196,7 @@ param_class:
                     out_name: 'fake_depth'
                 },
             ]
-    access_pose: [['fake_depth'], ['batch', 'depth']]
+    access_pose: [['fake_depth'], ['fake_depth']]
     build_model_func: torch.cat
 eval_class: score.Functions.MinLossRanking
 param_eval_class: {}
