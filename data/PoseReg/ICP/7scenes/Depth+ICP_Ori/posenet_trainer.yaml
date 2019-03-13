@@ -1,7 +1,7 @@
 class: 'trainers.PoseTrainers.MultNetTrainer'
 param_class:
     cuda_on: True
-    val_num_workers: 8
+    val_num_workers: 1
     optimizers_params:
         posenet_trainer:
             associated_net: ['Main', 'Pose']

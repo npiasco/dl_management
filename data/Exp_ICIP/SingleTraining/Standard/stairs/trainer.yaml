@@ -4,7 +4,7 @@ param_class:
     val_num_workers: 8
     optimizers_params:
         posenet_trainer:
-            associated_net: ['Main', ]
+            associated_net: ['Main', 'Deconv']
             optimizer_type: ADAM
             param:
                 lr: 0.0001 # * 0.5
@@ -115,9 +115,10 @@ param_class:
                  param: {init_T: ['posenet_pose', 'T'], inv_init_T: False,
                  pc_to_align: ['pc'], pc_ref: ['model', 'pc'],
                  desc_to_align: ['desc'], desc_ref: ['model', 'desc'],
-                 filter_inliers: false, filter_score: 0.98,
+                 filter_inliers: false, filter_score: 0.845,
                  param_icp: {verbose: false, iter: 50, fit_pc: false}},
                  net_name: ['Desc', 'MatchNet', ],
+                 #net_name: ['MatchNet', ],
                  out_name: 'icp_pose'
                 },
             ]

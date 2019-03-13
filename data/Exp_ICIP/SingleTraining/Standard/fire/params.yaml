@@ -8,6 +8,11 @@ lr_scheduler:
       milestones: [10, 25, 50]
 max_epoch: 1000
 min_value_to_stop: 100
+saved_files: {best_network: best_network.pth, loss: loss.pth, network_Deconv: network_Deconv.pth,
+  network_Desc: network_Desc.pth, network_FeatDesc: network_FeatDesc.pth, network_Main: network_Main.pth,
+  network_MatchNet: network_MatchNet.pth, optimizer_posenet_trainer: optimizer_posenet_trainer.pth,
+  val_score: val_score.pth}
+score_file: score_file.pth
 shuffle: true
 sucess_bad_epoch: 2
 testing_mod: [rgb, depth]
