@@ -105,6 +105,19 @@ class Base(utils.Dataset):
 
         return sample
 
+    def get_position(self, idx):
+        fold, num = self.data[idx]
+        pose_file = self.folders[fold] + 'frame-' + num + '.pose.txt'
+        pose = np.ndarray((4, 4), dtype=np.float32)
+        with open(pose_file, 'r') as pose_file_pt:
+            for i, line in enumerate(pose_file_pt):
+                for j, c in enumerate(line.split('\t')):
+                    try:
+                        pose[i, j] = float(c)
+                    except ValueError:
+                        pass
+        return pose[:3, 3]
+
 class MultiDataset(utils.Dataset):
     def __init__(self, **kwargs):
         utils.Dataset.__init__(self)
@@ -120,6 +133,9 @@ class MultiDataset(utils.Dataset):
 
         if type == 'train':
             self.datasets = [Train(root=root + folder, transform=transform, **general_options) for folder in folders]
+        if type == 'seq':
+            self.datasets = [TrainSequence(root=root + folder, transform=transform, **general_options) for folder in
+                             folders]
         elif type == 'aug_train':
             self.datasets = [Train(root=root + folder, transform=transform, **general_options) for folder in folders]
             self.datasets += [AugmentedTrain(root=root + folder, transform=transform, **general_options)

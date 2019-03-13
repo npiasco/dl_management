@@ -18,10 +18,43 @@ def recc_acces(var, names):
         return recc_acces(var[names[0]], sub_name)
 
 
+def images_from_poses(variable, **kwargs):
+    poses = kwargs.pop('poses', None)
+    data = kwargs.pop('data', None)
+    mode = kwargs.pop('mode', 'rgb')
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    poses = recc_acces(variable, poses)
+    data = recc_acces(variable, data)
+
+    if not hasattr(images_from_poses, 'nn_computor'):
+        logger.info('New nn indexing, fitting the db...')
+        data_poses = [data.get_position(i).reshape(1, 3) for i in range(len(data))]
+
+        images_from_poses.nn_computor = skn.NearestNeighbors(n_neighbors=1)
+        images_from_poses.nn_computor.fit(np.concatenate(data_poses))
+
+    if isinstance(poses, list):
+        batchs = list()
+        for pose in poses:
+            idx = images_from_poses.nn_computor.kneighbors(pose['p'].cpu().numpy(), return_distance=False)
+            batchs.append(data[idx[0, 0]][mode].unsqueeze(0).to(pose['p'].device))
+    else:
+        idx = images_from_poses.nn_computor.kneighbors(poses['p'].cpu().numpy(), return_distance=False)
+        batchs = data[idx[0, 0]][mode].unsqueeze(0).to(poses['p'].device)
+
+    return batchs
+
+
 def get_nn_pose_from_desc(variable, **kwargs):
     feat = kwargs.pop('feat', None)
     db = kwargs.pop('db', None)
     metric = kwargs.pop('metric', 'cosine')
+    k_nn = kwargs.pop('k_nn', 1)
+    step_k_nn = kwargs.pop('step_k_nn', 1)
+    angle_threshold = kwargs.pop('angle_threshold', None)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -34,9 +67,30 @@ def get_nn_pose_from_desc(variable, **kwargs):
         get_nn_pose_from_desc.nn_computor = skn.NearestNeighbors(n_neighbors=1, metric=metric)
         get_nn_pose_from_desc.nn_computor.fit(torch.stack(db['feat']).cpu().numpy())
 
-    idx = get_nn_pose_from_desc.nn_computor.kneighbors(feats.cpu().numpy(), return_distance=False)
+    idx = get_nn_pose_from_desc.nn_computor.kneighbors(feats.cpu().numpy(), return_distance=False, n_neighbors=k_nn*step_k_nn)
 
-    return db['pose'][idx[0, 0]]
+    if k_nn > 1:
+        if angle_threshold:
+            poses = [db['pose'][idx[0, 0]]]
+            idx_next = 1
+            curr_d_angle = float('inf')
+            for i in range(1, k_nn*step_k_nn):
+                d_angle = 180/3.14159265 * 2 * torch.acos(
+                    torch.abs(
+                        torch.dot(db['pose'][idx[0, 0]]['q'][0], db['pose'][idx[0, i]]['q'][0]))
+                )
+                if d_angle < angle_threshold and (d_angle > curr_d_angle or curr_d_angle == float('inf')):
+                    curr_d_angle = d_angle
+                    idx_next = i
+                elif d_angle > angle_threshold and (d_angle < curr_d_angle or curr_d_angle < angle_threshold):
+                    curr_d_angle = d_angle
+                    idx_next = i
+            poses.append(db['pose'][idx[0, idx_next]])
+            return poses
+        else:
+            return [db['pose'][idx[0, i]] for i in range(0, k_nn*step_k_nn, step_k_nn)]
+    else:
+        return db['pose'][idx[0, 0]]
 
 
 def construct_feat_database(variable, **kwargs):
@@ -276,6 +330,17 @@ def batch_to_var(net, batch, **kwargs):
                 forward.append(recc_acces(sub_batch, target))
 
     return forward
+
+
+def simple_multiple_forward(net, outputs, **kwargs):
+    input_targets = kwargs.pop('input_targets', list())
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    inputs = recc_acces(outputs, input_targets)
+    forwarded = [net(inp) for inp in inputs]
+    return forwarded
 
 
 def custom_forward(net, outputs, **kwargs):

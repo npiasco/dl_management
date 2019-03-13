@@ -507,6 +507,7 @@ class MultNet(Default):
         for b in dtload:
             with torch.no_grad():
                 variables['batch'] = self.trainer.batch_to_device(b)
+                variables['ref_data'] = self.data['test']['data']
 
                 for action in self.trainer.eval_forwards['queries']:
                     variables = self.trainer._sequential_forward(action, variables, nets_to_test)
@@ -515,7 +516,10 @@ class MultNet(Default):
             try:
                 ref_pc = trainers.minning_function.recc_acces(variables, ['model', 'pc']).squeeze()
             except (KeyError,TypeError):
-                ref_pc = trainers.minning_function.recc_acces(variables, ['model',]).squeeze()
+                try:
+                    ref_pc = trainers.minning_function.recc_acces(variables, ['model',]).squeeze()
+                except (KeyError, TypeError):
+                    ref_pc = trainers.minning_function.recc_acces(variables, ['ref_pcs', 0]).squeeze()
             #output_pose = trainers.minning_function.recc_acces(variables, ['Tf', 'T'])[0]
             #output_pose = trainers.minning_function.recc_acces(variables, ['icp', 'poses', 'T'])[0]
             output_pose = trainers.minning_function.recc_acces(variables, self.trainer.access_pose + ['T'])[0]

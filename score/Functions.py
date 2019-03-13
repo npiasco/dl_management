@@ -229,6 +229,15 @@ class GlobalPoseError:
             return new_score <= old_score
 
 
+class MinLossRanking:
+    @staticmethod
+    def rank_score(new_score, old_score):
+        if old_score is None:
+            return True
+        else:
+            return new_score <= old_score
+
+
 class Reconstruction_Error:
     def __init__(self, **kwargs):
         self.pooling_type = kwargs.pop('pooling_type', 'mean')

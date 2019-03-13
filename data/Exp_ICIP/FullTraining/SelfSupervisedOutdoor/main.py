@@ -12,10 +12,13 @@ import system.PoseRegression as System
 
 
 if __name__ == '__main__':
+    scene = 'self-sup/full_outdoor'
     machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])],
-                             trainer_file='trainer.yaml',
-                             #trainer_file='posenet_trainer.yaml',
-                             dataset_file = '../datasets/heads224.yaml'
+                             # trainer_file='../../feat_trainer.yaml',
+                             # trainer_file= 'trainer.yaml',
+                             trainer_file='self_multiscale_depth_trainer.yaml',
+                             dataset_file = '../../datasets/' + scene + '.yaml',
+                             cnn_type='multiscale_cnn.yaml'
                              )
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':
@@ -31,9 +34,9 @@ if __name__ == '__main__':
     elif action == 'P':
         machine.plot()
     elif action == 'm':
-        machine.map_print(batch_size=1)
+        machine.map_print(shuffle=True, batch_size=1)
     elif action == 'mf':
-        machine.map_print(final=True, batch_size=1)
+        machine.map_print(shuffle=True, final=True, batch_size=2)
     elif action == 'pose':
         machine.view_localization(pas=3)
     elif action == 'posef':
@@ -46,6 +49,12 @@ if __name__ == '__main__':
         machine.creat_model(test=True)
     elif action == 'modeldt':
         machine.creat_model(test=True, fake_depth=True)
+    elif action == 'clusters':
+        machine.creat_clusters(64, size_feat=256, map_feat='conv7')
+    elif action == 'thresh':
+        machine.threshold_selection(final=True, dataset='test', load=False, beg=0.0, n_values=2000)
+    elif action == 'threshl':
+        machine.threshold_selection(final=True, dataset='test', load=True, beg=0.0, n_values=2000)
     elif action == '':
         machine.train()
         machine.test()

@@ -1,6 +1,6 @@
 class: 'trainers.PoseTrainers.MultNetTrainer'
 param_class:
-    #cuda_on: False
+        #cuda_on: False
     val_num_workers: 8
     optimizers_params:
         posenet_trainer:
@@ -103,6 +103,7 @@ param_class:
                 {
                  mode: 'mult_forward',
                  func: 'b_wrapper.advanced_local_map_getter',
+                 #param: {T: ['batch', 'pose', 'T'], descriptors_size: 128,
                  param: {T: ['posenet_pose', 'T'], descriptors_size: 128,
                  map_args: {scene: heads/, frame_spacing: 50, output_size: 1500, no_grad: true, reduce_fact: 4,
                  resize: 0.1166666667, num_pc: 8, cnn_depth: true, cnn_descriptor: 'conv2'}},
@@ -112,11 +113,13 @@ param_class:
                 {
                  mode: 'mult_forward',
                  func: 'b_wrapper.fast_icp',
+                 #param: {init_T: ['batch', 'pose', 'T'], inv_init_T: False,
                  param: {init_T: ['posenet_pose', 'T'], inv_init_T: False,
                  pc_to_align: ['pc'], pc_ref: ['model', 'pc'],
                  desc_to_align: ['desc'], desc_ref: ['model', 'desc'],
-                 filter_inliers: false, filter_score: 0.6,
+                 filter_inliers: false, filter_score: false,
                  param_icp: {verbose: false, iter: 50, fit_pc: false}},
+                 #net_name: ['MatchNet', ],
                  net_name: ['Desc', 'MatchNet', ],
                  out_name: 'icp_pose'
                 },

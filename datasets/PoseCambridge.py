@@ -216,6 +216,56 @@ class Val(Base):
             self.data = self.data[round(len(self.data)*pruning):]
 
 
+class MultiDataset(utils.Dataset):
+    def __init__(self, **kwargs):
+        utils.Dataset.__init__(self)
+        root = kwargs.pop('root', '')
+        folders = kwargs.pop('folders', list())
+        type = kwargs.pop('type', 'train')
+        transform = kwargs.pop('transform', dict())
+        general_options = kwargs.pop('general_options', dict())
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        if type == 'train':
+            self.datasets = [Train(root=root + folder, transform=transform, **general_options) for folder in folders]
+        if type == 'seq':
+            self.datasets = [TrainSequence(root=root + folder, transform=transform, **general_options) for folder in
+                             folders]
+        elif type == 'val':
+            self.datasets = [Val(root=root + folder, transform=transform,  **general_options) for folder in folders]
+        elif type == 'test':
+            self.datasets = [Test(root=root + folder, transform=transform,  **general_options) for folder in folders]
+        else:
+            raise AttributeError('No implementation for type {}'.format(type))
+
+    def __len__(self):
+        return sum([len(dataset) for dataset in self.datasets])
+
+    def __getitem__(self, idx):
+        n_dataset = 0
+        goon = True
+        size_sum_dataset = 0
+        while goon:
+            if idx >= size_sum_dataset +  len(self.datasets[n_dataset]):
+                size_sum_dataset += len(self.datasets[n_dataset])
+                n_dataset += 1
+            else:
+                goon = False
+
+        return self.datasets[n_dataset].__getitem__(idx-size_sum_dataset)
+
+    @property
+    def used_mod(self):
+        return self.datasets[0].used_mod
+
+    @used_mod.setter
+    def used_mod(self, mode):
+        for dataset in self.datasets:
+            dataset.used_mod = mode
+
+
 def show_batch(sample_batched,  n_row=4):
     """Show image with landmarks for a batch of samples."""
     grid = torchvis.utils.make_grid(sample_batched['rgb'], nrow=n_row)
