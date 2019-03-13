@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import torch.utils as utils
 import tqdm
 import sys
+import os
 import torch.optim.lr_scheduler as lr_scheduler
 import networks.Descriptor              # Needed for class creation with eval
 import networks.Pose                    # Needed for class creation with eval
@@ -161,7 +162,9 @@ class Base:
         self.params['saved_files'] = dict()
         for name, data in datas.items():
             self.params['saved_files'][name] = name + '.pth'
-            torch.save(data, self.root + name + '.pth')
+            torch.save(data, self.root + name + '.pth.tmp')
+            os.system('mv {} {}'.format(self.root + name + '.pth.tmp', self.root + name + '.pth'))
+            logger.info('Saved {}'.format(self.root + name + '.pth'))
 
         self.params['curr_epoch'] = self.curr_epoch
         self.params['score_file'] = 'score_file.pth'

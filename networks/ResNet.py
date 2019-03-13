@@ -173,6 +173,7 @@ class Deconv(nn.Module):
         norm_layer = kwargs.pop('norm_layer', 'batch')
         dropout = kwargs.pop('dropout', False)
         extended_size = kwargs.pop('extended_size', False)
+        self.inv_output =  kwargs.pop('inv_output', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -191,19 +192,18 @@ class Deconv(nn.Module):
 
         out_pad = 1 if alexnet_entry else 0
 
-
         base_archi = {
             1:
                 [
                     ('deconv4', nn.ConvTranspose2d(input_size, 256, kernel_size=4, stride=2, padding=1,
                                                    output_padding=out_pad)),
-                    ('norm4', norm_layer_func(256)),
+                    ('norm4', nn.BatchNorm2d(256)),
                     ('relu4', nn.LeakyReLU(inplace=True, negative_slope=0.02)),  # 2
                     ('conv3', nn.Conv2d(256, 384, kernel_size=3, padding=1)),  # 3
-                    ('norm3', norm_layer_func(384)),
+                    ('norm3', nn.BatchNorm2d(384)),
                     ('relu3', nn.LeakyReLU(inplace=True, negative_slope=0.02)),  # 4
                     ('conv2', nn.Conv2d(384, size_res_1, kernel_size=3, padding=1)),  # 5
-                    ('norm2', norm_layer_func(size_res_1)),
+                    ('norm2', nn.BatchNorm2d(size_res_1)),
                     ('relu2', nn.LeakyReLU(inplace=True, negative_slope=0.02)),  # 6
                 ],
         }
@@ -297,6 +297,9 @@ class Deconv(nn.Module):
         x = self.deconv_2(x)
         x = torch.cat((x, res1), dim=1)
         map = self.deconv_3(x)
+
+        if self.inv_output:
+            map = torch.reciprocal(map.clamp(min=1e-8)) - 1
 
         return map
 

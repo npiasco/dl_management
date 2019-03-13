@@ -23,10 +23,10 @@ Pose:
     class: 'networks.Pose.PoseRegressor'
     param_class:
         layers_to_train: 'all'
-        input_size: 2048 # 2048 * 1 * 1
+        input_size: 8192 # 2048 * 2 * 2
         size_layer: 512
-        custom_input_size: 1
-        num_inter_layers: 1
+        custom_input_size: 2
+        num_inter_layers: 2
 
 MatchNet:
     class: 'networks.ICPNet.MatchNet'
@@ -37,8 +37,8 @@ MatchNet:
 
 init_weights:
     Main:
-        self: '../DepthFull/Main_self.pth'
+        self: '../DepthAll/Main_self.pth'
     Deconv:
-        deconv1: '../DepthFull/Deconv_deconv1.pth'
-        deconv2: '../DepthFull/Deconv_deconv2.pth'
-        deconv3: '../DepthFull/Deconv_deconv3.pth'
+        deconv_1: '../DepthAll/Deconv_deconv_1.pth'
+        deconv_2: '../DepthAll/Deconv_deconv_2.pth'
+        deconv_3: '../DepthAll/Deconv_deconv_3.pth'

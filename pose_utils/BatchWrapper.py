@@ -382,6 +382,38 @@ def batched_local_map_getter(variable, **kwargs):
     return batched_local_maps
 
 
+def multi_batched_depth_map_to_pc(variable, **kwargs):
+    depth_maps = kwargs.pop('depth_maps', None)
+    K = kwargs.pop('K', None)
+    inverse_depth = kwargs.pop('inverse_depth', True)
+    remove_zeros = kwargs.pop('remove_zeros', False)
+    eps = kwargs.pop('eps', 1e-8)
+    scale_factor = kwargs.pop('scale_factor', None)
+
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    batched_depth_maps = recc_acces(variable, depth_maps)
+    num_pc = len(batched_depth_maps)
+    params = {
+        'scale_factor': scale_factor,
+        'eps': eps,
+        'remove_zeros': remove_zeros,
+        'inverse_depth': inverse_depth
+    }
+    if remove_zeros:
+        batched_pc = [batched_depth_map_to_pc(variable,
+                                              depth_maps=depth_maps + [i],
+                                              K=K + [i],
+                                              **params)['pc'] for i in range(num_pc)]
+    else:
+        batched_pc = [batched_depth_map_to_pc(variable,
+                                              depth_maps=depth_maps + [i],
+                                              K=K + [i],
+                                              **params) for i in range(num_pc)]
+    return batched_pc
+
+
 def batched_depth_map_to_pc(variable, **kwargs):
     depth_maps = kwargs.pop('depth_maps', None)
     K = kwargs.pop('K', None)

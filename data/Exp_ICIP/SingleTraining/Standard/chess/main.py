@@ -14,11 +14,12 @@ import system.PoseRegression as System
 if __name__ == '__main__':
     scene = 'chess'
     machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])],
-                             # trainer_file='../../feat_trainer.yaml',
-                             # trainer_file= 'trainer.yaml',
-                             trainer_file='../../trainer_depth.yaml',
+                             #trainer_file='../../feat_trainer.yaml',
+                             trainer_file= 'trainer.yaml',
+                             #trainer_file='../../trainer_depth.yaml',
                              dataset_file = '../../../datasets/' + scene + '.yaml',
-                             cnn_type='../../cnn.yaml'
+                             #cnn_type='../../cnn.yaml'
+                             cnn_type='../../vladcnn.yaml'
                              )
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':
@@ -37,6 +38,10 @@ if __name__ == '__main__':
         machine.map_print(batch_size=1)
     elif action == 'mf':
         machine.map_print(final=True, batch_size=1)
+    elif action == 's':
+        machine.serialize_net()
+    elif action == 'sf':
+        machine.serialize_net(final=True)
     elif action == 'pose':
         machine.view_localization(pas=3)
     elif action == 'posef':

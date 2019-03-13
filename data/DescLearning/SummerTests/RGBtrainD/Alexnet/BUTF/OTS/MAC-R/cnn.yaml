@@ -1,0 +1,57 @@
+Main:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        layers_to_train: 'up_to_conv3'
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: True
+            unet: True
+            indices: True
+        agg_method: 'RMAC'
+        agg_method_param:
+            norm: True
+            R: 1            
+
+Deconv:
+    class: 'networks.ResNet.Deconv'
+    param_class:
+        layers_to_train: 'all'
+        size_res_1: 192
+        size_res_2: 64
+        input_size: 256
+        up_factor: 1
+        alexnet_entry: True
+        extended_size: False
+        norm_layer: group
+        reduce_factor: 2
+        final_activation: 'sig'
+        inv_output: false
+
+Aux:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        agg_method: 'RMAC'
+        agg_method_param:
+            norm: True
+            R: 1
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: True
+            end_relu: False
+            batch_norm: False
+            jet_tf: True
+            jet_tf_param:
+                num_embedding: 256
+                size_embedding: 3
+                trainable: false
+                amplitude: 1
+                min_value: 0
+        layers_to_train: 'all'
+
+Fuse:
+    class: 'networks.FeatAggregation.Concat'
+    param_class:
+        aux_ratio: 1.0
+        main_ratio: 1.0
+        norm: False
+

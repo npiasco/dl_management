@@ -1,7 +1,7 @@
 class: 'trainers.PoseTrainers.MultNetTrainer'
 param_class:
-    cuda_on: False
-    val_num_workers: 8
+        #cuda_on: False
+    val_num_workers: 1
     optimizers_params:
         posenet_trainer:
             associated_net: ['Main', 'Pose']
@@ -95,21 +95,21 @@ param_class:
                 {
                  mode: 'minning',
                  func: 'b_wrapper.batched_depth_map_to_pc',
-                 param: {depth_maps: [fake_depth], K: [batch, K], remove_zeros: false, inverse_depth: false, scale_factor: 0.25},
+                 param: {depth_maps: [fake_depth], K: [batch, K], remove_zeros: false, inverse_depth: false, scale_factor: 0.5},
                  out_name: 'pc'
                 },
                 {
                  mode: 'minning',
                  func: 'b_wrapper.resize',
-                 param: {inputs: ['fw_main', 'conv2'], scale_factor: 0.25, flatten: true},
+                 param: {inputs: ['fw_main', 'conv2'], scale_factor: 0.5, flatten: true},
                  out_name: 'desc'
                 },
                 {
                  mode: 'mult_forward',
                  func: 'b_wrapper.advanced_local_map_getter',
                  param: {T: ['posenet_pose', 'T'], descriptors_size: 128,
-                 map_args: {scene: heads/, frame_spacing: 20, output_size: 1500, no_grad: true, reduce_fact: 4,
-                 resize: 0.1166666667, num_pc: 4, cnn_depth: true, cnn_descriptor: 'conv2'}},
+                 map_args: {scene: heads/, frame_spacing: 50, output_size: 1000, no_grad: true, reduce_fact: 4,
+                 resize: 0.1166666667, num_pc: 8, cnn_depth: true, cnn_descriptor: 'conv2'}},
                  net_name: ['Main', 'Deconv'],
                  out_name: 'model'
                 },
@@ -117,10 +117,13 @@ param_class:
                  mode: 'mult_forward',
                  func: 'b_wrapper.fast_icp',
                  param: {init_T: ['posenet_pose', 'T'], inv_init_T: False,
+                 #pc_to_align: ['model', 'pc'], pc_ref: ['pc'],
+                 #desc_to_align: ['model', 'desc'], desc_ref: ['desc'],
                  pc_to_align: ['pc'], pc_ref: ['model', 'pc'],
                  desc_to_align: ['desc'], desc_ref: ['model', 'desc'],
+                 filter_inliers: false, filter_score: 0.8,
                  param_icp: {verbose: false, iter: 50}},
-                 net_name: ['Desc', 'MatchNet', ],
+                 net_name: ['Desc', 'MatchNet',],
                  out_name: 'icp_pose'
                 },
             ]

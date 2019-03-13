@@ -18,6 +18,7 @@ test:
     queries:
         class: datasets.SevenScene.Test
         param_class:
+            light: true
             root: 'heads/'
             transform:
                 first:
@@ -32,9 +33,10 @@ test:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                     - {class: 'datasets.multmodtf.DepthTransform', param_class:}
     data:
-        class: datasets.SevenScene.Val
+        class: datasets.SevenScene.Test
         param_class:
             root: 'heads/'
+            light: true
             transform:
                 first:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}

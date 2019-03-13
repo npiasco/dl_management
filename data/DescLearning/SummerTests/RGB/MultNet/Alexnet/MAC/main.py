@@ -13,7 +13,7 @@ import system.DescriptorLearning as System
 if __name__ == '__main__':
     print(os.getcwd())
     machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])],
-                             dataset_file='../../../../datasets/night_queries.yaml',
+                             dataset_file='../../../../datasets/cmu_training.yaml',
                              trainer_file='../trainer.yaml')
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':

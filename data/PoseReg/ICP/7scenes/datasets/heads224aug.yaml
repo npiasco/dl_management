@@ -3,7 +3,7 @@ train:
     param_class:
         root: ''
         type: 'train'
-        folders: ['heads/', 'heads/', 'heads/', 'heads/', 'heads/', 'heads/', 'heads/', 'aug_heads/']
+        folders: ['heads/', 'heads/', 'heads/', 'heads/', 'heads/', 'heads/', 'heads/', 'heads/', 'heads/', 'heads/', 'aug_heads/']
         general_options: {pruning: 0.95}
         transform:
             first:
@@ -38,6 +38,7 @@ test:
         class: datasets.SevenScene.Test
         param_class:
             root: 'heads/'
+            light: true
             transform:
                 first:
                     - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}

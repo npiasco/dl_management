@@ -221,7 +221,7 @@ def adaptive_triplet_loss(anchor, positives, negatives, **kwargs):
                 tt_loss += c_loss
 
             if adaptive_factor:
-                cpt += 1 if c_loss.data[0]>0 else 0
+                cpt += 1 if c_loss.item()>0 else 0
             else:
                 cpt += 1
 

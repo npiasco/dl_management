@@ -1,0 +1,177 @@
+class: 'trainers.TripletTrainers.MultNetTrainer'
+param_class:
+    cuda_on: True
+    val_num_workers: 8
+    optimizers_params:
+        main_trainer:
+            associated_net: ['Main', ]
+            optimizer_type: ADAM
+            param:
+                lr: 0.0001
+                weight_decay: 0.0005
+
+    training_pipeline:
+        [
+            # ----------------BATCH TO VAR------------------ #
+            {
+             mode: 'batch_forward',
+             func: minning.batch_to_var,
+             param: {mode: 'positives', target: [], mult_mod: True},
+             net_name: 'Main',
+             out_name: 'var_pos'
+            },
+            {
+             mode: 'batch_forward',
+             func: minning.batch_to_var,
+             param: {mode: 'negatives', target: [], mult_mod: True},
+             net_name: 'Main',
+             out_name: 'var_neg'
+            },
+            # ---------------------------------------------- #
+
+            # -------------------MAIN FWD------------------- #
+            {
+             mode: 'minning',
+             func: 'b_wrapper.batched_depth_map_to_pc',
+             param: {depth_maps: [batch, query, mono_depth], K: [batch, query, K], remove_zeros: false,
+             inverse_depth: false},
+             out_name: 'query_pc'
+            },
+            {
+             mode: 'minning',
+             func: 'b_wrapper.multi_batched_depth_map_to_pc',
+             param: {depth_maps: [var_pos, mono_depth], K: [var_pos, K], remove_zeros: false, inverse_depth: false,
+             },
+             out_name: 'pos_pc'
+            },
+            {
+             mode: 'minning',
+             func: 'b_wrapper.multi_batched_depth_map_to_pc',
+             param: {depth_maps: [var_neg, mono_depth], K: [var_neg, K], remove_zeros: false, inverse_depth: false,
+             },
+             out_name: 'neg_pc'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['query_pc',], ]},
+             net_name: 'Main',
+             out_name: 'forwd_query'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['pos_pc'], ], multiples_instance: True},
+             net_name: 'Main',
+             out_name: 'forwd_pos'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['neg_pc'], ], multiples_instance: True},
+             net_name: 'Main',
+             out_name: 'forwd_neg'
+            },
+            # ---------------------------------------------- #
+
+            # -------------------MINNING-------------------- #
+            {
+             mode: 'minning',
+             func: 'minning.general_hard_minning',
+             param: {n_ex: 4, mode: positives, anchor_getter: ['forwd_query'], example_getter: ['forwd_pos'], return_idx: True},
+             out_name: 'hard_pos'
+            },
+            {
+             mode: 'minning',
+             func: 'minning.general_hard_minning',
+             param: {n_ex: 20, mode: negatives, anchor_getter: ['forwd_query'], example_getter: ['forwd_neg'], return_idx: True},
+             out_name: 'hard_neg'
+            },
+            # ---------------------------------------------- #
+            {
+             mode: 'loss',
+             name: 'triplet_loss',
+             func: 'loss_func.adaptive_triplet_loss',
+             args: [['forwd_query'], ['hard_pos', 'ex'], ['hard_neg', 'ex']],
+             param:{margin: 0.5, swap: true}
+            },
+            {
+                mode: backprop,
+                name: 'main_backprop',
+                trainer: 'main_trainer',
+                clip_grad: {networks: ['Main'], val_max: 1.0},
+            },
+            # ---------------------------------------------- #
+        ]
+    eval_forwards:
+        dataset:
+            [
+                {
+                 mode: 'minning',
+                 func: 'b_wrapper.batched_depth_map_to_pc',
+                 param: {depth_maps: [batch, mono_depth], K: [batch, K], remove_zeros: false,
+                 inverse_depth: false},
+                 out_name: 'query_pc'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['query_pc'],]},
+                 net_name: 'Main',
+                 out_name: 'desc'
+                },
+            ]
+        queries:
+            [
+                {
+                 mode: 'minning',
+                 func: 'b_wrapper.batched_depth_map_to_pc',
+                 param: {depth_maps: [batch, mono_depth], K: [batch, K], remove_zeros: false,
+                 inverse_depth: false},
+                 out_name: 'query_pc'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['query_pc'],]},
+                 net_name: 'Main',
+                 out_name: 'desc'
+                },
+            ]
+    eval_final_desc: ['desc']
+
+eval_class: 'score.Functions.MeanRecallAtN'
+param_eval_class:
+    n: 5
+    radius: 25
+test_func:
+    default:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 1
+            radius: 25
+    r5:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 5
+            radius: 25
+    r10:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 10
+            radius: 25
+    mr25:
+        class: 'score.Functions.MeanRecallAtN'
+        param_class:
+            n: 25
+            radius: 25
+    mean_recall:
+        class: 'score.Functions.MeanRecallAtN'
+        param_class:
+            n: 50
+            radius: 25
+    recall:
+        class: 'score.Functions.Recall'
+        param_class:
+            n: 50
+            radius: 25
