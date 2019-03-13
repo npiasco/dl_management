@@ -3,7 +3,7 @@ train:
     env: CAMBRIDGE
     param_class:
         root: 'KingsCollege/'
-        num_samples: 6
+        num_samples: 12
         spacing: 1
         load_fast: true
         transform:

@@ -1,11 +1,11 @@
-batch_size: 1
-curr_epoch: 0
+batch_size: 2
+curr_epoch: 206
 lr_scheduler:
   deconv_trainer:
     class: lr_scheduler.MultiStepLR
     param:
-      gamma: 0.5
-      milestones: [10, 25, 50]
+      gamma: 0.25
+      milestones: [25, 45, 65]
 max_epoch: 1000
 min_value_to_stop: 100
 saved_files: {best_network: best_network.pth, loss: loss.pth, network_Deconv: network_Deconv.pth,

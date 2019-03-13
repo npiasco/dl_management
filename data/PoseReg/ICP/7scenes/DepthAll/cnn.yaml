@@ -10,7 +10,7 @@ Main:
     class: 'networks.ResNet.Feat'
     param_class:
         layers_to_train: 'all'
-        num_layer: 18
+        num_layer: 50
         unet: True
         load_imagenet: True
 
@@ -20,8 +20,8 @@ Deconv:
         layers_to_train: 'all'
         #size_res_1: 192
         #alexnet_entry: True
-        size_res_1: 256
-        input_size: 512
+        size_res_1: 1024
+        input_size: 2048
         up_factor: 2
         reduce_factor: 4
         norm_layer: group

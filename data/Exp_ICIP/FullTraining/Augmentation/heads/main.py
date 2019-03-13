@@ -14,10 +14,11 @@ import system.PoseRegression as System
 if __name__ == '__main__':
     scene = 'heads'
     machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])],
-                             # trainer_file='../../feat_trainer.yaml',
+                             #trainer_file='../../feat_trainer.yaml',
                              trainer_file= 'trainer.yaml',
                              dataset_file = '../../../datasets/' + scene + '.yaml',
-                             cnn_type='../cnn.yaml'
+                             #cnn_type='../cnn.yaml'
+                             cnn_type='../vladcnn.yaml'
                              )
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':
@@ -51,7 +52,7 @@ if __name__ == '__main__':
     elif action == 'clusters':
         machine.creat_clusters(64, size_feat=256, map_feat='conv7')
     elif action == 'thresh':
-        machine.threshold_selection(final=True, dataset='test', load=False, beg=0.0, n_values=2000)
+        machine.threshold_selection(final=False, dataset='test', load=False, beg=0.0, n_values=2000)
     elif action == 'threshl':
         machine.threshold_selection(final=True, dataset='test', load=True, beg=0.0, n_values=2000)
     elif action == '':

@@ -34,6 +34,10 @@ if __name__ == '__main__':
         machine.map_print(batch_size=2)
     elif action == 'mf':
         machine.map_print(final=True, batch_size=2)
+    elif action == 's':
+        machine.serialize_net(final=False)
+    elif action == 'sf':
+        machine.serialize_net(final=True)
     elif action == 'pose':
         machine.view_localization(pas=3)
     elif action == 'posef':
