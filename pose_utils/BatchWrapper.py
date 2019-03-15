@@ -43,6 +43,10 @@ def bilinear_wrapping(variables, **kwargs) :
                 t1 = tm.time()
             Kt_tmp = recc_acces(variables, Kt).clone()
             Ksj = recc_acces(listed_var[j], Ks).clone()
+            if timing:
+                t = tm.time()
+                print('Elapsed {} (cloning)'.format(t - t1))
+
             T_sj = recc_acces(listed_var[j], T_s)
             img_sourcej = recc_acces(listed_var[j], img_source)
 
@@ -51,7 +55,7 @@ def bilinear_wrapping(variables, **kwargs) :
             _, _, h, w = target_depth_map.size()
             if timing:
                 t = tm.time()
-                print('Elapsed {} (before wrapping)'.format(t - t1))
+                print('Elapsed {} (total before wrapping)'.format(t - t1))
 
             if h != img_sourcej.size(2) or w != img_sourcej.size(3):
                 if resize_K:
@@ -65,7 +69,7 @@ def bilinear_wrapping(variables, **kwargs) :
 
             if timing:
                 t2 = tm.time()
-                print('Elapsed {} (end loop)'.format(t2 - t1))
+                print('Elapsed {} (total loop)'.format(t2 - t1))
 
     else:
         img_source = recc_acces(variables, img_source)
