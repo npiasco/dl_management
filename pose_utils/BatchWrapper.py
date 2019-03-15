@@ -39,11 +39,11 @@ def bilinear_wrapping(variables, **kwargs) :
         listed_var = variables[multiple_proj]
         n_im = len(listed_var) - 1
         Kt = recc_acces(variables, Kt).clone()
-        Ks = [listed_var[i + 1][Ks].clone() for i in range(1, n_im)]
+        Ks = [recc_acces(listed_var[i + 1], Ks).clone() for i in range(1, n_im)]
         Ks = torch.cat(Ks, dim=0)
-        T_s = [listed_var[i + 1][T_s] for i in range(1, n_im)]
+        T_s = [recc_acces(listed_var[i + 1], T_s) for i in range(1, n_im)]
         T_s = torch.cat(T_s, dim=0)
-        img_sources = [listed_var[i + 1][img_source] for i in range(1, n_im)]
+        img_sources = [recc_acces(listed_var[i + 1], img_source) for i in range(1, n_im)]
         img_sources = torch.cat(img_sources , dim=0)
         T = torch.matmul(torch.inverse(T_s), T_t)
         n_batch, _, h, w = target_depth_map.size()
