@@ -8,7 +8,7 @@ import numpy as np
 import setlog
 import pose_utils.RANSACPose as RSCPose
 import trainers.bilinear_sampler as bsm
-
+import time as tm
 
 logger = setlog.get_logger(__name__)
 
@@ -27,6 +27,11 @@ def bilinear_wrapping(variables, **kwargs) :
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
+    timing = True
+
+    if timing:
+        t_init = tm.time()
+
     target_depth_map = recc_acces(variables, depth_map)
     T_t = recc_acces(variables, T_t)
 
@@ -34,6 +39,8 @@ def bilinear_wrapping(variables, **kwargs) :
         wrapped_im = list()
         listed_var = variables[multiple_proj]
         for j in range(1, len(listed_var)): # idx 1 -> 0 is origin image
+            if timing:
+                t1 = tm.time()
             Kt_tmp = recc_acces(variables, Kt).clone()
             Ksj = recc_acces(listed_var[j], Ks).clone()
             T_sj = recc_acces(listed_var[j], T_s)
@@ -42,6 +49,10 @@ def bilinear_wrapping(variables, **kwargs) :
             T = torch.stack([t_s.inverse().matmul(T_t[i]) for i, t_s in enumerate(T_sj)])
 
             _, _, h, w = target_depth_map.size()
+            if timing:
+                t = tm.time()
+                print('Elapsed {} (before wrapping)'.format(t - t1))
+
             if h != img_sourcej.size(2) or w != img_sourcej.size(3):
                 if resize_K:
                     ratio = h/img_sourcej.size(2)
@@ -51,6 +62,10 @@ def bilinear_wrapping(variables, **kwargs) :
                 wrapped_im.append(bsm.image_warp(img_source_resized, target_depth_map, Ksj, Kt_tmp, T, **param_sampler))
             else:
                 wrapped_im.append(bsm.image_warp(img_sourcej, target_depth_map, Ksj, Kt_tmp, T, **param_sampler))
+
+            if timing:
+                t2 = tm.time()
+                print('Elapsed {} (end loop)'.format(t2 - t1))
 
     else:
         img_source = recc_acces(variables, img_source)
@@ -71,6 +86,10 @@ def bilinear_wrapping(variables, **kwargs) :
             wrapped_im = bsm.image_warp(img_source_resized, target_depth_map , Ks, Kt, T, **param_sampler)
         else:
             wrapped_im = bsm.image_warp(img_source, target_depth_map, Ks, Kt, T, **param_sampler)
+
+    if timing:
+        t = tm.time()
+        print('Elapsed {} (total)'.format(t - t_init))
 
     return wrapped_im
 
