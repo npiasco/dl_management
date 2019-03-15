@@ -55,9 +55,15 @@ def bilinear_wrapping(variables, **kwargs) :
                 Kt[:, :2, :] *= ratio
                 Ks[:, :2, :] *= ratio
             img_sources_resized = nn_func.interpolate(img_sources, size=(h, w), mode='bilinear', align_corners=True)
-            wrapped_im = bsm.image_warp(img_sources_resized, target_depth_map, Ks, Kt, T, **param_sampler)
+            wrapped_im = bsm.image_warp(img_sources_resized,
+                                        target_depth_map.repeat(n_im - 1, 1, 1),
+                                        Ks,
+                                        Kt.repeat(n_im - 1, 1, 1), T, **param_sampler)
         else:
-            wrapped_im = bsm.image_warp(img_sources, target_depth_map, Ks, Kt, T, **param_sampler)
+            wrapped_im = bsm.image_warp(img_sources,
+                                        target_depth_map.repeat(n_im - 1, 1, 1),
+                                        Ks,
+                                        Kt.repeat(n_im - 1, 1, 1), T, **param_sampler)
         wrapped_im = torch.split(wrapped_im, n_batch, dim=0)
 
         '''
