@@ -27,7 +27,7 @@ def bilinear_wrapping(variables, **kwargs) :
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    timing = True
+    timing = False
 
     if timing:
         t_init = tm.time()
@@ -50,7 +50,8 @@ def bilinear_wrapping(variables, **kwargs) :
             T_sj = recc_acces(listed_var[j], T_s)
             img_sourcej = recc_acces(listed_var[j], img_source)
 
-            T = torch.stack([t_s.inverse().matmul(T_t[i]) for i, t_s in enumerate(T_sj)])
+            #T = torch.stack([t_s.inverse().matmul(T_t[i]) for i, t_s in enumerate(T_sj)])
+            T = torch.matmul(torch.inverse(T_sj), T_t)
 
             _, _, h, w = target_depth_map.size()
             if timing:
@@ -78,8 +79,8 @@ def bilinear_wrapping(variables, **kwargs) :
 
         T_s = recc_acces(variables, T_s)
 
-        T = torch.stack([t_s.inverse().matmul(T_t[i]) for i, t_s in enumerate(T_s)])
-
+        #T = torch.stack([t_s.inverse().matmul(T_t[i]) for i, t_s in enumerate(T_s)])
+        T = torch.matmul(torch.inverse(T_s), T_t)
         _, _, h, w = target_depth_map.size()
         if h != img_source.size(2) or w != img_source.size(3):
             if resize_K:
