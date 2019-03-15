@@ -45,8 +45,8 @@ def bilinear_wrapping(variables, **kwargs) :
         T_s = torch.cat(T_s, dim=0)
         img_sources = [recc_acces(listed_var[i + 1], img_source) for i in range(1, n_im)]
         img_sources = torch.cat(img_sources , dim=0)
-        T = torch.matmul(torch.inverse(T_s), T_t)
         n_batch, _, h, w = target_depth_map.size()
+        T = torch.matmul(torch.inverse(T_s), T_t.repeat(n_batch*n_im, 1, 1, 1))
 
         if h != img_sources.size(2) or w != img_sources.size(3):
             if resize_K:
