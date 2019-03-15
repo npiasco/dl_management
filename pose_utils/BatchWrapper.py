@@ -36,6 +36,30 @@ def bilinear_wrapping(variables, **kwargs) :
     T_t = recc_acces(variables, T_t)
 
     if multiple_proj:
+        listed_var = variables[multiple_proj]
+        n_im = len(listed_var) - 1
+        Kt = recc_acces(variables, Kt).clone()
+        Ks = [listed_var[i + 1][Ks].clone() for i in range(1, n_im)]
+        Ks = torch.cat(Ks, dim=0)
+        T_s = [listed_var[i + 1][T_s] for i in range(1, n_im)]
+        T_s = torch.cat(T_s, dim=0)
+        img_sources = [listed_var[i + 1][img_source] for i in range(1, n_im)]
+        img_sources = torch.cat(img_sources , dim=0)
+        T = torch.matmul(torch.inverse(T_s), T_t)
+        n_batch, _, h, w = target_depth_map.size()
+
+        if h != img_sources.size(2) or w != img_sources.size(3):
+            if resize_K:
+                ratio = h / img_sources.size(2)
+                Kt[:, :2, :] *= ratio
+                Ks[:, :2, :] *= ratio
+            img_sources_resized = nn_func.interpolate(img_sources, size=(h, w), mode='bilinear', align_corners=True)
+            wrapped_im = bsm.image_warp(img_sources_resized, target_depth_map, Ks, Kt, T, **param_sampler)
+        else:
+            wrapped_im = bsm.image_warp(img_sources, target_depth_map, Ks, Kt, T, **param_sampler)
+        wrapped_im = torch.split(wrapped_im, n_batch, dim=0)
+
+        '''
         wrapped_im = list()
         listed_var = variables[multiple_proj]
         for j in range(1, len(listed_var)): # idx 1 -> 0 is origin image
@@ -70,7 +94,7 @@ def bilinear_wrapping(variables, **kwargs) :
             if timing:
                 t2 = tm.time()
                 print('Elapsed {} (total loop)'.format(t2 - t1))
-
+        '''
     else:
         img_source = recc_acces(variables, img_source)
         Ks = recc_acces(variables, Ks).clone()
