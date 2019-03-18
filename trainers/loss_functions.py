@@ -273,9 +273,9 @@ def image_similarity(predicted_im, gt_im, **kwargs):
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
     if isinstance(predicted_im, (list, tuple)):
-        loss = 0
-        for i in range(len(predicted_im)):
-            loss +=  image_similarity(predicted_im[i], gt_im, p=p, factor=factor/len(predicted_im), no_zeros=no_zeros)
+        n_im = len(predicted_im)
+        predicted_im = torch.cat(predicted_im, dim=0)
+        return image_similarity(predicted_im, gt_im.repeat(n_im, 1, 1, 1), p=p, factor=factor, no_zeros=no_zeros)
     else:
         if no_zeros:
             zeros_idx = torch.max(predicted_im == predicted_im.new_zeros(predicted_im.size()), dim=1)[0].byte()
