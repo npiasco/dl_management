@@ -69,7 +69,7 @@ class Base(utils.Dataset):
                     sample[mod] = torchvis.transforms.Compose(self.transform[mod])({mod: sample[mod],
                                                                                     'K': sample['K']})[mod]
 
-        t = resource[1:4].astype('float') * 0.01 # -> m
+        t = resource[1:4].astype('float') # m
         q = resource[4:8].astype('float')
         pose = np.zeros((4, 4), dtype=np.float32)
         R = putils.quat_to_rot(torch.tensor(q)).numpy()

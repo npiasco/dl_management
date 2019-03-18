@@ -13,8 +13,16 @@ def image_warp(img, depth, Ks, Kt, T, padding_mode='zeros', mode='bilinear'):
 
     b, _, h, w = depth.size()
     #coord = [[[i/w - 0.5, j/h - 0.5, 1] for j in range(h)] for i in range(w)]
+
+    '''
     coord = [[[[i, j , 1] for j in range(h)] for i in range(w)] for _ in range(b)]
     coord = (depth.new_tensor(coord).transpose(1, 3).contiguous()).view(b, 3, -1)
+    '''
+
+    coord_y, coord_x = torch.meshgrid((torch.arange(h), torch.arange(w)))
+    coord = depth.new_ones(b, 3, w*h)
+    coord[:, :2, :] = torch.stack((coord_x.contiguous().view(-1), coord_y.contiguous().view(-1)))
+
     invK = torch.stack([k.inverse() for k in Kt])
 
     corr_coord = Ks.matmul(T[:, :3, :3].matmul(depth.view(b, 1, -1) * invK.matmul(coord)) + T[:, :3, 3].unsqueeze(-1)).view(b, 3, h, w)
@@ -41,8 +49,8 @@ if __name__=='__main__':
 
     K[:2, :] *= scale
 
-    root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
-    #root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
+    #root = '/media/nathan/Data/7_Scenes/heads/seq-01/'
+    root = '/Users/n.piasco/Documents/Dev/seven_scenes/heads/seq-01/'
 
     ims = list()
     depths = list()
@@ -80,7 +88,6 @@ if __name__=='__main__':
     grid = torchvis.utils.make_grid(images_batch, nrow=2)
     plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
     plt.colorbar()
-
     img_wrapped = image_warp(ims[1], depths[0], K.unsqueeze(0),  K.unsqueeze(0), (poses[1].inverse().matmul(poses[0])).unsqueeze(0))
     #img_wrapped = image_warp(ims[1], depths[0].new_ones(depths[0].size()), K, torch.eye(4,4), padding_mode='zeros')
     fig = plt.figure(2)

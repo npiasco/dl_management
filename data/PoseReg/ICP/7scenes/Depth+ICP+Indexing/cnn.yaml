@@ -17,6 +17,7 @@ Deconv:
 MatchNet:
     class: 'networks.ICPNet.MatchNet'
     param_class:
+            #normalize_desc: False
         normalize_desc: True
         #knn: 'desc_reweighting'
         knn: 'fast_soft_knn'
@@ -28,7 +29,7 @@ Desc:
     param_class:
         norm: False
         norm_x2: False
-        norm_x1: Fasle
+        norm_x1: False
         main_ratio: 1.0
 
 FeatDesc:
@@ -39,6 +40,6 @@ FeatDesc:
 
 init_weights:
     Main:
-        feature: '../Depth+Pose_Heads224/Main_feature.pth'
+        feature: '../DepthHeadsAugBatch/Main_feature.pth'
     Deconv:
-        feature: '../Depth+Pose_Heads224/Deconv_feature.pth'
+        feature: '../DepthHeadsAugBatch/Deconv_feature.pth'

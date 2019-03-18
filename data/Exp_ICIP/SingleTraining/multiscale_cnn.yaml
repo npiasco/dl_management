@@ -3,15 +3,17 @@ Main:
     param_class:
         layers_to_train: 'all'
         k_size: 4
-        d_fact: 4
+        d_fact: 2
 
 Deconv:
     class: 'networks.CustomArchi.PixDecoderMultiscale'
     param_class:
         layers_to_train: 'all'
         k_size: 4
-        d_fact: 4
+        d_fact: 2
         div_fact: 2
+        pixel_rnn: True
+        rnn_type: lstm
 
 MatchNet:
     class: 'networks.ICPNet.MatchNet'

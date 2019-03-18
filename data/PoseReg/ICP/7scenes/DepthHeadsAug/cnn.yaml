@@ -12,5 +12,6 @@ Deconv:
         k_size: 4
         d_fact: 2
         out_channel: 1
+        dropout: 0.25
         div_fact: 4
 

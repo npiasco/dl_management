@@ -15,7 +15,7 @@ if __name__ == '__main__':
     machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])],
                              trainer_file='trainer.yaml',
                              #trainer_file='feat_trainer.yaml',
-                             dataset_file = '../datasets/heads_idx.yaml'
+                             dataset_file = '../../../../Exp_ICIP/datasets/heads.yaml'
                              )
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':
@@ -46,6 +46,10 @@ if __name__ == '__main__':
         machine.creat_model(test=True)
     elif action == 'modeldt':
         machine.creat_model(test=True, fake_depth=True)
+    elif action == 'thresh':
+        machine.threshold_selection(final=True, dataset='test', beg=0.0, end=1.0, n_values=2000)
+    elif action == 'threshl':
+        machine.threshold_selection(final=True, dataset='test', beg=0.0, end=1.0, n_values=2000, load=True)
     elif action == '':
         machine.train()
         machine.test()

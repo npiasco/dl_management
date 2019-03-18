@@ -4,8 +4,8 @@ train:
         root: 'chess/'
         transform:
             first:
-                - {class: 'datasets.multmodtf.Resize', param_class: {size: 124}}
-                - {class: 'datasets.multmodtf.RandomCrop', param_class: {size: 112}}
+                - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}
+                - {class: 'datasets.multmodtf.RandomCrop', param_class: {size: 224}}
             rgb:
                 - {class: 'datasets.multmodtf.ColorJitter', param_class: {brightness: 0.5, contrast: 0.5, saturation: 0.5, hue: 0.05}}
                 - {class: 'datasets.multmodtf.ToTensor', param_class:}
@@ -21,8 +21,8 @@ test:
             root: 'chess/'
             transform:
                 first:
-                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 124}}
-                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 112}}
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}
+                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
 
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
@@ -35,10 +35,11 @@ test:
         class: datasets.SevenScene.Test
         param_class:
             root: 'chess/'
+            light: true
             transform:
                 first:
-                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 124}}
-                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 112}}
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}
+                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                     - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
@@ -54,8 +55,8 @@ val:
             root: 'chess/'
             transform:
                 first:
-                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 124}}
-                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 112}}
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}
+                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                     - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}
@@ -69,8 +70,8 @@ val:
             root: 'chess/'
             transform:
                 first:
-                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 124}}
-                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 112}}
+                    - {class: 'datasets.multmodtf.Resize', param_class: {size: 256}}
+                    - {class: 'datasets.multmodtf.CenterCrop', param_class: {size: 224}}
                 rgb:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                     - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.4684, 0.4624, 0.4690], std: [0.2680, 0.2659, 0.2549]}}

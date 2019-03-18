@@ -8,7 +8,7 @@ import numpy as np
 import setlog
 import pose_utils.RANSACPose as RSCPose
 import trainers.bilinear_sampler as bsm
-
+import time as tm
 
 logger = setlog.get_logger(__name__)
 
@@ -27,31 +27,44 @@ def bilinear_wrapping(variables, **kwargs) :
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
+    timing = False
+
+    if timing:
+        t_init = tm.time()
+
     target_depth_map = recc_acces(variables, depth_map)
     T_t = recc_acces(variables, T_t)
 
     if multiple_proj:
-        wrapped_im = list()
         listed_var = variables[multiple_proj]
-        for j in range(1, len(listed_var)): # idx 1 -> 0 is origin image
-            Kt_tmp = recc_acces(variables, Kt).clone()
-            Ksj = recc_acces(listed_var[j], Ks).clone()
-            T_sj = recc_acces(listed_var[j], T_s)
-            img_sourcej = recc_acces(listed_var[j], img_source)
+        n_im = len(listed_var) - 1
+        Kt = recc_acces(variables, Kt).clone()
+        Ks = [recc_acces(listed_var[i + 1], Ks).clone() for i in range(0, n_im)]
+        Ks = torch.cat(Ks, dim=0)
+        T_s = [recc_acces(listed_var[i + 1], T_s) for i in range(0, n_im)]
+        T_s = torch.cat(T_s, dim=0)
+        img_sources = [recc_acces(listed_var[i + 1], img_source) for i in range(0, n_im)]
+        img_sources = torch.cat(img_sources , dim=0)
+        n_batch, _, h, w = target_depth_map.size()
 
-            T = torch.stack([t_s.inverse().matmul(T_t[i]) for i, t_s in enumerate(T_sj)])
+        T = torch.matmul(torch.inverse(T_s), T_t.repeat(n_im, 1, 1))
 
-            _, _, h, w = target_depth_map.size()
-            if h != img_sourcej.size(2) or w != img_sourcej.size(3):
-                if resize_K:
-                    ratio = h/img_sourcej.size(2)
-                    Kt_tmp[:, :2, :] *= ratio
-                    Ksj[:, :2, :] *= ratio
-                img_source_resized = nn_func.interpolate(img_sourcej, size=(h, w), mode='bilinear', align_corners=True)
-                wrapped_im.append(bsm.image_warp(img_source_resized, target_depth_map, Ksj, Kt_tmp, T, **param_sampler))
-            else:
-                wrapped_im.append(bsm.image_warp(img_sourcej, target_depth_map, Ksj, Kt_tmp, T, **param_sampler))
-
+        if h != img_sources.size(2) or w != img_sources.size(3):
+            if resize_K:
+                ratio = h / img_sources.size(2)
+                Kt[:, :2, :] *= ratio
+                Ks[:, :2, :] *= ratio
+            img_sources_resized = nn_func.interpolate(img_sources, size=(h, w), mode='bilinear', align_corners=True)
+            wrapped_im = bsm.image_warp(img_sources_resized,
+                                        target_depth_map.repeat(n_im, 1, 1, 1),
+                                        Ks,
+                                        Kt.repeat(n_im, 1, 1), T, **param_sampler)
+        else:
+            wrapped_im = bsm.image_warp(img_sources,
+                                        target_depth_map.repeat(n_im, 1, 1, 1),
+                                        Ks,
+                                        Kt.repeat(n_im, 1, 1), T, **param_sampler)
+        wrapped_im = torch.split(wrapped_im, n_batch, dim=0)
     else:
         img_source = recc_acces(variables, img_source)
         Ks = recc_acces(variables, Ks).clone()
@@ -59,8 +72,8 @@ def bilinear_wrapping(variables, **kwargs) :
 
         T_s = recc_acces(variables, T_s)
 
-        T = torch.stack([t_s.inverse().matmul(T_t[i]) for i, t_s in enumerate(T_s)])
-
+        #T = torch.stack([t_s.inverse().matmul(T_t[i]) for i, t_s in enumerate(T_s)])
+        T = torch.matmul(torch.inverse(T_s), T_t)
         _, _, h, w = target_depth_map.size()
         if h != img_source.size(2) or w != img_source.size(3):
             if resize_K:
@@ -71,6 +84,10 @@ def bilinear_wrapping(variables, **kwargs) :
             wrapped_im = bsm.image_warp(img_source_resized, target_depth_map , Ks, Kt, T, **param_sampler)
         else:
             wrapped_im = bsm.image_warp(img_source, target_depth_map, Ks, Kt, T, **param_sampler)
+
+    if timing:
+        t = tm.time()
+        print('Elapsed {} (total)'.format(t - t_init))
 
     return wrapped_im
 

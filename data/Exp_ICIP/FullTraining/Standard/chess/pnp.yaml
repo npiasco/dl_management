@@ -104,8 +104,8 @@ param_class:
                  mode: 'mult_forward',
                  func: 'b_wrapper.advanced_local_map_getter',
                  param: {T: ['posenet_pose', 'T'], descriptors_size: 128,
-                 map_args: {scene: chess/, frame_spacing: 50, output_size: 1500, no_grad: true, reduce_fact: 4,
-                 resize: 0.1166666667, num_pc: 8, cnn_depth: false, cnn_descriptor: 'conv2'}},
+                 map_args: {scene: chess/, frame_spacing: 50, output_size: 1000, no_grad: true, reduce_fact: 4,
+                 resize: 0.1166666667, num_pc: 1, cnn_depth: false, cnn_descriptor: 'conv2'}},
                  net_name: ['Main', 'Deconv'],
                  out_name: 'model'
                 },
