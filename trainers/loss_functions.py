@@ -272,7 +272,7 @@ def image_similarity(predicted_im, gt_im, **kwargs):
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
 
-    if isinstance(predicted_im, list):
+    if isinstance(predicted_im, (list, tuple)):
         loss = 0
         for i in range(len(predicted_im)):
             loss +=  image_similarity(predicted_im[i], gt_im, p=p, factor=factor/len(predicted_im), no_zeros=no_zeros)
