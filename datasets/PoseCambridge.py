@@ -72,11 +72,10 @@ class Base(utils.Dataset):
         t = resource[1:4].astype('float') # m
         q = resource[4:8].astype('float')
         pose = np.zeros((4, 4), dtype=np.float32)
-        R = putils.quat_to_rot(torch.tensor(q)).numpy()
+        R = putils.quat_to_rot(torch.tensor(q)).t().numpy()
         pose[:3, :3] = R
         pose[:3, 3] = t
         pose[3, 3] = 1
-        pose = np.linalg.inv(pose)
         t = pose[:3, 3]
         q = putils.rot_to_quat(torch.from_numpy(pose[:3, :3])).numpy()
         sample['pose'] = {'p': t, 'q': q, 'T': pose}
