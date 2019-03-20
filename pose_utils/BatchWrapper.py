@@ -13,7 +13,7 @@ import time as tm
 logger = setlog.get_logger(__name__)
 
 
-def bilinear_wrapping(variables, **kwargs) :
+def bilinear_wrapping(variables, **kwargs):
     img_source = kwargs.pop('img_source', None)
     depth_map = kwargs.pop('depth_map', None)
     Ks = kwargs.pop('Ks', None)
@@ -513,12 +513,17 @@ def resize(variable, **kwargs):
 
     if multiples_instance:
         inputs_var = recc_acces(variable, inputs[:1]) # Special treatment because of the double recc access
-        inputs = [resize(variable,
-                         inputs=inputs[:1] + [i] + inputs[1:],
-                         scale_factor=scale_factor,
-                         flatten=flatten,
-                         mode=mode,
-                         multiples_instance=False) for i in range(len(inputs_var))]
+        inputs = [recc_acces(variable, inputs[:1] + [i] + inputs[1:]) for i in range(len(inputs_var))]
+        n_batch = inputs[0].size(0)
+        inputs = torch.cat(inputs, dim=0)
+        if mode == 'bilinear':
+            inputs = nn_func.interpolate(inputs, scale_factor=scale_factor, mode=mode, align_corners=True)
+        else:
+            inputs = nn_func.interpolate(inputs, scale_factor=scale_factor, mode=mode)
+        if flatten:
+            inputs = inputs.view(inputs.size(0),inputs.size(1), -1)
+        return torch.split(inputs, n_batch, dim=0)
+
     else:
         inputs = recc_acces(variable, inputs)
         if mode == 'bilinear':
