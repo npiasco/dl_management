@@ -239,6 +239,7 @@ def inverse(variable, **kwargs):
     eps = kwargs.pop('eps', 1e-8)
     fact = kwargs.pop('fact', 1)
     bounded = kwargs.pop('bounded', False)
+    max_depth = kwargs.pop('max_depth', False)
     multiples_instance = kwargs.pop('multiples_instance', False)
 
     if kwargs:
@@ -255,8 +256,10 @@ def inverse(variable, **kwargs):
                             bounded=bounded,
                             multiples_instance=False) for i in range(len(data_to_inv))]
     else:
-
-        if not bounded:
+        if max_depth:
+            c = 1 / (max_depth / fact + 1)
+            inv_data = (torch.reciprocal(data_to_inv + c) - 1)*fact
+        elif not bounded:
             inv_data = torch.reciprocal(data_to_inv.clamp(min=eps)*fact) + offset
         else:
             inv_data = torch.reciprocal(data_to_inv*fact + offset)
