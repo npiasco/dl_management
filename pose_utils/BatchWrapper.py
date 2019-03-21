@@ -257,8 +257,10 @@ def inverse(variable, **kwargs):
                             multiples_instance=False) for i in range(len(data_to_inv))]
     else:
         if max_depth:
-            c = 1 / (max_depth / fact + 1)
-            inv_data = (torch.reciprocal(data_to_inv + c) - 1)*fact
+            delta = (max_depth**2 + 4 * fact * max_depth)**0.5
+            b = (-max_depth + delta) / (2 * fact)
+            a = 1/b - 1
+            inv_data = (torch.reciprocal(data_to_inv + a) - b)*fact
         elif not bounded:
             inv_data = torch.reciprocal(data_to_inv.clamp(min=eps)*fact) + offset
         else:
