@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import time
 from mpl_toolkits.mplot3d import Axes3D
 import networks.ICPNet as ICPNet
+import pose_utils.RANSACMulti_view as rsac_mv
 import pyopengv
 import numpy as np
 
@@ -125,52 +126,6 @@ def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K, **kwargs):
     return {'T': final_T.unsqueeze(0)}
 
 
-def intersec(x_r, u_dir, weights=None):
-    '''
-    Compute the position of the point that minimise the distance between line defined by 3D points x_r and vector u_dir
-    '''
-
-    n_ex = len(x_r)
-    A = np.zeros((3*n_ex, 3))
-    B = np.zeros((3*n_ex))
-
-    for i, x in enumerate(x_r):
-        u = u_dir[i]
-        A[i * 3, 1] = u[2]
-        A[i * 3, 2] = -u[1]
-        A[i * 3 + 1, 0] = -u[2]
-        A[i * 3 + 1, 2] = u[0]
-        A[i * 3 + 2, 0] = u[1]
-        A[i * 3 + 2, 1] = -u[0]
-        B[i * 3] = x[1]*u[2] - x[2]*u[1]
-        B[i * 3 + 1] = x[2]*u[0] - x[0]*u[2]
-        B[i * 3 + 2] = x[0]*u[1] - x[1]*u[0]
-
-        if weights:
-            A[i * 3:i * 3 + 3, :] *= np.sqrt(weights[i])
-            B[i * 3:i * 3 + 3] *= np.sqrt(weights[i])
-
-    x = np.linalg.lstsq(A, B, rcond=None)
-
-    return x[0]
-
-def average_rotation(Rs, weights=None):
-    '''
-    https://stackoverflow.com/questions/12374087/average-of-multiple-quaternions
-    '''
-    if weights:
-        qs = [utils.rot_to_quat(torch.from_numpy(R)).numpy().reshape(4, 1)*weights[i] for i, R in enumerate(Rs)]
-    else:
-        qs = [utils.rot_to_quat(torch.from_numpy(R)).numpy().reshape(4, 1) for R in Rs]
-
-    Q = np.concatenate(qs, axis=1)
-    M = np.matmul(Q, np.transpose(Q))
-    w, v = np.linalg.eig(M)
-
-    max_eig = np.argmax(w)
-    return utils.quat_to_rot(torch.from_numpy(v[:, max_eig].real)).numpy()
-
-
 def rPnP(pc_to_align, pc_refs, desc_to_align, desc_refs, inits_T, K, **kwargs):
     match_function = kwargs.pop('match_function',  None)
     desc_function = kwargs.pop('desc_function', None)
@@ -265,6 +220,81 @@ def rPnP(pc_to_align, pc_refs, desc_to_align, desc_refs, inits_T, K, **kwargs):
     )
     T[:3, 3] = t
     T_torch = pc_to_align.new_tensor(T)
+    return {'T': T_torch.unsqueeze(0)}
+
+
+def relative_ransac_PnP(pc_to_align, pc_refs, desc_to_align, desc_refs, inits_T, K, **kwargs):
+    match_function = kwargs.pop('match_function',  None)
+    desc_function = kwargs.pop('desc_function', None)
+    fit_pc = kwargs.pop('fit_pc', False)
+    multi_view_param = kwargs.pop('multi_view_param', {
+        'pnp_algo': 'NISTER',
+        'pnp_ransac_threshold': 0.0002,
+        'pnp_iterations': 1000
+    })
+    if kwargs:
+        raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+    inliers = pc_to_align.new_ones(pc_to_align.size(-1)).int()
+    bearing_vector_to_align = keypoints_to_bearing(
+        reproject_back(pc_to_align, K.squeeze()),
+        K.squeeze())
+    bearing_vectors = None
+
+    pc_rec = inits_T[0].matmul(pc_to_align)
+
+    for n_pc, pc_ref in enumerate(pc_refs):
+        desc_ref = desc_refs[n_pc]
+        init_T = inits_T[n_pc]
+
+        if desc_function is not None:
+            desc_ref = desc_function(pc_ref, desc_ref)
+        else:
+            desc_ref = pc_ref
+
+        if fit_pc:
+            match_function.fit(pc_ref[0])
+        else:
+            match_function.fit(desc_ref[0])
+        if desc_function is not None:
+            desc_ta = desc_function(pc_rec, desc_to_align)
+        else:
+            desc_ta = pc_rec
+
+        res_match = match_function(pc_rec, pc_ref, desc_ta, desc_ref)
+        if 'inliers' in res_match.keys():
+            inliers = torch.min(res_match['inliers'][0], inliers)
+
+        nn_match = init_T.inverse().matmul(res_match['nn'])
+
+        if bearing_vectors is None:
+            bearing_vectors = keypoints_to_bearing(
+                    reproject_back(nn_match, K.squeeze()),
+                    K.squeeze()
+                ).unsqueeze(-1)
+        else:
+            bearing_vectors = torch.cat(
+                (bearing_vectors,
+                 keypoints_to_bearing(
+                     reproject_back(nn_match, K.squeeze()),
+                     K.squeeze()
+                 ).unsqueeze(-1)),
+                 dim=-1
+            )
+
+        match_function.unfit()
+
+    bearing_vector_to_align = bearing_vector_to_align[:, inliers.byte()]
+    bearing_vectors = torch.cat([bearing_vectors[:, inliers.byte(), i] for i in range(bearing_vectors.size(2))], dim=0)
+    camera_poses = [T[0].cpu().numpy() for T in inits_T]
+
+    T_torch = torch.from_numpy(rsac_mv.multi_view_ransac_estimator(
+        bearing_vector_to_align.t().cpu().numpy(),
+        bearing_vectors.t().cpu().numpy(),
+        camera_poses,
+        **multi_view_param
+        )).to(pc_to_align.device).float()
+
     return {'T': T_torch.unsqueeze(0)}
 
 
@@ -389,9 +419,9 @@ if __name__ == '__main__':
 
     pc_to_align = poses[1].inverse().matmul(pcs[1]).unsqueeze(0)
     desc_to_align = poses[1].inverse().matmul(pcs[1]).unsqueeze(0)
-    pc_ref = [pcs[0].unsqueeze(0), pcs[2].unsqueeze(0)]#, pcs[3].unsqueeze(0)]
-    desc_ref = [pcs[0].unsqueeze(0), pcs[2].unsqueeze(0)]#, pcs[3].unsqueeze(0)]
-    inits_T = [poses[0].unsqueeze(0), poses[2].unsqueeze(0), poses[1].unsqueeze(0)]
+    pc_ref = [pcs[0].unsqueeze(0), pcs[2].unsqueeze(0), ]#pcs[3].unsqueeze(0)]
+    desc_ref = [pcs[0].unsqueeze(0), pcs[2].unsqueeze(0), ]#pcs[3].unsqueeze(0)]
+    inits_T = [poses[0].unsqueeze(0), poses[2].unsqueeze(0), ]#poses[3].unsqueeze(0)]
 
     fig = plt.figure(10)
     ax = fig.add_subplot(111, projection='3d')
@@ -402,7 +432,7 @@ if __name__ == '__main__':
 
     match_net_param = {
         'normalize_desc': False,
-        'knn': 'fast_soft_knn',
+        'knn': 'bidirectional',
         #'knn': 'hard_cpu',
         #'bidirectional': True,
         'n_neighbors': 1
@@ -417,7 +447,11 @@ if __name__ == '__main__':
     T = PnPfrom2D(pc_to_align, pc_ref, desc_to_align, desc_ref, inits_T,
                   match_function=ICPNet.MatchNet(**match_net_param),
                   desc_function=None, K=K)['T']
-
+    """
+    T = relative_ransac_PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, inits_T,
+                            match_function=ICPNet.MatchNet(**match_net_param),
+                            desc_function=None, K=K)['T']
+    """
     pc_aligned = T.matmul(pc_to_align)
     #pc_aligned = T.matmul(pc_to_align)
 
@@ -443,3 +477,4 @@ if __name__ == '__main__':
     print(torch.matmul(T.inverse(), poses[1]))
 
     plt.show()
+
