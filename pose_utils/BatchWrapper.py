@@ -248,24 +248,23 @@ def inverse(variable, **kwargs):
     data_to_inv = recc_acces(variable, data_to_inv_name)
 
     if multiples_instance:
-        inv_data = [inverse(variable,
-                            data_to_inv=data_to_inv_name + [i],
-                            offset=offset,
-                            eps=eps,
-                            fact=fact,
-                            bounded=bounded,
-                            multiples_instance=False) for i in range(len(data_to_inv))]
-    else:
-        if max_depth:
-            delta = (max_depth**2 + 4 * fact * max_depth)**0.5
-            b = (-max_depth + delta) / (2 * fact)
-            a = 1/b - 1
-            inv_data = (torch.reciprocal(data_to_inv + a) - b)*fact
-        elif not bounded:
-            inv_data = torch.reciprocal(data_to_inv.clamp(min=eps)*fact) + offset
-        else:
-            inv_data = torch.reciprocal(data_to_inv*fact + offset)
+        if isinstance(data_to_inv[0], list):
+            data_to_inv = [data[-1] for data in data_to_inv]
+        n_batch, _, _, _ = data_to_inv[0].size()
+        data_to_inv = torch.cat(data_to_inv, dim=0)
 
+    if max_depth:
+        delta = (max_depth**2 + 4 * fact * max_depth)**0.5
+        b = (-max_depth + delta) / (2 * fact)
+        a = 1/b - 1
+        inv_data = (torch.reciprocal(data_to_inv + a) - 1)*fact
+    elif not bounded:
+        inv_data = torch.reciprocal(data_to_inv.clamp(min=eps)*fact) + offset
+    else:
+        inv_data = torch.reciprocal(data_to_inv*fact + offset)
+
+    if multiples_instance:
+        inv_data = torch.split(inv_data, n_batch, dim=0)
 
     return inv_data
 
