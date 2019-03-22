@@ -76,11 +76,15 @@ class Base(utils.Dataset):
         pose[:3, :3] = R
         pose[:3, 3] = t
         pose[3, 3] = 1
-        t = pose[:3, 3]
         q = putils.rot_to_quat(torch.from_numpy(pose[:3, :3])).numpy()
         sample['pose'] = {'p': t, 'q': q, 'T': pose}
 
         return sample
+
+    def get_position(self, idx):
+        resource = self.data[idx]
+        t = resource[1:4].astype('float') # m
+        return t
 
 class Train(Base):
     def __init__(self, **kwargs):
