@@ -42,8 +42,9 @@ class Base(utils.Dataset):
         self.error_value = kwargs.pop('error_value', 65535)
         self.pose_tf = kwargs.pop('pose_tf', matrix_2_quaternion)
         self.transform = kwargs.pop('transform', None)
-        self.used_mod = kwargs.pop('used_mod', ('rgb', ))
-        self.K = kwargs.pop('K', [[2179.2, 0, 960], [0.0, 2179.2, 540], [0.0, 0.0, 1.0]])
+        self.used_mod = kwargs.pop('used_mod', ('rgb', 'K'))
+        #self.K = kwargs.pop('K', [[2179.2, 0, 960], [0.0, 2179.2, 540], [0.0, 0.0, 1.0]])
+        self.K = kwargs.pop('K', [[1670.0, 0, 960], [0.0, 1670.0, 540], [0.0, 0.0, 1.0]])
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
