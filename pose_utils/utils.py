@@ -121,15 +121,17 @@ def projected_depth_map_utils(poor_pc, nn_pc, T, K, **kwargs):
 
 
 def depth_map_to_pc(depth_map, K, remove_zeros=False):
-    p = [[[i, j, 1] for j in range(depth_map.size(1))] for i in range(depth_map.size(2))]
-    p = depth_map.new_tensor(p).transpose(0, 2).contiguous()
+    _, h, w = depth_map.size()
+    coord_y, coord_x = torch.meshgrid((torch.arange(h), torch.arange(w)))
+    coord = depth_map.new_ones(3, w * h)
+    coord[:2, :] = torch.stack((coord_x.contiguous().view(-1), coord_y.contiguous().view(-1)))
 
     inv_K = K.inverse()
-    p_d = (p * depth_map).view(3, -1)
+    p_d = (coord * depth_map.view(1, -1))
 
     if remove_zeros:
         indexor = depth_map.view(1, -1).squeeze() != 0
-        p_d = p_d[:, indexor ]
+        p_d = p_d[:, indexor]
 
     x = inv_K.matmul(p_d)
     x_homo = x.new_ones(4, x.nelement()//3)
