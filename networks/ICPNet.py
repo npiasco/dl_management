@@ -407,7 +407,7 @@ class MatchNet(nn.Module):
             self.hard = True
             self.knn = self.nearest_match
             self.outlier_filter = False
-            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=50, metric=knn_metric)
+            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=50, metric='euclidean')
         elif knn == 'desc_reweighting':
             self.knn = self.desc_reweighting
             self.outlier_filter = False
@@ -422,13 +422,16 @@ class MatchNet(nn.Module):
         self.fitted = False
 
     def fit(self, data):
-        self.fitted = True
-        data = data.view(-1, data.size(-1))
-        if self.normalize_desc:
-            data = func_nn.normalize(data, dim=0)
-        data = data.detach().t().cpu().numpy()
+        if self.fitted == False:
+            self.fitted = True
+            data = data.view(-1, data.size(-1))
+            if self.normalize_desc:
+                data = func_nn.normalize(data, dim=0)
+            data = data.detach().t().cpu().numpy()
 
-        self.nn_computor.fit(data)
+            self.nn_computor.fit(data)
+        else:
+            logger.warning('Trying to fit a second time the nn machine')
 
     def unfit(self):
         self.fitted = False

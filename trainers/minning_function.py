@@ -332,15 +332,26 @@ def batch_to_var(net, batch, **kwargs):
     return forward
 
 
-def simple_multiple_forward(net, outputs, **kwargs):
+def simple_multiple_forward(net, variables, **kwargs):
     input_targets = kwargs.pop('input_targets', list())
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
+    inputs = recc_acces(variables, input_targets)
+    try:
+        num_elem = len(inputs)
+        b, _, _, _ = inputs[0].size()
+        inputs = torch.cat(inputs, dim=0)
+        forwarded = net(inputs)
+        outputs = [dict() for _ in range(num_elem)]
+        for name, val in forwarded.items():
+            splited_vals = torch.split(val, b, dim=0)
+            for i, splited_val in enumerate(splited_vals):
+                outputs[i][name] = splited_val
+    except AttributeError:
+        outputs = [net(input) for input in inputs]
 
-    inputs = recc_acces(outputs, input_targets)
-    forwarded = [net(inp) for inp in inputs]
-    return forwarded
+    return outputs
 
 
 def custom_forward(net, outputs, **kwargs):

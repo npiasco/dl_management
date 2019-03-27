@@ -101,6 +101,7 @@ def pnp(nets, variable, **kwargs):
     init_T = kwargs.pop('init_T', None)
     inv_init_T = kwargs.pop('inv_init_T', None)
     relative_pnp = kwargs.pop('relative_pnp', False)
+    only_pc_for_triangulation = kwargs.pop('only_pc_for_triangulation', False)
     param_pnp = kwargs.pop('param_pnp', dict())
 
     if kwargs:
@@ -119,6 +120,7 @@ def pnp(nets, variable, **kwargs):
         PnP_out = PnP.PnPfrom2D(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K,
                                 desc_function=(nets[0] if len(nets) > 1 else None),
                                 match_function=(nets[1] if len(nets) > 1 else nets[0]),
+                                only_pc_for_triangulation=only_pc_for_triangulation,
                                 pnp_param=param_pnp)
     else:
         if init_T.size(0) != 1:
@@ -248,24 +250,23 @@ def inverse(variable, **kwargs):
     data_to_inv = recc_acces(variable, data_to_inv_name)
 
     if multiples_instance:
-        inv_data = [inverse(variable,
-                            data_to_inv=data_to_inv_name + [i],
-                            offset=offset,
-                            eps=eps,
-                            fact=fact,
-                            bounded=bounded,
-                            multiples_instance=False) for i in range(len(data_to_inv))]
-    else:
-        if max_depth:
-            delta = (max_depth**2 + 4 * fact * max_depth)**0.5
-            b = (-max_depth + delta) / (2 * fact)
-            a = 1/b - 1
-            inv_data = (torch.reciprocal(data_to_inv + a) - b)*fact
-        elif not bounded:
-            inv_data = torch.reciprocal(data_to_inv.clamp(min=eps)*fact) + offset
-        else:
-            inv_data = torch.reciprocal(data_to_inv*fact + offset)
+        if isinstance(data_to_inv[0], list):
+            data_to_inv = [data[-1] for data in data_to_inv]
+        n_batch, _, _, _ = data_to_inv[0].size()
+        data_to_inv = torch.cat(data_to_inv, dim=0)
 
+    if max_depth:
+        delta = (max_depth**2 + 4 * fact * max_depth)**0.5
+        b = (-max_depth + delta) / (2 * fact)
+        a = 1/b - 1
+        inv_data = (torch.reciprocal(data_to_inv + a) - b)*fact
+    elif not bounded:
+        inv_data = torch.reciprocal(data_to_inv.clamp(min=eps)*fact) + offset
+    else:
+        inv_data = torch.reciprocal(data_to_inv*fact + offset)
+
+    if multiples_instance:
+        inv_data = torch.split(inv_data, n_batch, dim=0)
 
     return inv_data
 

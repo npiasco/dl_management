@@ -431,13 +431,6 @@ class MultNet(Default):
                 _, _, haux, waux = b[aux_mod].size()
                 main_mod = b[mod].contiguous().view(batch_size, 3, h, w)
 
-                if aux_mod in ('rgb'):
-                    modality = torch.nn.functional.interpolate(
-                        torch.mean(b[aux_mod].contiguous().view(batch_size, -1, haux, waux), dim=1, keepdim=True),
-                        scale_factor=0.5,
-                        mode='nearest')
-                else:
-                    modality = b[aux_mod].contiguous().view(batch_size, -1, haux, waux)
 
                 variables = {'batch': b}
                 for action in self.trainer.eval_forwards['queries']:
@@ -458,6 +451,11 @@ class MultNet(Default):
                     plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0])
 
                     output = output[-1]
+
+                if aux_mod in ('rgb'):
+                    modality = output
+                else:
+                    modality = b[aux_mod].contiguous().view(batch_size, -1, haux, waux)
 
             plt.figure(1)
             images_batch = torch.cat((modality, output)).cpu()

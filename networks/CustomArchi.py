@@ -384,7 +384,7 @@ class PixDecoderMultiscale(nn.Module):
         elif div_fact == 8:
             self.blocks = [self.block_7, self.block_6, self.block_5, ]
         else:
-            logger.error('Unimplemeted div factor {}'.format(div_fact))
+            logger.error('Unimplemented div factor {}'.format(div_fact))
             raise NotImplementedError()
 
         logger.info('Final architecture is:')
@@ -462,7 +462,12 @@ class PixDecoderMultiscale(nn.Module):
     def full_save(self, discard_tf=False):
         if discard_tf:
             raise NotImplementedError('Functionality not implemented')
-        return {'feature': self.feature.state_dict(), }
+
+        weights = dict()
+        for i in range(7, 7 - len(self.blocks), -1):
+            weights['block_{}'.format(i)] = getattr(self, 'block_{}'.format(i)).state_dict()
+
+        return weights
 
 
 class Softlier(nn.Module):

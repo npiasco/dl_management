@@ -133,6 +133,18 @@ class Resize(tf.Resize):
         return sample
 
 
+class ResizeK:
+    def __init__(self, ratio=0.5):
+        self.ratio = ratio
+
+    def __call__(self, sample):
+        for name, mod in sample.items():
+            if name is not 'K':
+                raise AttributeError('Can only apply ResizeK tf on mode K')
+            sample[name][:2, :] *= self.ratio
+        return sample
+
+
 class RandomResizedCrop(tf.RandomResizedCrop):
     def __init__(self, size, scale=(0.25, 1.0), ratio=(3. / 4., 4. / 3.), interpolation=PIL.Image.BILINEAR):
         tf.RandomResizedCrop.__init__(self, size=size, scale=scale, ratio=ratio, interpolation=interpolation)

@@ -42,8 +42,9 @@ class Base(utils.Dataset):
         self.error_value = kwargs.pop('error_value', 65535)
         self.pose_tf = kwargs.pop('pose_tf', matrix_2_quaternion)
         self.transform = kwargs.pop('transform', None)
-        self.used_mod = kwargs.pop('used_mod', ('rgb', ))
-        self.K = kwargs.pop('K', [[2179.2, 0, 960], [0.0, 2179.2, 540], [0.0, 0.0, 1.0]])
+        self.used_mod = kwargs.pop('used_mod', ('rgb', 'K'))
+        #self.K = kwargs.pop('K', [[2179.2, 0, 960], [0.0, 2179.2, 540], [0.0, 0.0, 1.0]])
+        self.K = kwargs.pop('K', [[1670.0, 0, 960], [0.0, 1670.0, 540], [0.0, 0.0, 1.0]])
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -76,11 +77,15 @@ class Base(utils.Dataset):
         pose[:3, :3] = R
         pose[:3, 3] = t
         pose[3, 3] = 1
-        t = pose[:3, 3]
         q = putils.rot_to_quat(torch.from_numpy(pose[:3, :3])).numpy()
         sample['pose'] = {'p': t, 'q': q, 'T': pose}
 
         return sample
+
+    def get_position(self, idx):
+        resource = self.data[idx]
+        t = resource[1:4].astype('float') # m
+        return t
 
 class Train(Base):
     def __init__(self, **kwargs):
