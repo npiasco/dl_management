@@ -38,10 +38,10 @@ FeatDesc:
     #    norm: True
     class: 'networks.Aggregation.NetVLAD'
     param_class:
-        feature_size: 256
+        feature_size: 128
         cluster_size: 64
-        load: '../../../SelfSupervised/kmean_64_clusters.pth'
-        alpha: 500
+        load: '../../../SelfSupervised/kmean_64_clusters_conv2.pth'
+        alpha: 30
         trace: false
         feat_norm: True
         bias: True
