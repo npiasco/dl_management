@@ -38,9 +38,9 @@ if __name__ == '__main__':
     elif action == 'sf':
         machine.serialize_net(final=True)
     elif action == 'm':
-        machine.map_print(shuffle=True, batch_size=1, aux_mod='rgb')
+        machine.map_print(shuffle=True, batch_size=2, aux_mod='rgb')
     elif action == 'mf':
-        machine.map_print(shuffle=True, final=True, batch_size=1, aux_mod='rgb')
+        machine.map_print(shuffle=True, final=True, batch_size=2, aux_mod='rgb')
     elif action == 'pose':
         machine.view_localization(pas=3)
     elif action == 'posef':
