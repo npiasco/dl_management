@@ -1,0 +1,211 @@
+class: 'trainers.PoseTrainers.MultNetTrainer'
+param_class:
+    #cuda_on: False
+    val_num_workers: 8
+    optimizers_params:
+        posenet_trainer:
+            associated_net: ['Main', 'Deconv']
+            optimizer_type: ADAM
+            param:
+                lr: 0.0001 # * 0.5
+                weight_decay: 0.001
+    training_pipeline:
+        [
+            #------------------ Main Forward -----------------#
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['batch', 0, 'rgb'], ]},
+                net_name: 'Main',
+                out_name: 'fw_main'
+            },
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['fw_main'], ], detach_inputs: false, dict: True},
+                net_name: 'Deconv',
+                out_name: 'maps'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.inverse,
+                param: {data_to_inv: ['maps', -1], fact: 100, bounded: False, max_depth: 200},
+                out_name: 'fake_depth1'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.resize,
+                param: {inputs: ['batch', 0, 'rgb'], scale_factor: 0.5, flatten: false, mode: 'bilinear'},
+                out_name: 'resized_source1'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.inverse,
+                param: {data_to_inv: ['maps', -2], fact: 10, bounded: False, max_depth: 200},
+                out_name: 'fake_depth2'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.resize,
+                param: {inputs: ['batch', 0, 'rgb'], scale_factor: 0.25, flatten: false, mode: 'bilinear'},
+                out_name: 'resized_source2'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.inverse,
+                param: {data_to_inv: ['maps', -3], fact: 1, bounded: False, max_depth: 200},
+                out_name: 'fake_depth3'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.resize,
+                param: {inputs: ['batch', 0, 'rgb'], scale_factor: 0.125, flatten: false, mode: 'bilinear'},
+                out_name: 'resized_source3'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.inverse,
+                param: {data_to_inv: ['maps', -4], fact: 0.1, bounded: False, max_depth: 200},
+                out_name: 'fake_depth4'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.resize,
+                param: {inputs: ['batch', 0, 'rgb'], scale_factor: 0.0625, flatten: false, mode: 'bilinear'},
+                out_name: 'resized_source4'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.bilinear_wrapping,
+                param: {img_source: ['rgb'], depth_map: ['fake_depth1'], Ks: ['K'], multiple_proj: batch, resize_K: true,
+                Kt: ['batch', 0, 'K'], T_s: ['pose', 'T'], T_t: ['batch', 0, 'pose', 'T'],
+                param_sampler: {mode: 'bilinear'}},
+                out_name: 'wrapped_images1'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.bilinear_wrapping,
+                param: {img_source: ['rgb'], depth_map: ['fake_depth2'], Ks: ['K'], multiple_proj: batch, resize_K: true,
+                Kt: ['batch', 0, 'K'], T_s: ['pose', 'T'], T_t: ['batch', 0, 'pose', 'T'],
+                param_sampler: {mode: 'bilinear'}},
+                out_name: 'wrapped_images2'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.bilinear_wrapping,
+                param: {img_source: ['rgb'], depth_map: ['fake_depth3'], Ks: ['K'], multiple_proj: batch, resize_K: true,
+                Kt: ['batch', 0, 'K'], T_s: ['pose', 'T'], T_t: ['batch', 0, 'pose', 'T'],
+                param_sampler: {mode: 'bilinear'}},
+                out_name: 'wrapped_images3'
+            },
+            {
+                mode: minning,
+                func: b_wrapper.bilinear_wrapping,
+                param: {img_source: ['rgb'], depth_map: ['fake_depth4'], Ks: ['K'], multiple_proj: batch, resize_K: true,
+                Kt: ['batch', 0, 'K'], T_s: ['pose', 'T'], T_t: ['batch', 0, 'pose', 'T'],
+                param_sampler: {mode: 'bilinear'}},
+                out_name: 'wrapped_images4'
+            },
+            #-------------------- Losses ---------------------#
+            {
+             mode: 'loss',
+             name: 'simloss1',
+             func: 'loss_func.image_similarity',
+             args: [['wrapped_images1'], ['resized_source1']],
+             param: {no_zeros: True, p: mixed}
+            },
+            {
+             mode: 'loss',
+             name: 'simloss2',
+             func: 'loss_func.image_similarity',
+             args: [['wrapped_images2'], ['resized_source2']],
+             param: {no_zeros: True, p: mixed}
+            },
+            {
+             mode: 'loss',
+             name: 'simloss3',
+             func: 'loss_func.image_similarity',
+             args: [['wrapped_images3'], ['resized_source3']],
+             param: {no_zeros: True, p: mixed}
+            },
+            {
+             mode: 'loss',
+             name: 'simloss4',
+             func: 'loss_func.image_similarity',
+             args: [['wrapped_images4'], ['resized_source4']],
+             param: {no_zeros: True, p: mixed}
+            },
+            {
+             mode: 'loss',
+             name: 'regloss1',
+             func: 'loss_func.reg_loss',
+             args: [['fake_depth1'], ['resized_source1']],
+             param: {reduce_factor: 1.0, fact: 0.001}
+            },
+            {
+             mode: 'loss',
+             name: 'regloss2',
+             func: 'loss_func.reg_loss',
+             args: [['fake_depth2'], ['resized_source2']],
+             param: {reduce_factor: 1.0, fact: 0.0001}
+            },
+            {
+             mode: 'loss',
+             name: 'regloss3',
+             func: 'loss_func.reg_loss',
+             args: [['fake_depth3'], ['resized_source3']],
+             param: {reduce_factor: 1.0, fact: 0.0001}
+            },
+            {
+             mode: 'loss',
+             name: 'regloss4',
+             func: 'loss_func.reg_loss',
+             args: [['fake_depth4'], ['resized_source4']],
+             param: {reduce_factor: 1.0, fact: 0.0001}
+            },
+            {
+             mode: 'backprop',
+             name: 'deconv_backprop',
+             trainer: 'posenet_trainer'
+            },
+            #-------------------------------------------------#
+        ]
+    eval_forwards:
+        data: []
+        queries:
+            [
+                #------------------ Main Forward -----------------#
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false, input_targets: [['batch', 'rgb' ], ]},
+                    net_name: 'Main',
+                    out_name: 'fw_main'
+                },
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false, input_targets: [['fw_main'], ]},
+                    net_name: 'Deconv',
+                    out_name: 'maps'
+                },
+                {
+                    mode: minning,
+                    func: b_wrapper.inverse,
+                    param: {data_to_inv: ['maps', -1], fact: 100, bounded: False, max_depth: 200},
+                    out_name: 'fake_depth'
+                },
+            ]
+    access_pose: [['fake_depth'], ['fake_depth']]
+    build_model_func: torch.cat
+eval_class: score.Functions.MinLossRanking
+param_eval_class: {}
+test_func:
+    med_err:
+        class: 'score.Functions.Reconstruction_Error'
+        param_class:
+            pooling_type: 'median'
+    mean_err:
+        class: 'score.Functions.Reconstruction_Error'
+        param_class:
+            pooling_type: 'mean'

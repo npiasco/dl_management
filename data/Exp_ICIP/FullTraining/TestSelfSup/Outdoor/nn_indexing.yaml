@@ -1,0 +1,95 @@
+class: 'trainers.PoseTrainers.MultNetTrainer'
+param_class:
+#    cuda_on: False
+    val_num_workers: 8
+    optimizers_params:
+        posenet_trainer:
+            associated_net: ['Main', 'Deconv']
+            optimizer_type: ADAM
+            param:
+                lr: 0.0001 # * 0.5
+                weight_decay: 0.001
+
+    training_pipeline:
+        [
+            #------------------ Main Forward -----------------#
+            {
+                mode: no_grad,
+                trainer: posenet_trainer,
+            },
+            {
+                mode: forward,
+                func: minning.custom_forward,
+                param: {multiples_instance: false, input_targets: [['batch', 'rgb' ], ]},
+                net_name: 'Main',
+                out_name: 'fw_main'
+            },
+            #-------------------------------------------------#
+        ]
+    eval_forwards:
+        data:
+            [
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false, input_targets: [['batch', 'rgb' ], ]},
+                    net_name: 'Main',
+                    out_name: 'fw_main'
+                },
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false, input_targets: [['fw_main', 'conv7' ], ]},
+                    net_name: 'FeatDesc',
+                    out_name: 'im_desc'
+                },
+                {
+                    mode: 'minning',
+                    func: 'minning.construct_feat_database',
+                    param: {feat: [im_desc], pose: ['batch', 'pose'], db: ['db']},
+                    out_name: 'db'
+                },
+            ]
+        queries:
+            [
+                #------------------ Main Forward -----------------#
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false, input_targets: [['batch', 'rgb' ], ]},
+                    net_name: 'Main',
+                    out_name: 'fw_main'
+                },
+                {
+                    mode: forward,
+                    func: minning.custom_forward,
+                    param: {multiples_instance: false, input_targets: [['fw_main', 'conv7' ], ]},
+                    net_name: 'FeatDesc',
+                    out_name: 'im_desc'
+                },
+                #----------------- Pose Querying ----------------#
+                {
+                 mode: 'minning',
+                 func: 'minning.get_nn_pose_from_desc',
+                 param: {feat: ['im_desc'], db: ['db'], k_nn: 1, },
+                 out_name: 'put_pose'
+                },
+            ]
+    access_pose: ['put_pose']
+    build_model_func: torch.cat
+
+eval_class: 'score.Functions.GlobalPoseError'
+param_eval_class:
+    data_type: 'position'
+    pooling_type: 'mean'
+test_func:
+    med_pos:
+        class: 'score.Functions.GlobalPoseError'
+        param_class:
+            data_type: 'position'
+            pooling_type: 'median'
+    med_ori:
+        class: 'score.Functions.GlobalPoseError'
+        param_class:
+          data_type: 'orientation'
+          pooling_type: 'median'
