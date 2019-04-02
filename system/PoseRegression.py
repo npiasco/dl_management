@@ -490,6 +490,8 @@ class MultNet(Default):
 
         dataset = 'test'
         mode = 'queries'
+        self.data['test']['queries'].used_mod = self.testing_mod
+        self.data['test']['data'].used_mod = self.testing_mod
 
         dtload = data.DataLoader(self.data['test']['data'], batch_size=1, shuffle=False, num_workers=8)
         variables = dict()
@@ -577,6 +579,8 @@ class MultNet(Default):
             plt.show()
 
     def test_on_final(self):
+        self.data['test']['queries'].used_mod = self.testing_mod
+        self.data['test']['data'].used_mod = self.testing_mod
         self.results = self.trainer.test(dataset=self.data['test'],
                                          score_functions=self.test_func,
                                          final=True)
