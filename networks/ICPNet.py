@@ -431,7 +431,7 @@ class MatchNet(nn.Module):
 
             self.nn_computor.fit(data)
         else:
-            logger.warning('Trying to fit a second time the nn machine')
+            logger.debug('Trying to fit a second time the nn machine')
 
     def unfit(self):
         self.fitted = False
@@ -593,7 +593,7 @@ class MatchNet(nn.Module):
         n_neighbors = int(pc1.size(1)*self.nn_ratio)
         idx_nn = self.nn_computor.kneighbors(pc1.detach().t().cpu().numpy(), return_distance=False,
                                              n_neighbors=n_neighbors)
-        d_matrix = torch.sum((d1.unsqueeze(-1) - d2[:, idx_nn]) ** 2, 0)
+        d_matrix = torch.sum((d1.cpu().unsqueeze(-1) - d2.cpu()[:, idx_nn]) ** 2, 0)
         sorted = np.argsort(d_matrix.cpu().numpy())
 
         ratio = d_matrix[np.arange(sorted.shape[0]), sorted[:, 0]]/d_matrix[np.arange(sorted.shape[0]), sorted[:, 1]]
