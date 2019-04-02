@@ -123,15 +123,36 @@ def pnp(nets, variable, **kwargs):
                                 only_pc_for_triangulation=only_pc_for_triangulation,
                                 pnp_param=param_pnp)
     else:
-        if init_T.size(0) != 1:
-            raise NotImplementedError('No implementation of batched PnP')
-        if inv_init_T:
-            init_T = init_T[0, :].inverse().unsqueeze(0)
+        if isinstance(pc_ref, (list, tuple)):
+            poses, inliers = list(), list()
+            for i in range(len(pc_ref)):
+                if init_T[i].size(0) != 1:
+                    raise NotImplementedError('No implementation of batched PnP')
+                if inv_init_T:
+                    init_T[i] = init_T[i][0, :].inverse().unsqueeze(0)
 
-        PnP_out = PnP.PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K,
-                          desc_function=(nets[0] if len(nets)>1 else None),
-                          match_function=(nets[1] if len(nets)>1 else nets[0]),
-                          **param_pnp)
+                result = PnP.PnP(pc_to_align, pc_ref[i], desc_to_align, desc_ref[i], init_T[i], K,
+                                 desc_function=(nets[0] if len(nets) > 1 else None),
+                                 match_function=(nets[1] if len(nets) > 1 else nets[0]),
+                                 return_inliers_ratio=True, unfit=True, **param_pnp)
+                poses.append(result['T'])
+                inliers.append(result['inliers'])
+                """
+                if inliers[-1] > param_pnp.get('inliers_threshold', 0.1):
+                    break
+                """
+            # (nets[1] if len(nets) > 1 else nets[0]).unfit() TODO: inverse the maching sens
+            PnP_out = {'T': poses[np.argmax(inliers)]}
+        else:
+            if init_T.size(0) != 1:
+                raise NotImplementedError('No implementation of batched PnP')
+            if inv_init_T:
+                init_T = init_T[0, :].inverse().unsqueeze(0)
+
+            PnP_out = PnP.PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K,
+                              desc_function=(nets[0] if len(nets)>1 else None),
+                              match_function=(nets[1] if len(nets)>1 else nets[0]),
+                              **param_pnp)
 
     if inv_init_T:
         PnP_out['T'] = PnP_out['T'][0, :].inverse().unsqueeze(0)
@@ -607,9 +628,10 @@ def batched_outlier_filter(net, variables, **kwargs):
 def matmul(variables, **kwargs):
     m1 = kwargs.pop('m1', None)
     m2 = kwargs.pop('m2', None)
-    get_pq =  kwargs.pop('get_pq', False)
-    inv_m2 =  kwargs.pop('inv_m2', False)
-    inv_m1 =  kwargs.pop('inv_m1', False)
+    get_pq = kwargs.pop('get_pq', False)
+    inv_m2 = kwargs.pop('inv_m2', False)
+    inv_m1 = kwargs.pop('inv_m1', False)
+    multiple_instances = kwargs.pop('multiple_instances', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -617,18 +639,24 @@ def matmul(variables, **kwargs):
     m1 = recc_acces(variables, m1)
     m2 = recc_acces(variables, m2)
 
+    if multiple_instances:
+        n_batch = m1[0].size(0)
+        m1 = torch.cat(m1, dim=0)
+        m2 = torch.cat(m2, dim=0)
+
     if inv_m1:
-        m1 = torch.cat([m.inverse().unsqueeze(0) for m in m1], 0)
-
+        m1 = torch.inverse(m1)
     if inv_m2:
-        m2 = torch.cat([m.inverse().unsqueeze(0) for m in m2], 0)
+        m2 = torch.inverse(m2)
 
-    T = m1.matmul(m2)
+    T = torch.matmul(m1, m2)
     if get_pq:
         return {'T': T,
                 'p': T[:, :3, 3],
                 'q': torch.cat([utils.rot_to_quat(Ti[:3, :3]).unsqueeze(0) for Ti in T], 0)}
     else:
+        if multiple_instances:
+            T = torch.split(T, n_batch, dim=0)
         return T
 
 def batched_icp_desc(variable, **kwargs):
