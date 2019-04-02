@@ -34,9 +34,9 @@ if __name__ == '__main__':
     elif action == 'P':
         machine.plot()
     elif action == 'm':
-        machine.map_print(shuffle=True, batch_size=1)
+        machine.map_print(shuffle=True, batch_size=2, aux_mod='rgb')
     elif action == 'mf':
-        machine.map_print(shuffle=True, final=True, batch_size=2)
+        machine.map_print(shuffle=True, final=True, batch_size=2, aux_mod='rgb')
     elif action == 'pose':
         machine.view_localization(pas=3)
     elif action == 'posef':
