@@ -49,12 +49,12 @@ FeatDesc:
 
 init_weights:
     Main:
-        feature: '../../../SelfSupervised/Main_feature.pth'
+        feature: '../../../SelfSupervisedFC/Main_feature.pth'
     Deconv:
-        block_1: '../../../SelfSupervised/Deconv_block_1.pth'
-        block_2: '../../../SelfSupervised/Deconv_block_2.pth'
-        block_3: '../../../SelfSupervised/Deconv_block_3.pth'
-        block_4: '../../../SelfSupervised/Deconv_block_4.pth'
-        block_5: '../../../SelfSupervised/Deconv_block_5.pth'
-        block_6: '../../../SelfSupervised/Deconv_block_6.pth'
-        block_7: '../../../SelfSupervised/Deconv_block_7.pth'
+        block_1: '../../../SelfSupervisedFC/Deconv_block_1.pth'
+        block_2: '../../../SelfSupervisedFC/Deconv_block_2.pth'
+        block_3: '../../../SelfSupervisedFC/Deconv_block_3.pth'
+        block_4: '../../../SelfSupervisedFC/Deconv_block_4.pth'
+        block_5: '../../../SelfSupervisedFC/Deconv_block_5.pth'
+        block_6: '../../../SelfSupervisedFC/Deconv_block_6.pth'
+        block_7: '../../../SelfSupervisedFC/Deconv_block_7.pth'
