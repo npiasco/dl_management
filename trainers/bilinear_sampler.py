@@ -28,7 +28,7 @@ def image_warp(img, depth, Ks, Kt, T, padding_mode='zeros', mode='bilinear'):
     corr_coord = Ks.matmul(T[:, :3, :3].matmul(depth.view(b, 1, -1) * invK.matmul(coord)) + T[:, :3, 3].unsqueeze(-1)).view(b, 3, h, w)
     offset = depth.new_tensor([w/2, h/2]).unsqueeze(-1).unsqueeze(-1)
     corr_coord = corr_coord[:, :2, :, :] / corr_coord[:, 2, :, :].unsqueeze(1)
-    corr_coord =(corr_coord - offset)/offset
+    corr_coord = (corr_coord - offset)/offset
     corr_coord = corr_coord.transpose(1, 3).transpose(1, 2)
 
     projected_img = torch.nn.functional.grid_sample(img, corr_coord, mode=mode, padding_mode=padding_mode)

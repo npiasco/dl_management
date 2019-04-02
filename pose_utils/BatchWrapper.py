@@ -13,7 +13,7 @@ import time as tm
 logger = setlog.get_logger(__name__)
 
 
-def bilinear_wrapping(variables, **kwargs) :
+def bilinear_wrapping(variables, **kwargs):
     img_source = kwargs.pop('img_source', None)
     depth_map = kwargs.pop('depth_map', None)
     Ks = kwargs.pop('Ks', None)
@@ -101,6 +101,7 @@ def pnp(nets, variable, **kwargs):
     init_T = kwargs.pop('init_T', None)
     inv_init_T = kwargs.pop('inv_init_T', None)
     relative_pnp = kwargs.pop('relative_pnp', False)
+    only_pc_for_triangulation = kwargs.pop('only_pc_for_triangulation', False)
     param_pnp = kwargs.pop('param_pnp', dict())
 
     if kwargs:
@@ -119,17 +120,39 @@ def pnp(nets, variable, **kwargs):
         PnP_out = PnP.PnPfrom2D(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K,
                                 desc_function=(nets[0] if len(nets) > 1 else None),
                                 match_function=(nets[1] if len(nets) > 1 else nets[0]),
+                                only_pc_for_triangulation=only_pc_for_triangulation,
                                 pnp_param=param_pnp)
     else:
-        if init_T.size(0) != 1:
-            raise NotImplementedError('No implementation of batched PnP')
-        if inv_init_T:
-            init_T = init_T[0, :].inverse().unsqueeze(0)
+        if isinstance(pc_ref, (list, tuple)):
+            poses, inliers = list(), list()
+            for i in range(len(pc_ref)):
+                if init_T[i].size(0) != 1:
+                    raise NotImplementedError('No implementation of batched PnP')
+                if inv_init_T:
+                    init_T[i] = init_T[i][0, :].inverse().unsqueeze(0)
 
-        PnP_out = PnP.PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K,
-                          desc_function=(nets[0] if len(nets)>1 else None),
-                          match_function=(nets[1] if len(nets)>1 else nets[0]),
-                          **param_pnp)
+                result = PnP.PnP(pc_to_align, pc_ref[i], desc_to_align, desc_ref[i], init_T[i], K,
+                                 desc_function=(nets[0] if len(nets) > 1 else None),
+                                 match_function=(nets[1] if len(nets) > 1 else nets[0]),
+                                 return_inliers_ratio=True, unfit=True, **param_pnp)
+                poses.append(result['T'])
+                inliers.append(result['inliers'])
+                """
+                if inliers[-1] > param_pnp.get('inliers_threshold', 0.1):
+                    break
+                """
+            # (nets[1] if len(nets) > 1 else nets[0]).unfit() TODO: inverse the maching sens
+            PnP_out = {'T': poses[np.argmax(inliers)]}
+        else:
+            if init_T.size(0) != 1:
+                raise NotImplementedError('No implementation of batched PnP')
+            if inv_init_T:
+                init_T = init_T[0, :].inverse().unsqueeze(0)
+
+            PnP_out = PnP.PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K,
+                              desc_function=(nets[0] if len(nets)>1 else None),
+                              match_function=(nets[1] if len(nets)>1 else nets[0]),
+                              **param_pnp)
 
     if inv_init_T:
         PnP_out['T'] = PnP_out['T'][0, :].inverse().unsqueeze(0)
@@ -239,6 +262,7 @@ def inverse(variable, **kwargs):
     eps = kwargs.pop('eps', 1e-8)
     fact = kwargs.pop('fact', 1)
     bounded = kwargs.pop('bounded', False)
+    max_depth = kwargs.pop('max_depth', False)
     multiples_instance = kwargs.pop('multiples_instance', False)
 
     if kwargs:
@@ -247,20 +271,23 @@ def inverse(variable, **kwargs):
     data_to_inv = recc_acces(variable, data_to_inv_name)
 
     if multiples_instance:
-        inv_data = [inverse(variable,
-                            data_to_inv=data_to_inv_name + [i],
-                            offset=offset,
-                            eps=eps,
-                            fact=fact,
-                            bounded=bounded,
-                            multiples_instance=False) for i in range(len(data_to_inv))]
+        if isinstance(data_to_inv[0], list):
+            data_to_inv = [data[-1] for data in data_to_inv]
+        n_batch, _, _, _ = data_to_inv[0].size()
+        data_to_inv = torch.cat(data_to_inv, dim=0)
+
+    if max_depth:
+        delta = (max_depth**2 + 4 * fact * max_depth)**0.5
+        b = (-max_depth + delta) / (2 * fact)
+        a = 1/b - 1
+        inv_data = (torch.reciprocal(data_to_inv + a) - b)*fact
+    elif not bounded:
+        inv_data = torch.reciprocal(data_to_inv.clamp(min=eps)*fact) + offset
     else:
+        inv_data = torch.reciprocal(data_to_inv*fact + offset)
 
-        if not bounded:
-            inv_data = torch.reciprocal(data_to_inv.clamp(min=eps)*fact) + offset
-        else:
-            inv_data = torch.reciprocal(data_to_inv*fact + offset)
-
+    if multiples_instance:
+        inv_data = torch.split(inv_data, n_batch, dim=0)
 
     return inv_data
 
@@ -513,12 +540,17 @@ def resize(variable, **kwargs):
 
     if multiples_instance:
         inputs_var = recc_acces(variable, inputs[:1]) # Special treatment because of the double recc access
-        inputs = [resize(variable,
-                         inputs=inputs[:1] + [i] + inputs[1:],
-                         scale_factor=scale_factor,
-                         flatten=flatten,
-                         mode=mode,
-                         multiples_instance=False) for i in range(len(inputs_var))]
+        inputs = [recc_acces(variable, inputs[:1] + [i] + inputs[1:]) for i in range(len(inputs_var))]
+        n_batch = inputs[0].size(0)
+        inputs = torch.cat(inputs, dim=0)
+        if mode == 'bilinear':
+            inputs = nn_func.interpolate(inputs, scale_factor=scale_factor, mode=mode, align_corners=True)
+        else:
+            inputs = nn_func.interpolate(inputs, scale_factor=scale_factor, mode=mode)
+        if flatten:
+            inputs = inputs.view(inputs.size(0),inputs.size(1), -1)
+        return torch.split(inputs, n_batch, dim=0)
+
     else:
         inputs = recc_acces(variable, inputs)
         if mode == 'bilinear':
@@ -596,9 +628,10 @@ def batched_outlier_filter(net, variables, **kwargs):
 def matmul(variables, **kwargs):
     m1 = kwargs.pop('m1', None)
     m2 = kwargs.pop('m2', None)
-    get_pq =  kwargs.pop('get_pq', False)
-    inv_m2 =  kwargs.pop('inv_m2', False)
-    inv_m1 =  kwargs.pop('inv_m1', False)
+    get_pq = kwargs.pop('get_pq', False)
+    inv_m2 = kwargs.pop('inv_m2', False)
+    inv_m1 = kwargs.pop('inv_m1', False)
+    multiple_instances = kwargs.pop('multiple_instances', False)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -606,18 +639,24 @@ def matmul(variables, **kwargs):
     m1 = recc_acces(variables, m1)
     m2 = recc_acces(variables, m2)
 
+    if multiple_instances:
+        n_batch = m1[0].size(0)
+        m1 = torch.cat(m1, dim=0)
+        m2 = torch.cat(m2, dim=0)
+
     if inv_m1:
-        m1 = torch.cat([m.inverse().unsqueeze(0) for m in m1], 0)
-
+        m1 = torch.inverse(m1)
     if inv_m2:
-        m2 = torch.cat([m.inverse().unsqueeze(0) for m in m2], 0)
+        m2 = torch.inverse(m2)
 
-    T = m1.matmul(m2)
+    T = torch.matmul(m1, m2)
     if get_pq:
         return {'T': T,
                 'p': T[:, :3, 3],
                 'q': torch.cat([utils.rot_to_quat(Ti[:3, :3]).unsqueeze(0) for Ti in T], 0)}
     else:
+        if multiple_instances:
+            T = torch.split(T, n_batch, dim=0)
         return T
 
 def batched_icp_desc(variable, **kwargs):

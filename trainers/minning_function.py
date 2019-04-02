@@ -39,8 +39,16 @@ def images_from_poses(variable, **kwargs):
     if isinstance(poses, list):
         batchs = list()
         for pose in poses:
-            idx = images_from_poses.nn_computor.kneighbors(pose['p'].cpu().numpy(), return_distance=False)
-            batchs.append(data[idx[0, 0]][mode].unsqueeze(0).to(pose['p'].device))
+            if isinstance(pose, dict):
+                dev = pose['p'].device
+                target_pose = pose['p']
+            else:
+                dev = pose.device
+                target_pose = pose[0, :3, 3].view(1, 3)
+
+            idx = images_from_poses.nn_computor.kneighbors(target_pose.cpu().numpy(), return_distance=False)
+
+            batchs.append(data[idx[0, 0]][mode].unsqueeze(0).to(dev))
     else:
         idx = images_from_poses.nn_computor.kneighbors(poses['p'].cpu().numpy(), return_distance=False)
         batchs = data[idx[0, 0]][mode].unsqueeze(0).to(poses['p'].device)
@@ -54,7 +62,9 @@ def get_nn_pose_from_desc(variable, **kwargs):
     metric = kwargs.pop('metric', 'cosine')
     k_nn = kwargs.pop('k_nn', 1)
     step_k_nn = kwargs.pop('step_k_nn', 1)
-    angle_threshold = kwargs.pop('angle_threshold', None)
+    angle_threshold = kwargs.pop('angle_threshold', None) # degree
+    pos_threshold = kwargs.pop('pos_threshold', None) # m
+    return_only_T = kwargs.pop('return_only_T', False) # m
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -87,10 +97,35 @@ def get_nn_pose_from_desc(variable, **kwargs):
                     idx_next = i
             poses.append(db['pose'][idx[0, idx_next]])
             return poses
+        elif pos_threshold:
+            poses = [db['pose'][idx[0, 0]]]
+            idx_next = 1
+            curr_d_pos = float('inf')
+            for i in range(1, k_nn*step_k_nn):
+                d_pos = torch.sqrt(
+                    torch.sum(
+                        (db['pose'][idx[0, 0]]['p'][0] - db['pose'][idx[0, i]]['p'][0])**2
+                    )
+                )
+                if d_pos < pos_threshold and (d_pos > curr_d_pos or curr_d_pos == float('inf')):
+                    curr_d_pos = d_pos
+                    idx_next = i
+                elif d_pos > pos_threshold and (d_pos < curr_d_pos or curr_d_pos < pos_threshold):
+                    curr_d_pos = d_pos
+                    idx_next = i
+            poses.append(db['pose'][idx[0, idx_next]])
+            return poses
+
         else:
-            return [db['pose'][idx[0, i]] for i in range(0, k_nn*step_k_nn, step_k_nn)]
+            if return_only_T:
+                return [db['pose'][idx[0, i]]['T'] for i in range(0, k_nn * step_k_nn, step_k_nn)]
+            else:
+                return [db['pose'][idx[0, i]] for i in range(0, k_nn*step_k_nn, step_k_nn)]
     else:
-        return db['pose'][idx[0, 0]]
+        if return_only_T:
+            return db['pose'][idx[0, 0]]['T']
+        else:
+            return db['pose'][idx[0, 0]]
 
 
 def construct_feat_database(variable, **kwargs):
@@ -332,15 +367,26 @@ def batch_to_var(net, batch, **kwargs):
     return forward
 
 
-def simple_multiple_forward(net, outputs, **kwargs):
+def simple_multiple_forward(net, variables, **kwargs):
     input_targets = kwargs.pop('input_targets', list())
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
+    inputs = recc_acces(variables, input_targets)
+    try:
+        num_elem = len(inputs)
+        b, _, _, _ = inputs[0].size()
+        inputs = torch.cat(inputs, dim=0)
+        forwarded = net(inputs)
+        outputs = [dict() for _ in range(num_elem)]
+        for name, val in forwarded.items():
+            splited_vals = torch.split(val, b, dim=0)
+            for i, splited_val in enumerate(splited_vals):
+                outputs[i][name] = splited_val
+    except AttributeError:
+        outputs = [net(input) for input in inputs]
 
-    inputs = recc_acces(outputs, input_targets)
-    forwarded = [net(inp) for inp in inputs]
-    return forwarded
+    return outputs
 
 
 def custom_forward(net, outputs, **kwargs):

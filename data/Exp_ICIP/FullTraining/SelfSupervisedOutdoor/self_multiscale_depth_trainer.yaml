@@ -29,7 +29,7 @@ param_class:
             {
                 mode: minning,
                 func: b_wrapper.inverse,
-                param: {data_to_inv: ['maps', -1], fact: 10, bounded: True, offset: 0.2},
+                param: {data_to_inv: ['maps', -1], fact: 100, bounded: False, max_depth: 200},
                 out_name: 'fake_depth1'
             },
             {
@@ -41,7 +41,7 @@ param_class:
             {
                 mode: minning,
                 func: b_wrapper.inverse,
-                param: {data_to_inv: ['maps', -2], fact: 10, bounded: True, offset: 0.2},
+                param: {data_to_inv: ['maps', -2], fact: 10, bounded: False, max_depth: 200},
                 out_name: 'fake_depth2'
             },
             {
@@ -53,7 +53,7 @@ param_class:
             {
                 mode: minning,
                 func: b_wrapper.inverse,
-                param: {data_to_inv: ['maps', -3], fact: 10, bounded: True, offset: 0.2},
+                param: {data_to_inv: ['maps', -3], fact: 1, bounded: False, max_depth: 200},
                 out_name: 'fake_depth3'
             },
             {
@@ -65,7 +65,7 @@ param_class:
             {
                 mode: minning,
                 func: b_wrapper.inverse,
-                param: {data_to_inv: ['maps', -4], fact: 10, bounded: True, offset: 0.2},
+                param: {data_to_inv: ['maps', -4], fact: 0.1, bounded: False, max_depth: 200},
                 out_name: 'fake_depth4'
             },
             {
@@ -140,7 +140,7 @@ param_class:
              name: 'regloss1',
              func: 'loss_func.reg_loss',
              args: [['fake_depth1'], ['resized_source1']],
-             param: {reduce_factor: 1.0, fact: 0.001}
+             param: {reduce_factor: 1.0, fact: 0.0001}
             },
             {
              mode: 'loss',
@@ -192,7 +192,7 @@ param_class:
                 {
                     mode: minning,
                     func: b_wrapper.inverse,
-                    param: {data_to_inv: ['maps', -1], fact: 10, bounded: True, offset: 0.2},
+                    param: {data_to_inv: ['maps', -1], fact: 100, bounded: False, max_depth: 200},
                     out_name: 'fake_depth'
                 },
             ]

@@ -278,10 +278,10 @@ class MultNet(Default):
 
         plt.show()
 
-    def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256,
+    def creat_clusters(self, size_cluster, n_ex=5e5, size_feat=256,
                        jobs=-1, mod='rgb', map_feat='conv7'):
         self.trainer.networks['Main'].train()
-        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
+        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8, shuffle=True)
         logger.info('Computing feats for clustering')
         feats = list()
         with torch.no_grad():
@@ -307,7 +307,7 @@ class MultNet(Default):
         kmean.fit(normalized_feats)
         torch_clusters = torch.FloatTensor(kmean.cluster_centers_).unsqueeze(0).transpose(1, 2)
 
-        torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_clusters.pth')
+        torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_clusters_' + map_feat + '.pth')
 
     def compute_mean_std(self, jobs=16, **kwargs):
         training = kwargs.pop('training', True)
@@ -431,13 +431,6 @@ class MultNet(Default):
                 _, _, haux, waux = b[aux_mod].size()
                 main_mod = b[mod].contiguous().view(batch_size, 3, h, w)
 
-                if aux_mod in ('rgb'):
-                    modality = torch.nn.functional.interpolate(
-                        torch.mean(b[aux_mod].contiguous().view(batch_size, -1, haux, waux), dim=1, keepdim=True),
-                        scale_factor=0.5,
-                        mode='nearest')
-                else:
-                    modality = b[aux_mod].contiguous().view(batch_size, -1, haux, waux)
 
                 variables = {'batch': b}
                 for action in self.trainer.eval_forwards['queries']:
@@ -458,6 +451,11 @@ class MultNet(Default):
                     plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0])
 
                     output = output[-1]
+
+                if aux_mod in ('rgb'):
+                    modality = output
+                else:
+                    modality = b[aux_mod].contiguous().view(batch_size, -1, haux, waux)
 
             plt.figure(1)
             images_batch = torch.cat((modality, output)).cpu()
@@ -492,6 +490,8 @@ class MultNet(Default):
 
         dataset = 'test'
         mode = 'queries'
+        self.data['test']['queries'].used_mod = self.testing_mod
+        self.data['test']['data'].used_mod = self.testing_mod
 
         dtload = data.DataLoader(self.data['test']['data'], batch_size=1, shuffle=False, num_workers=8)
         variables = dict()
@@ -579,6 +579,8 @@ class MultNet(Default):
             plt.show()
 
     def test_on_final(self):
+        self.data['test']['queries'].used_mod = self.testing_mod
+        self.data['test']['data'].used_mod = self.testing_mod
         self.results = self.trainer.test(dataset=self.data['test'],
                                          score_functions=self.test_func,
                                          final=True)

@@ -407,7 +407,7 @@ class MatchNet(nn.Module):
             self.hard = True
             self.knn = self.nearest_match
             self.outlier_filter = False
-            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=50, metric=knn_metric)
+            self.nn_computor = neighbors.NearestNeighbors(n_neighbors=50, metric='euclidean')
         elif knn == 'desc_reweighting':
             self.knn = self.desc_reweighting
             self.outlier_filter = False
@@ -422,13 +422,16 @@ class MatchNet(nn.Module):
         self.fitted = False
 
     def fit(self, data):
-        self.fitted = True
-        data = data.view(-1, data.size(-1))
-        if self.normalize_desc:
-            data = func_nn.normalize(data, dim=0)
-        data = data.detach().t().cpu().numpy()
+        if self.fitted == False:
+            self.fitted = True
+            data = data.view(-1, data.size(-1))
+            if self.normalize_desc:
+                data = func_nn.normalize(data, dim=0)
+            data = data.detach().t().cpu().numpy()
 
-        self.nn_computor.fit(data)
+            self.nn_computor.fit(data)
+        else:
+            logger.debug('Trying to fit a second time the nn machine')
 
     def unfit(self):
         self.fitted = False
@@ -590,7 +593,7 @@ class MatchNet(nn.Module):
         n_neighbors = int(pc1.size(1)*self.nn_ratio)
         idx_nn = self.nn_computor.kneighbors(pc1.detach().t().cpu().numpy(), return_distance=False,
                                              n_neighbors=n_neighbors)
-        d_matrix = torch.sum((d1.unsqueeze(-1) - d2[:, idx_nn]) ** 2, 0)
+        d_matrix = torch.sum((d1.cpu().unsqueeze(-1) - d2.cpu()[:, idx_nn]) ** 2, 0)
         sorted = np.argsort(d_matrix.cpu().numpy())
 
         ratio = d_matrix[np.arange(sorted.shape[0]), sorted[:, 0]]/d_matrix[np.arange(sorted.shape[0]), sorted[:, 1]]
