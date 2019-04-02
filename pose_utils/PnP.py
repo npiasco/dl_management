@@ -42,9 +42,13 @@ def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K, **kwargs):
     desc_function = kwargs.pop('desc_function', None)
     fit_pc = kwargs.pop('fit_pc', False)
     pnp_algo = kwargs.pop('pnp_algo', 'GAO')
-    inliers_threshold = kwargs.pop('inliers_threshold', 0.1)
     ransac_threshold = kwargs.pop('ransac_threshold', 0.0002)
     iterations = kwargs.pop('iterations', 1000)
+    inliers_threshold = kwargs.pop('inliers_threshold', 0.1)
+    diff_max = kwargs.pop('diff_max', 4.0)
+    return_inliers_ratio = kwargs.pop('return_inliers_ratio', False)
+    unfit = kwargs.pop('unfit', True)
+
     '''
         Algo are: KNEIP - GAO - EPNP - TWOPT - GP3P
     '''
@@ -62,13 +66,6 @@ def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K, **kwargs):
     else:
         desc_ref = pc_ref
 
-    if fit_pc:
-        match_function.fit(pc_ref[0])
-    else:
-        match_function.fit(desc_ref[0])
-
-    if timing:
-        t = time.time()
     pc_rec = init_T.matmul(pc_to_align)
 
     if desc_function is not None:
@@ -76,14 +73,29 @@ def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K, **kwargs):
     else:
         desc_ta = pc_rec
 
-    res_match = match_function(pc_rec, pc_ref, desc_ta, desc_ref)
+    if fit_pc:
+        #match_function.fit(pc_ref[0])
+        match_function.fit(pc_rec)
+    else:
+        #match_function.fit(desc_ref[0])
+        match_function.fit(desc_ta)
+
+    #res_match = match_function(pc_rec, pc_ref, desc_ta, desc_ref)
+    res_match = match_function(pc_ref, pc_rec, desc_ref, desc_ta)
     if 'inliers' in res_match.keys():
-        pc_to_align = pc_to_align[0, :, res_match['inliers'][0].byte()].unsqueeze(0)
-        res_match['nn'] =  res_match['nn'][0, :, res_match['inliers'][0].byte()].unsqueeze(0)
+        #pc_to_align = pc_to_align[0, :, res_match['inliers'][0].byte()].unsqueeze(0)
+        pc_to_align = torch.inverse(init_T).matmul(res_match['nn'][0, :, res_match['inliers'][0].byte()].unsqueeze(0))
+        #res_match['nn'] =  res_match['nn'][0, :, res_match['inliers'][0].byte()].unsqueeze(0)
+        res_match['nn'] = pc_ref[0, :, res_match['inliers'][0].byte()].unsqueeze(0)
 
         if pc_to_align.size(2) < 4:
             logger.warning("Less than 4 inliers founded, retuturning intial pose")
-            return {'T': init_T}
+            if unfit:
+                match_function.unfit()
+            res = {'T': init_T}
+            if return_inliers_ratio:
+                res['inliers'] = 0.0
+            return res
 
     keypoints = reproject_back(pc_to_align, K.squeeze())
 
@@ -106,7 +118,8 @@ def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K, **kwargs):
     if timing:
         print('Iteration on {}s'.format(time.time()-t))
 
-    match_function.unfit()
+    if unfit:
+        match_function.unfit()
 
     if timing:
         print('Pnp converge on {}s'.format(time.time() - t_beg))
@@ -116,14 +129,23 @@ def PnP(pc_to_align, pc_ref, desc_to_align, desc_ref, init_T, K, **kwargs):
     final_T = pc_ref.new_zeros(4, 4)
     final_T[3, 3] = 1.0
     final_T[:3, :] = pc_ref.new_tensor(T)
+    T_diff = torch.norm(init_T[0] - final_T)
+    logger.debug('Inliers ratio: {}'.format(inliers_ratio))
+    logger.debug('Diff in pose is {}'.format(T_diff.item()))
 
-    if inliers_ratio < inliers_threshold:
-        T_diff = torch.norm(init_T[0] - final_T)
+    if inliers_ratio < inliers_threshold or T_diff > diff_max:
         logger.debug('Not enought inliers (ratio: {})'.format(inliers_ratio))
-        logger.debug('Diff in pose is {})'.format(T_diff.item()))
-        return {'T': init_T}
+        res = {'T': init_T}
+        if return_inliers_ratio:
+            res['inliers'] = inliers_ratio
 
-    return {'T': final_T.unsqueeze(0)}
+        return res
+
+    res = {'T': final_T.unsqueeze(0)}
+    if return_inliers_ratio:
+        res['inliers'] = inliers_ratio
+
+    return res
 
 
 def rPnP(pc_to_align, pc_refs, desc_to_align, desc_refs, inits_T, K, **kwargs):
@@ -301,6 +323,7 @@ def relative_ransac_PnP(pc_to_align, pc_refs, desc_to_align, desc_refs, inits_T,
 def PnPfrom2D(pc_to_align, pc_refs, desc_to_align, desc_refs, inits_T, K, **kwargs):
     match_function = kwargs.pop('match_function',  None)
     desc_function = kwargs.pop('desc_function', None)
+    only_pc_for_triangulation = kwargs.pop('only_pc_for_triangulation', False)
     pnp_param = kwargs.pop('pnp_param',
                            {'pnp_algo': 'GAO',
                             'inliers_threshold': 0.1,
@@ -313,26 +336,32 @@ def PnPfrom2D(pc_to_align, pc_refs, desc_to_align, desc_refs, inits_T, K, **kwar
     u_dir = list()
     x_r = list()
     inliers = list()
-    pc_match_function = ICPNet.MatchNet(normalize_desc=False,
-                                        knn='bidirectional',
-                                        ).to(pc_to_align.device)
+
+    if only_pc_for_triangulation:
+        pc_match_function = ICPNet.MatchNet(normalize_desc=False,
+                                            knn='bidirectional',
+                                            ).to(pc_to_align.device)
     # First 3D points triangulation
-    """
-    if desc_function is not None:
-        desc_ref_0 = desc_function(pc_refs[0], desc_refs[0])
-        desc_ref_1 = desc_function(pc_refs[1], desc_refs[1])
+    if only_pc_for_triangulation:
+        res_match = pc_match_function(pc_refs[0], pc_refs[1], pc_refs[0], pc_refs[1])
     else:
-        desc_ref_0 = pc_refs[0]
-        desc_ref_1 = pc_refs[1]
-    """
-    #res_match = pc_match_function(pc_refs[0], pc_refs[1], desc_ref_0, desc_ref_1)
-    res_match = pc_match_function(pc_refs[0], pc_refs[1], pc_refs[0], pc_refs[1])
-    pc_match_function.unfit()
+        if desc_function is not None:
+            desc_ref_0 = desc_function(pc_refs[0], desc_refs[0])
+            desc_ref_1 = desc_function(pc_refs[1], desc_refs[1])
+        else:
+            desc_ref_0 = pc_refs[0]
+            desc_ref_1 = pc_refs[1]
+        res_match = match_function(pc_refs[0], pc_refs[1], desc_ref_0, desc_ref_1)
+        match_function.unfit()
 
     if 'inliers' in res_match.keys():
         filtered_pc_ref_0 = pc_refs[0][0, :, res_match['inliers'][0].byte()].unsqueeze(0)
         filtered_desc_ref_0 = desc_refs[0][0, :, res_match['inliers'][0].byte()].unsqueeze(0)
         filtered_pc_ref_1 = res_match['nn'][0, :, res_match['inliers'][0].byte()].unsqueeze(0)
+        if filtered_pc_ref_0.size(2) < res_match['inliers'][0].size(0) * 0.10:
+            logger.warning('Not enought triangulated point (only {})'.format(filtered_pc_ref_0.size(2)))
+            logger.warning('Returning nn pose')
+            return {'T': inits_T[0]}
     else:
         filtered_pc_ref_0 = pc_refs[0]
         filtered_desc_ref_0 = desc_refs[0]
@@ -341,18 +370,19 @@ def PnPfrom2D(pc_to_align, pc_refs, desc_to_align, desc_refs, inits_T, K, **kwar
     mean_pc = (filtered_pc_ref_0 + filtered_pc_ref_1)/2
 
     pc_ref_0 = inits_T[0].inverse().matmul(mean_pc)
+    #pc_ref_0 = inits_T[0].inverse().matmul(filtered_pc_ref_0)
     keypoints_0 = reproject_back(pc_ref_0, K.squeeze())
     bearing_vector_0 = keypoints_to_bearing(keypoints_0, K.squeeze())
 
-    #nn_match_1 = inits_T[1].inverse().matmul(filtered_pc_ref_1)
     nn_match_1 = inits_T[1].inverse().matmul(mean_pc)
+    #nn_match_1 = inits_T[1].inverse().matmul(filtered_pc_ref_1)
     keypoints_1 = reproject_back(nn_match_1, K.squeeze())
     bearing_vector_1 = keypoints_to_bearing(keypoints_1, K.squeeze())
 
     R_r = inits_T[0][0, :3, :3].t().matmul(inits_T[1][0, :3, :3])
     t_r = inits_T[0][0, :3, :3].t().matmul(inits_T[1][0, :3, 3] - inits_T[0][0, :3, 3])
 
-    tri_points = pyopengv.triangulation_triangulate2(bearing_vector_0.t().cpu().numpy(),
+    tri_points = pyopengv.triangulation_triangulate(bearing_vector_0.t().cpu().numpy(),
                                                     bearing_vector_1.t().cpu().numpy(),
                                                     t_r.cpu().numpy(),
                                                     R_r.cpu().numpy())
