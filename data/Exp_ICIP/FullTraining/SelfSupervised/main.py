@@ -54,7 +54,7 @@ if __name__ == '__main__':
     elif action == 'modeldt':
         machine.creat_model(test=True, fake_depth=True)
     elif action == 'clusters':
-        machine.creat_clusters(128, size_feat=256, map_feat='conv7')
+        machine.creat_clusters(64, size_feat=128, map_feat='conv2')
     elif action == 'thresh':
         machine.threshold_selection(final=True, dataset='test', load=False, beg=0.0, n_values=2000)
     elif action == 'threshl':

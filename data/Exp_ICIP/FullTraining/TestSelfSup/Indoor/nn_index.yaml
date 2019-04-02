@@ -39,7 +39,7 @@ param_class:
                 {
                     mode: forward,
                     func: minning.custom_forward,
-                    param: {multiples_instance: false, input_targets: [['fw_main', 'conv7' ], ]},
+                    param: {multiples_instance: false, input_targets: [['fw_main', 'conv2' ], ]},
                     net_name: 'FeatDesc',
                     out_name: 'im_desc'
                 },
@@ -63,7 +63,7 @@ param_class:
                 {
                     mode: forward,
                     func: minning.custom_forward,
-                    param: {multiples_instance: false, input_targets: [['fw_main', 'conv7' ], ]},
+                    param: {multiples_instance: false, input_targets: [['fw_main', 'conv2' ], ]},
                     net_name: 'FeatDesc',
                     out_name: 'im_desc'
                 },

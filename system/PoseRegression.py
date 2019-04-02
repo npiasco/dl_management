@@ -278,10 +278,10 @@ class MultNet(Default):
 
         plt.show()
 
-    def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256,
+    def creat_clusters(self, size_cluster, n_ex=5e5, size_feat=256,
                        jobs=-1, mod='rgb', map_feat='conv7'):
         self.trainer.networks['Main'].train()
-        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
+        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8, shuffle=True)
         logger.info('Computing feats for clustering')
         feats = list()
         with torch.no_grad():
@@ -307,7 +307,7 @@ class MultNet(Default):
         kmean.fit(normalized_feats)
         torch_clusters = torch.FloatTensor(kmean.cluster_centers_).unsqueeze(0).transpose(1, 2)
 
-        torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_clusters.pth')
+        torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_clusters_' + map_feat + '.pth')
 
     def compute_mean_std(self, jobs=16, **kwargs):
         training = kwargs.pop('training', True)
