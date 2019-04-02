@@ -12,13 +12,15 @@ import system.PoseRegression as System
 
 
 if __name__ == '__main__':
-    scene = 'self-sup/full'
+    scene = 'indoor/office'
     machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])],
-                             # trainer_file='../../feat_trainer.yaml',
-                             # trainer_file= 'trainer.yaml',
-                             trainer_file='self_multiscale_depth_trainer.yaml',
-                             dataset_file = '../../datasets/' + scene + '.yaml',
-                             cnn_type='multiscale_cnn.yaml'
+                             #trainer_file= '../relative_pnp.yaml',
+                             #trainer_file='../self_multiscale_depth_trainer.yaml',
+                             #trainer_file='../nn_index.yaml',
+                             trainer_file='../pnp-5-images.yaml',
+                             #trainer_file='../pnp-1-image.yaml',
+                             dataset_file = '../../../../datasets/' + scene + '.yaml',
+                             cnn_type='../multiscale_cnn.yaml'
                              )
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':
@@ -33,14 +35,10 @@ if __name__ == '__main__':
         machine.plot(print_loss=False, print_val=False)
     elif action == 'P':
         machine.plot()
-    elif action == 's':
-        machine.serialize_net(final=False)
-    elif action == 'sf':
-        machine.serialize_net(final=True)
     elif action == 'm':
-        machine.map_print(shuffle=True, batch_size=1)
+        machine.map_print(batch_size=2, aux_mod='rgb')
     elif action == 'mf':
-        machine.map_print(shuffle=True, final=True, batch_size=2)
+        machine.map_print(final=True, batch_size=2, aux_mod='rgb')
     elif action == 'pose':
         machine.view_localization(pas=3)
     elif action == 'posef':
@@ -54,7 +52,7 @@ if __name__ == '__main__':
     elif action == 'modeldt':
         machine.creat_model(test=True, fake_depth=True)
     elif action == 'clusters':
-        machine.creat_clusters(128, size_feat=256, map_feat='conv7')
+        machine.creat_clusters(64, size_feat=256, map_feat='conv7')
     elif action == 'thresh':
         machine.threshold_selection(final=True, dataset='test', load=False, beg=0.0, n_values=2000)
     elif action == 'threshl':

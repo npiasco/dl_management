@@ -1,0 +1,60 @@
+Main:
+    class: 'networks.CustomArchi.PixEncoder'
+    param_class:
+        layers_to_train: 'all'
+        k_size: 4
+        d_fact: 2
+
+Deconv:
+    class: 'networks.CustomArchi.PixDecoderMultiscale'
+    param_class:
+        layers_to_train: 'all'
+        k_size: 4
+        d_fact: 2
+        div_fact: 2
+        pixel_rnn: False
+        rnn_type: lstm
+
+MatchNet:
+    class: 'networks.ICPNet.MatchNet'
+    param_class:
+        normalize_desc: False
+        knn: 'bidirectional'
+        n_neighbors: 1
+        knn_metric: 'minkowski'
+
+Desc:
+    class: 'networks.FeatAggregation.Concat'
+    param_class:
+        norm: False
+        norm_x2: True
+        norm_x1: False
+        main_ratio: 0.0
+
+FeatDesc:
+    #class: 'networks.Aggregation.RMAC'
+    #param_class:
+    #    R: 1
+    #    norm: True
+    class: 'networks.Aggregation.NetVLAD'
+    param_class:
+        feature_size: 256
+        cluster_size: 64
+        load: '../../../SelfSupervised/kmean_64_clusters.pth'
+        alpha: 500
+        trace: false
+        feat_norm: True
+        bias: True
+
+
+init_weights:
+    Main:
+        feature: '../../../SelfSupervised/Main_feature.pth'
+    Deconv:
+        block_1: '../../../SelfSupervised/Deconv_block_1.pth'
+        block_2: '../../../SelfSupervised/Deconv_block_2.pth'
+        block_3: '../../../SelfSupervised/Deconv_block_3.pth'
+        block_4: '../../../SelfSupervised/Deconv_block_4.pth'
+        block_5: '../../../SelfSupervised/Deconv_block_5.pth'
+        block_6: '../../../SelfSupervised/Deconv_block_6.pth'
+        block_7: '../../../SelfSupervised/Deconv_block_7.pth'
