@@ -1,5 +1,5 @@
 batch_size: 12
-curr_epoch: 0
+curr_epoch: 12
 lr_scheduler:
   posenet_trainer:
     class: lr_scheduler.MultiStepLR
