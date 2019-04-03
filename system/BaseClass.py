@@ -247,7 +247,7 @@ class Base:
                 try:
                     len(vals)
                 except TypeError:
-                    logger.info(self.test_func[name], '= {}'.format(vals))
+                    logger.info('{} = {}'.format(self.test_func[name], vals))
                 else:
                     scores_to_plot.append((name, vals))
             if len(scores_to_plot):
