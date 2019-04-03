@@ -233,21 +233,21 @@ class Base:
             plt.title('Validation score')
 
         if print_score:
-            print('Validation score is {}'.format(self.trainer.best_net[0]))
+            logger.info('Validation score is {}'.format(self.trainer.best_net[0]))
 
             try:
-                print('At epoch {}'.format(
+                logger.info('At epoch {}'.format(
                     len(self.trainer.val_score) - 1 - self.trainer.val_score[::-1].index(self.trainer.best_net[0])
                 ))
             except ValueError:
-                print('Initial weights')
+                logger.info('Initial weights')
 
             scores_to_plot = list()
             for i, (name, vals) in enumerate(self.results.items()):
                 try:
                     len(vals)
                 except TypeError:
-                    print(self.test_func[name], '= {}'.format(vals))
+                    logger.info(self.test_func[name], '= {}'.format(vals))
                 else:
                     scores_to_plot.append((name, vals))
             if len(scores_to_plot):
