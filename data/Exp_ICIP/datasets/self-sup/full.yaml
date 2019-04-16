@@ -5,7 +5,7 @@ train:
         type: seq
         folders: ['heads/', 'stairs/', 'fire/', 'office/', 'pumpkin/', 'redkitchen/', 'chess/']
         general_options:
-            num_samples: 6
+            num_samples: 4
             spacing: 2
             load_fast: true
         transform:
