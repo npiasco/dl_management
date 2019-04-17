@@ -500,6 +500,9 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
         #q2[1:] *= -1 # Inverse computation
 
         w3 = np.abs(np.dot(q1, q2))
+        if w3 > 1:
+            logger.warning('Unproper quaternion q1 = {}, q2 = {}'.format(q1, q2))
+            w3 = 0.5
         angle = 2 * np.arccos(w3)
 
         return np.rad2deg(angle)
