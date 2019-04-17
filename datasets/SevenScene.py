@@ -50,6 +50,8 @@ class Base(utils.Dataset):
         self.transform = kwargs.pop('transform', None)
         self.used_mod = kwargs.pop('used_mod', ('rgb', 'depth'))
         self.K = kwargs.pop('K', [[585, 0, 320], [0.0, 585, 240], [0.0, 0.0, 1.0]])
+        self.ext = kwargs.pop('ext', 'png')
+        self.sep = kwargs.pop('sep', '\t')
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -71,7 +73,7 @@ class Base(utils.Dataset):
         fold, num = self.data[idx]
         sample = dict()
         if 'rgb' in self.used_mod:
-            img_name = self.folders[fold] + 'frame-' + num + '.color.png'
+            img_name = self.folders[fold] + 'frame-' + num + '.color.' + self.ext
             sample['rgb'] = PIL.Image.open(img_name)
 
         if 'depth' in self.used_mod:
@@ -92,7 +94,7 @@ class Base(utils.Dataset):
         pose = np.ndarray((4, 4), dtype=np.float32)
         with open(pose_file, 'r') as pose_file_pt:
             for i, line in enumerate(pose_file_pt):
-                for j, c in enumerate(line.split('\t')):
+                for j, c in enumerate(line.split(self.sep)):
                     try:
                         pose[i, j] = float(c)
                     except ValueError:
@@ -111,7 +113,7 @@ class Base(utils.Dataset):
         pose = np.ndarray((4, 4), dtype=np.float32)
         with open(pose_file, 'r') as pose_file_pt:
             for i, line in enumerate(pose_file_pt):
-                for j, c in enumerate(line.split('\t')):
+                for j, c in enumerate(line.split(self.sep)):
                     try:
                         pose[i, j] = float(c)
                     except ValueError:
@@ -217,7 +219,7 @@ class TrainSequence(Train):
             pose = np.ndarray((4, 4), dtype=np.float32)
             with open(pose_file, 'r') as pose_file_pt:
                 for i, line in enumerate(pose_file_pt):
-                    for j, c in enumerate(line.split('\t')):
+                    for j, c in enumerate(line.split(self.sep)):
                         try:
                             pose[i, j] = float(c)
                         except ValueError:
