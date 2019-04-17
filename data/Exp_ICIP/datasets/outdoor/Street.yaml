@@ -19,7 +19,7 @@ test:
         env: CAMBRIDGE
         param_class:
             root: 'Street/'
-            light: true
+            light: false
             transform:
                 first:
                     #- {class: 'datasets.multmodtf.Resize', param_class: {size: 260}}

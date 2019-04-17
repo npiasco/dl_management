@@ -6,7 +6,7 @@ train:
         type: seq
         folders: ['KingsCollege/', 'Street/', 'StMarysChurch/', 'ShopFacade/', 'OldHospital/', 'GreatCourt/']
         general_options:
-            num_samples: 6
+            num_samples: 4
             spacing: 1
             load_fast: true
         transform:
