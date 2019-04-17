@@ -29,7 +29,7 @@ Desc:
         norm: False
         norm_x2: True
         norm_x1: False
-        main_ratio: 1.0
+        main_ratio: 0.0
 
 FeatDesc:
     class: 'networks.Aggregation.NetVLAD'
