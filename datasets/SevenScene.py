@@ -133,7 +133,7 @@ class MultiDataset(utils.Dataset):
 
         if type == 'train':
             self.datasets = [Train(root=root + folder, transform=transform, **general_options) for folder in folders]
-        if type == 'seq':
+        elif type == 'seq':
             self.datasets = [TrainSequence(root=root + folder, transform=transform, **general_options) for folder in
                              folders]
         elif type == 'aug_train':
