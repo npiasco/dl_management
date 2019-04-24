@@ -402,7 +402,8 @@ class MultNet(Default):
             color[2] = 255
         pc_utils.model_to_ply(map_args=map_args, file_name=file_name, color=color)
 
-    def map_print(self, final=False, mod='rgb', aux_mod='depth', batch_size=1, shuffle=False):
+    def map_print(self, final=False, mod='rgb', aux_mod='depth', batch_size=1, shuffle=False, save=False, show=True,
+                  vmax=3):
         nets_to_test = self.trainer.networks
         if not final:
             nets_to_test = dict()
@@ -419,12 +420,12 @@ class MultNet(Default):
         dataset = 'test'
         mode = 'queries'
         self.data[dataset][mode].used_mod = [mod, aux_mod]
-
+        torch.manual_seed(0)
         dtload = data.DataLoader(self.data[dataset][mode], batch_size=batch_size, shuffle=shuffle)
         #dtload = data.DataLoader(self.data['train'], batch_size=batch_size, shuffle=True)
         ccmap = plt.get_cmap('jet', lut=1024)
 
-        for b in dtload:
+        for i, b in enumerate(dtload):
             with torch.no_grad():
                 b = self.trainer.batch_to_device(b)
                 _, _, h, w = b[mod].size()
@@ -461,18 +462,34 @@ class MultNet(Default):
             images_batch = torch.cat((modality, output)).cpu()
             grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
             plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
-            plt.colorbar()
+            if show:
+                plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap, vmin=0, vmax=vmax)
+                plt.colorbar()
+            if save:
+                grid = torchvis.utils.make_grid(modality.cpu(), nrow=batch_size)
+                plt.imsave('images/gt_{}.png'.format(i), grid.numpy().transpose(1, 2, 0)[:, :, 0],
+                           cmap=ccmap, vmin=0, vmax=vmax)
+                grid = torchvis.utils.make_grid(output.cpu(), nrow=batch_size)
+                plt.imsave('images/modality_{}.png'.format(i), grid.numpy().transpose(1, 2, 0)[:, :, 0],
+                           cmap=ccmap, vmin=0, vmax=vmax)
 
             plt.figure(2)
             images_batch = torch.cat((torch.abs(modality - output), )).detach().cpu()
             grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
-            plt.imshow(grid.numpy().transpose(1, 2, 0), cmap=None)
+            if save:
+                plt.imsave('images/diff_{}.png'.format(i), grid.numpy().transpose(1, 2, 0), cmap=None)
+            if show:
+                plt.imshow(grid.numpy().transpose(1, 2, 0), cmap=None)
 
             plt.figure(3)
             grid = torchvis.utils.make_grid(main_mod.cpu(), nrow=batch_size)
-            plt.imshow(grid.numpy().transpose(1, 2, 0))
+            if save:
+                plt.imsave('images/image_{}.png'.format(i), grid.numpy().transpose(1, 2, 0))
+            if show:
+                plt.imshow(grid.numpy().transpose(1, 2, 0))
 
-            plt.show()
+            if show:
+                plt.show()
 
     def view_localization(self, final=False, pas=100):
         nets_to_test = self.trainer.networks
