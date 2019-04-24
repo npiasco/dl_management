@@ -402,8 +402,7 @@ class MultNet(Default):
             color[2] = 255
         pc_utils.model_to_ply(map_args=map_args, file_name=file_name, color=color)
 
-    def map_print(self, final=False, mod='rgb', aux_mod='depth', batch_size=1, shuffle=False, save=False, show=True,
-                  vmax=3):
+    def map_print(self, final=False, mod='rgb', aux_mod='depth', batch_size=1, shuffle=False, save=False, show=True):
         nets_to_test = self.trainer.networks
         if not final:
             nets_to_test = dict()
@@ -463,10 +462,12 @@ class MultNet(Default):
             grid = torchvis.utils.make_grid(images_batch, nrow=batch_size)
             plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap)
             if show:
+                vmax = torch.max(modality).item()
                 plt.imshow(grid.numpy().transpose(1, 2, 0)[:, :, 0], cmap=ccmap, vmin=0, vmax=vmax)
                 plt.colorbar()
             if save:
                 grid = torchvis.utils.make_grid(modality.cpu(), nrow=batch_size)
+                vmax = torch.max(modality).item()
                 plt.imsave('images/gt_{}.png'.format(i), grid.numpy().transpose(1, 2, 0)[:, :, 0],
                            cmap=ccmap, vmin=0, vmax=vmax)
                 grid = torchvis.utils.make_grid(output.cpu(), nrow=batch_size)
