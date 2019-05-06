@@ -65,6 +65,7 @@ train:
                                     {class: 'datasets.multmodtf.DepthTransform', param_class: {depth_factor: 0.0001, replacing_value: 10000, error_value: 0, inverse: False}}
                                 ],
                         }
+                    }
               }
 test:
     queries:
