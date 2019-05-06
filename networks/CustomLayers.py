@@ -13,9 +13,9 @@ class IndexEmbedding(nn.Module):
         num_embedding = kwargs.pop('num_embedding', 256)
         size_embedding = kwargs.pop('size_embedding', 3)
         self.init_jet = kwargs.pop('init_jet', True)
-        self.trainable = kwargs.pop('trainable', True)
-        self.amplitude = kwargs.pop('amplitude', 2.0)
-        self.min_value = kwargs.pop('min_value', -1.0)
+        self.trainable = kwargs.pop('trainable', False)
+        self.amplitude = kwargs.pop('amplitude', 1.0)
+        self.min_value = kwargs.pop('min_value', 0.0)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
