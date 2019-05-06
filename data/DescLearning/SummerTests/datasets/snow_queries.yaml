@@ -39,7 +39,7 @@ train:
                 param_class:
                     {
                         root: 'training/TrainDataset_Snow/',
-                        modalities: {rgb: 'dataset.txt', mono_depth: 'mono_depth_dataset.txt', mono_ref: 'mono_ref_dataset.txt'},
+                        modalities: {rgb: 'dataset.txt', mono_depth: 'true_depth_dataset.txt', mono_ref: 'true_ref_dataset.txt'},
                         coord_file: 'coordxImbearing.txt',
                         bearing: True,
                         transform:
@@ -52,29 +52,26 @@ train:
                             rgb:
                                 [
                                     {class: 'datasets.multmodtf.ToTensor', param_class: },
-                                    {class: 'datasets.multmodtf.Normalize', param_class: {mean:[0.6406, 0.6457, 0.6116], std:[0.3180, 0.3017, 0.3233]}}
+                                    {class: 'datasets.multmodtf.Normalize', param_class: {mean:[0.5924, 0.5896, 0.6002], std:[0.2666, 0.2606, 0.2586]}}
                                 ],
                             mono_ref:
                                 [
                                     {class: 'datasets.multmodtf.ToTensor', param_class: },
-                                    {class: 'datasets.multmodtf.DepthTransform', param_class:{depth_factor: 1.0, error_value: 0.0, replacing_value: 1.0}},
-                                    {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.5], std: [0.5]}},
+                                    {class: 'datasets.multmodtf.DepthTransform', param_class: {depth_factor: 0.001,}},
                                 ],
                             mono_depth:
                                 [
                                     {class: 'datasets.multmodtf.ToTensor', param_class:},
-                                    {class: 'datasets.multmodtf.DepthTransform', param_class:{depth_factor: 1.0, error_value: 0.0, replacing_value: 1.0}},
-                                    {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.5], std: [0.5]}}
+                                    {class: 'datasets.multmodtf.DepthTransform', param_class: {depth_factor: 0.0001, replacing_value: 10000, error_value: 0, inverse: False}}
                                 ],
                         }
-                    }
               }
 test:
     queries:
         class: datasets.Robotcar.VBLDataset
         param_class:
             root: 'Robotcar_D1/SnowQuery/'
-            modalities: {rgb: 'query.txt', mono_ref: 'mono_ref_query.txt', mono_depth: 'mono_depth_query.txt'}
+            modalities: {rgb: 'query.txt', }
             coord_file: 'coordxIm.txt'
             bearing: False
             transform:
@@ -83,17 +80,11 @@ test:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                 rgb:
                     - {class: 'datasets.multmodtf.Normalize', param_class: {mean:[0.6406, 0.6457, 0.6116], std:[0.3180, 0.3017, 0.3233]}}
-                mono_ref:
-                    - {class: 'datasets.multmodtf.DepthTransform', param_class:{depth_factor: 1.0, error_value: 0.0, replacing_value: 1.0}}
-                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.5], std: [0.5]}}
-                mono_depth:
-                    - {class: 'datasets.multmodtf.DepthTransform', param_class:{depth_factor: 1.0, error_value: 0.0, replacing_value: 1.0}}
-                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.5], std: [0.5]}}
     data:
         class: datasets.Robotcar.VBLDataset
         param_class:
             root: 'Robotcar_D1/Dataset/'
-            modalities: {rgb: 'dataset.txt', mono_ref: 'mono_ref_dataset.txt', mono_depth: 'mono_depth_dataset.txt'}
+            modalities: {rgb: 'dataset.txt',}
             coord_file: 'coordxIm.txt'
             bearing: False
             transform:
@@ -102,19 +93,13 @@ test:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                 rgb:
                     - {class: 'datasets.multmodtf.Normalize', param_class: {mean:[0.6406, 0.6457, 0.6116], std:[0.3180, 0.3017, 0.3233]}}
-                mono_ref:
-                    - {class: 'datasets.multmodtf.DepthTransform', param_class:{depth_factor: 1.0, error_value: 0.0, replacing_value: 1.0}}
-                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.5], std: [0.5]}}
-                mono_depth:
-                    - {class: 'datasets.multmodtf.DepthTransform', param_class:{depth_factor: 1.0, error_value: 0.0, replacing_value: 1.0}}
-                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.5], std: [0.5]}}
 
 val:
     queries:
         class: datasets.Robotcar.VBLDataset
         param_class:
             root: 'training/TrainDataset3v2/'
-            modalities: {rgb: 'val_dataset.txt', mono_ref: 'val_mono_ref_dataset.txt', mono_depth: 'val_mono_depth_dataset.txt'}
+            modalities: {rgb: 'val_dataset.txt',}
             coord_file: 'val_coordxIm.txt'
             bearing: False
             transform:
@@ -123,18 +108,12 @@ val:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                 rgb:
                     - {class: 'datasets.multmodtf.Normalize', param_class: {mean:[0.6406, 0.6457, 0.6116], std:[0.3180, 0.3017, 0.3233]}}
-                mono_ref:
-                    - {class: 'datasets.multmodtf.DepthTransform', param_class:{depth_factor: 1.0, error_value: 0.0, replacing_value: 1.0}}
-                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.5], std: [0.5]}}
-                mono_depth:
-                    - {class: 'datasets.multmodtf.DepthTransform', param_class:{depth_factor: 1.0, error_value: 0.0, replacing_value: 1.0}}
-                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.5], std: [0.5]}}
 
     data:
         class: datasets.Robotcar.VBLDataset
         param_class:
             root: 'training/TrainDataset2v2/'
-            modalities: {rgb: 'val_dataset.txt', mono_ref: 'val_mono_ref_dataset.txt', mono_depth: 'val_mono_depth_dataset.txt'}
+            modalities: {rgb: 'val_dataset.txt', }
             coord_file: 'val_coordxIm.txt'
             bearing: False
             transform:
@@ -143,9 +122,3 @@ val:
                     - {class: 'datasets.multmodtf.ToTensor', param_class:}
                 rgb:
                     - {class: 'datasets.multmodtf.Normalize', param_class: {mean:[0.6406, 0.6457, 0.6116], std:[0.3180, 0.3017, 0.3233]}}
-                mono_ref:
-                    - {class: 'datasets.multmodtf.DepthTransform', param_class:{depth_factor: 1.0, error_value: 0.0, replacing_value: 1.0}}
-                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.5], std: [0.5]}}
-                mono_depth:
-                    - {class: 'datasets.multmodtf.DepthTransform', param_class:{depth_factor: 1.0, error_value: 0.0, replacing_value: 1.0}}
-                    - {class: 'datasets.multmodtf.Normalize', param_class: {mean: [0.5], std: [0.5]}}
