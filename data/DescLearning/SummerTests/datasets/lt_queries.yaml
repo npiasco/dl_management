@@ -103,8 +103,8 @@ test:
         class: datasets.Robotcar.VBLDataset
         param_class:
             root: 'training/TrainDataset_02_10_15/'
-            modalities: {rgb: 'longt_queries_dataset.txt', }
-            coord_file: 'longt_queries_coordxIm.txt'
+            modalities: {rgb: 'longt2_queries_dataset.txt', }
+            coord_file: 'longt2_queries_coordxIm.txt'
             bearing: False
             transform:
                 first:
@@ -115,9 +115,9 @@ test:
     data:
         class: datasets.Robotcar.VBLDataset
         param_class:
-            root: 'training/TrainDataset_11_10_15/'
-            modalities: {rgb: 'longt_data_dataset.txt', }
-            coord_file: 'longt_data_coordxIm.txt'
+            root: 'Robotcar_D1/Dataset/'
+            modalities: {rgb: 'dataset.txt',}
+            coord_file: 'coordxIm.txt'
             bearing: False
             transform:
                 first:
