@@ -172,6 +172,13 @@ class MeanDistance:
     def __str__(self):
         return 'Mean distance to closest candidate under {}m (lower is better)'.format(self.d_max)
 
+    @staticmethod
+    def rank_score(new_score, old_score):
+        if old_score is None:
+            return True
+        else:
+            return new_score <= old_score
+
 
 class PoseAccuracy:
     def __init__(self, **kwargs):
