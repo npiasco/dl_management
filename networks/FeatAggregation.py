@@ -13,37 +13,80 @@ class GatedFuse(nn.Module):
         nn.Module.__init__(self)
 
         size = kwargs.pop('size', 256)
-        self.norm = kwargs.pop('norm', True)
+        self.norm = kwargs.pop('norm', False)
         self.gate_type = kwargs.pop('gate_type', 'linear')
         self.cat_type = kwargs.pop('cat_type', 'cat')
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
         if self.cat_type not in ('cat', 'sum'):
             raise AttributeError('No cat_type named {}'.format(self.cat_type))
-        if self.gate_type not in ('linear',):
+        if self.gate_type not in ('linear', ):
             raise AttributeError('No self.gate_type named {}'.format(self.gate_type))
 
         if self.gate_type == 'linear':
-            self.gate = nn.Sequential(
-                nn.Linear(size*2, size),
+            self.gate_x1 = nn.Sequential(
+                nn.Linear(2*size, 1),
+                nn.Sigmoid()
+            )
+            self.gate_x2 = nn.Sequential(
+                nn.Linear(2*size, 1),
                 nn.Sigmoid()
             )
 
-    def get_training_layers(self):
-        return [{'params': self.gate.parameters()}]
-
+    def get_training_layers(self, layers_to_train=None):
+        return [{'params': self.parameters()},]
 
     def forward(self, x1, x2):
         x_cat = torch.cat((x1, x2), dim=1)
 
-        g = self.gate(x_cat)
+        g1 = self.gate_x1(x_cat)
+        g2 = self.gate_x2(x_cat)
 
         if self.cat_type == 'sum':
-            x = g*x1 + (1-g)*x2
+            x = g1*x1 + g2*x2
         elif self.cat_type == 'cat':
-            x = torch.cat((g*x1, (1-g)*x2), dim=1)
+            x = torch.cat((g1*x1, g2*x2), dim=1)
         else:
             raise AttributeError('No cat_type named {}'.format(self.cat_type))
+        if self.norm:
+            x = func.normalize(x)
+
+        return x
+
+
+class ClustersReweight(nn.Module):
+    def __init__(self, **kwargs):
+        nn.Module.__init__(self)
+
+        self.size = kwargs.pop('size', 256)
+        self.n_clusters = kwargs.pop('n_clusters', 64)
+        self.norm = kwargs.pop('norm', False)
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        self.gate_x1 = nn.Sequential(
+            nn.Linear(2 * self.size * self.n_clusters, self.n_clusters),
+            nn.Sigmoid()
+        )
+        self.gate_x2 = nn.Sequential(
+            nn.Linear(2 * self.size * self.n_clusters, self.n_clusters),
+            nn.Sigmoid()
+        )
+
+    def get_training_layers(self, layers_to_train=None):
+        return [{'params': self.parameters()},]
+
+    def forward(self, x1, x2):
+        x_cat = torch.cat((x1, x2), dim=1)
+
+        n_b = x1.size(0)
+
+        g1 = self.gate_x1(x_cat).unsqueeze(-1).expand(-1, -1, self.size).contiguous().view(n_b, -1)
+        g2 = self.gate_x2(x_cat).unsqueeze(-1).expand(-1, -1, self.size).contiguous().view(n_b, -1)
+
+        x = torch.cat((g1*x1, g2*x2), dim=1)
+
         if self.norm:
             x = func.normalize(x)
 
