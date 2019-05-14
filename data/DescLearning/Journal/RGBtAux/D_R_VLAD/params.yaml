@@ -1,0 +1,19 @@
+batch_size: 15
+curr_epoch: 0
+lr_scheduler:
+  deconv_trainer:
+    class: lr_scheduler.MultiStepLR
+    param:
+      gamma: 0.5
+      milestones: [15, 25, 30]
+  main_trainer:
+    class: lr_scheduler.MultiStepLR
+    param:
+      gamma: 0.5
+      milestones: [15, 25, 30]
+max_epoch: 200
+min_value_to_stop: 20
+num_workers: 8
+sucess_bad_epoch: 2
+testing_mod: [rgb]
+training_mod: [rgb, mono_depth]
