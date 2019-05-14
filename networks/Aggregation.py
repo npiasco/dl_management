@@ -167,6 +167,36 @@ class Embedding(nn.Module):
 
         return desc
 
+class NetVLADPCA(nn.Module):
+    def __init__(self, **kwargs):
+        super().__init__()
+        vlad_param = kwargs.pop('vlad_param', dict())
+        pca_input_size = kwargs.pop('pca_input_size', 16384)
+        pca_output_size = kwargs.pop('pca_output_size', 256)
+        load = kwargs.pop('load', dict())
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        self.vlad = NetVLAD(**vlad_param)
+        self.pca_fc = nn.Linear(pca_input_size, pca_output_size, bias=False)
+
+        if load is not None:
+            #clusters = torch.load(os.environ['CNN_WEIGHTS'] + load)
+            pca_param = torch.load(load)
+            self.pca_fc.weight = pca_param
+
+    def forward(self, x):
+        vlad = self.vlad(x)
+        pca = self.pca_fc(vlad)
+        if self.norm:
+            pca = func.normalize(pca)
+
+        return pca
+
+    def get_training_layers(self, layers_to_train=None):
+        return [{'params': self.vlad.parameters()}, {'params': self.pca_fc.parameters()},]
+
 
 class NetVLAD(nn.Module):
     """
@@ -183,6 +213,7 @@ class NetVLAD(nn.Module):
         trace = kwargs.pop('trace', False)
         self.feat_norm = kwargs.pop('feat_norm', True)
         self.add_bias = kwargs.pop('bias', False)
+        one_d_bias = kwargs.pop('one_d_bias', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -198,8 +229,10 @@ class NetVLAD(nn.Module):
                     (1 / math.sqrt(self.feature_size)) * torch.randn(self.cluster_size)
                 ).view(1, self.cluster_size)
             )
+            if one_d_bias:
+                self.bias = self.bias.view(self.cluster_size)
 
-        # Cluster
+                # Cluster
         self.clusters2 = nn.Parameter((1 / math.sqrt(self.feature_size))
                                       * torch.randn(1, self.feature_size, self.cluster_size))
         if load is not None:
