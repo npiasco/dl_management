@@ -7,7 +7,7 @@ param_class:
             associated_net: ['Main', 'Deconv', 'Aux', 'Fuse']
             optimizer_type: ADAM
             param:
-                lr: 0.001
+                lr: 0.0001
                 weight_decay: 0.0001
                 
 
@@ -151,9 +151,11 @@ param_class:
             {
              mode: 'loss',
              name: 'triplet_loss',
+             #func: 'loss_func.exp_triplet_loss',
              func: 'loss_func.adaptive_triplet_loss',
              args: [['forwd_query'], ['hard_pos', 'ex'], ['hard_neg', 'ex']],
              param:{margin: 0.1, swap: true}
+             #param: {}
             },
             {
                 mode: backprop,
@@ -241,8 +243,10 @@ param_class:
             ]
     eval_final_desc: ['desc']
 
-eval_class: 'score.Functions.MeanDistance'
-param_eval_class: {}
+eval_class: 'score.Functions.MeanRecallAtN'
+param_eval_class:
+    n: 2
+    radius: 25
 test_func:
     default:
         class: 'score.Functions.RecallAtN'

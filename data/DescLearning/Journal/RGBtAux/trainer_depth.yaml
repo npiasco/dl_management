@@ -224,23 +224,27 @@ param_class:
              mode: 'loss',
              name: 'aux_triplet_loss',
              func: 'loss_func.adaptive_triplet_loss',
+#             func: 'loss_func.exp_triplet_loss',
              args: [['aux_forwd_query', 'desc'], ['aux_hard_pos'], ['aux_hard_neg']],
+#             param: {}
              param:{margin: 0.1, swap: true}
             },
             {
              mode: 'loss',
              name: 'main_triplet_loss',
              func: 'loss_func.adaptive_triplet_loss',
+#             func: 'loss_func.exp_triplet_loss',
              args: [['main_forwd_query', 'desc'], ['main_hard_pos'], ['main_hard_neg']],
+#             param: {}
              param:{margin: 0.1, swap: true}
             },
-            {
-             mode: 'loss',
-             name: 'triplet_loss',
-             func: 'loss_func.adaptive_triplet_loss',
-             args: [['forwd_query'], ['hard_pos', 'ex'], ['hard_neg', 'ex']],
-             param:{margin: 0.1, swap: true}
-            },
+#            {
+#             mode: 'loss',
+#             name: 'triplet_loss',
+#             func: 'loss_func.adaptive_triplet_loss',
+#             args: [['forwd_query'], ['hard_pos', 'ex'], ['hard_neg', 'ex']],
+#             param:{margin: 0.1, swap: true}
+#            },
             {
                 mode: backprop,
                 name: 'main_backprop',
