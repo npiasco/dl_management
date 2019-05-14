@@ -2,7 +2,7 @@ import setlog
 import yaml
 import os
 import system.BaseClass as BaseClass
-import torch.utils.data as data
+import torch.utils.data as torchdata
 import torchvision as torchvis
 import matplotlib.pyplot as plt
 import torch.nn.functional
@@ -18,6 +18,8 @@ import copy
 import tqdm
 import sklearn.cluster as skclust
 import sklearn.preprocessing as skpre
+import sklearn.decomposition as skdec
+import numpy as np
 
 
 logger = setlog.get_logger(__name__)
@@ -110,19 +112,19 @@ class Default(BaseClass.Base):
     def print(self, dataset_name):
         if dataset_name == 'train':
             self.data[dataset_name].used_mod = self.training_mod
-            dtload = data.DataLoader(self.data[dataset_name], batch_size=4)
+            dtload = torchdata.DataLoader(self.data[dataset_name], batch_size=4)
         elif dataset_name == 'val_query':
             self.data['val']['queries'].used_mod = self.testing_mod
-            dtload = data.DataLoader(self.data['val']['queries'], batch_size=16)
+            dtload = torchdata.DataLoader(self.data['val']['queries'], batch_size=16)
         elif dataset_name == 'val_data':
             self.data['val']['data'].used_mod = self.testing_mod
-            dtload = data.DataLoader(self.data['val']['data'], batch_size=16)
+            dtload = torchdata.DataLoader(self.data['val']['data'], batch_size=16)
         elif dataset_name == 'test_query':
             self.data['test']['queries'].used_mod = self.testing_mod
-            dtload = data.DataLoader(self.data['test']['queries'], batch_size=16)
+            dtload = torchdata.DataLoader(self.data['test']['queries'], batch_size=16)
         elif dataset_name == 'test_data':
             self.data['test']['data'].used_mod = self.testing_mod
-            dtload = data.DataLoader(self.data['test']['data'], batch_size=16)
+            dtload = torchdata.DataLoader(self.data['test']['data'], batch_size=16)
         else:
             raise AttributeError('No dataset {}'.format(dataset_name))
 
@@ -162,7 +164,7 @@ class Default(BaseClass.Base):
     def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1):
         # TODO: PCA whitening like this
         self.trainer.network.train()
-        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
+        dataset_loader = torchdata.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
         logger.info('Computing feats for clustering')
         feats = list()
         for example in tqdm.tqdm(dataset_loader):
@@ -206,7 +208,7 @@ class Default(BaseClass.Base):
         channel = 1 if mod != 'rgb' else 3
         n_sample = 0
         if training:
-            dtload = data.DataLoader(self.data['train'], batch_size=1, num_workers=jobs)
+            dtload = torchdata.DataLoader(self.data['train'], batch_size=1, num_workers=jobs)
             n_sample += len(self.data['train'])
             for batch in tqdm.tqdm(dtload):
                 if mean is None:
@@ -223,7 +225,7 @@ class Default(BaseClass.Base):
                     mean += torch.mean(ex[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
                     std += torch.std(ex[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
         if val:
-            dtload = data.DataLoader(self.data['val']['queries'], batch_size=1, num_workers=jobs)
+            dtload = torchdata.DataLoader(self.data['val']['queries'], batch_size=1, num_workers=jobs)
             n_sample += len(self.data['val']['queries']) + len(self.data['val']['data'])
             for batch in tqdm.tqdm(dtload):
                 if mean is None:
@@ -232,7 +234,7 @@ class Default(BaseClass.Base):
                 else:
                     mean += torch.mean(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
                     std += torch.std(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
-            dtload = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=jobs)
+            dtload = torchdata.DataLoader(self.data['val']['data'], batch_size=1, num_workers=jobs)
             for batch in tqdm.tqdm(dtload):
                 if mean is None:
                     mean = torch.mean(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
@@ -241,7 +243,7 @@ class Default(BaseClass.Base):
                     mean += torch.mean(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
                     std += torch.std(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
         if testing:
-            dtload = data.DataLoader(self.data['test']['queries'], batch_size=1, num_workers=jobs)
+            dtload = torchdata.DataLoader(self.data['test']['queries'], batch_size=1, num_workers=jobs)
             n_sample += len(self.data['test']['queries']) + len(self.data['test']['data'])
             for batch in tqdm.tqdm(dtload):
                 if mean is None:
@@ -250,7 +252,7 @@ class Default(BaseClass.Base):
                 else:
                     mean += torch.mean(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
                     std += torch.std(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
-            dtload = data.DataLoader(self.data['test']['data'], batch_size=1, num_workers=jobs)
+            dtload = torchdata.DataLoader(self.data['test']['data'], batch_size=1, num_workers=jobs)
             for batch in tqdm.tqdm(dtload):
                 if mean is None:
                     mean = torch.mean(batch[mod].squeeze().view(channel, -1).transpose(0, 1), 0)
@@ -265,7 +267,7 @@ class Default(BaseClass.Base):
         tmp_net = copy.deepcopy(self.trainer.network)
         tmp_net.load_state_dict(self.trainer.best_net[1])
         self.data['train'].used_mod = self.training_mod
-        dtload = data.DataLoader(self.data['train'], batch_size=4)
+        dtload = torchdata.DataLoader(self.data['train'], batch_size=4)
         plt.figure(1)
         plt.figure(2)
         ccmap = plt.get_cmap('jet', lut=1024)
@@ -309,7 +311,7 @@ class Deconv(Default):
         if not final:
             tmp_net.load_state_dict(self.trainer.best_net[1])
         self.data['train'].used_mod = self.training_mod
-        dtload = data.DataLoader(self.data['train'], batch_size=4)
+        dtload = torchdata.DataLoader(self.data['train'], batch_size=4)
         plt.figure(1)
         plt.figure(2)
         ccmap = plt.get_cmap('jet', lut=1024)
@@ -341,7 +343,7 @@ class Deconv(Default):
 
     def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1, feat_type='main', norm=True):
         self.trainer.network.train()
-        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
+        dataset_loader = torchdata.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
         logger.info('Computing feats for clustering')
         feats = list()
         for example in tqdm.tqdm(dataset_loader):
@@ -419,8 +421,8 @@ class MultNet(Default):
         self.data['train'].used_mod = self.training_mod
         #self.data['test']['queries'].used_mod = ['rgb', 'mono_ref', 'mono_depth']
         #self.data['test']['queries'].used_mod = ['rgb', ]
-        dtload = data.DataLoader(self.data['train'], batch_size=batch_size)
-        #dtload = data.DataLoader(self.data['test']['queries'], batch_size=batch_size)
+        dtload = torchdata.DataLoader(self.data['train'], batch_size=batch_size)
+        #dtload = torchdata.DataLoader(self.data['test']['queries'], batch_size=batch_size)
         plt.figure(1)
         plt.figure(2)
         ccmap = plt.get_cmap('jet', lut=1024)
@@ -475,7 +477,7 @@ class MultNet(Default):
     def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1, mod='rgb'):
         # TODO: PCA whitening like this
         self.trainer.networks['Main'].train()
-        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
+        dataset_loader = torchdata.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
         logger.info('Computing feats for clustering')
         feats = list()
         for example in tqdm.tqdm(dataset_loader):
@@ -502,12 +504,54 @@ class MultNet(Default):
 
         torch.save(torch_clusters, 'kmean_' + str(size_cluster) + '_clusters.pth')
 
+    def compute_PCA(self, final_size, whiten=True, desc='desc'):
+        nets_to_test = self.trainer.networks
+        for network in nets_to_test.values():
+            network.eval()
+
+        #dataset_loader = torchdata.DataLoader(self.data['train'], batch_size=1, num_workers=8)
+        dataset_loader = torchdata.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
+
+        logger.info('Computing feats for PCA')
+        feats = list()
+        with torch.no_grad():
+            for example in tqdm.tqdm(dataset_loader):
+                '''
+                data = [example['query']] + example['positives'] + example['negatives']
+                for b in data:
+                    b = self.trainer.batch_to_device(b)
+                    variables = {'batch': b}
+                    for action in self.trainer.eval_forwards['queries']:
+                        variables = self.trainer._sequential_forward(action, variables, nets_to_test)
+
+                    feat = trainers.minning_function.recc_acces(variables, desc)
+                    feat = feat.cpu().data.numpy()
+                    feats.append(feat)
+                '''
+                b = self.trainer.batch_to_device(example)
+                variables = {'batch': b}
+                for action in self.trainer.eval_forwards['queries']:
+                    variables = self.trainer._sequential_forward(action, variables, nets_to_test)
+
+                feat = trainers.minning_function.recc_acces(variables, desc)
+                feat = feat.cpu().data.numpy()
+                feats.append(feat)
+
+        logger.info('Computing PCA')
+        pca = skdec.PCA(final_size, False, whiten=whiten)
+        feats = np.concatenate(feats, axis=0)
+        pca.fit(feats)
+
+        pca_param = torch.FloatTensor(pca.components_)
+
+        torch.save(pca_param, 'pca_{}-D.pth'.format(final_size))
+
     def creat_clusters_fusevlad(self, size_cluster, n_ex=1e6, size_feat=512, jobs=-1):
         nets_to_test = self.trainer.networks
         for network in nets_to_test.values():
             network.eval()
 
-        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
+        dataset_loader = torchdata.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
         logger.info('Computing feats for clustering')
         feats = list()
         for example in tqdm.tqdm(dataset_loader):
@@ -544,7 +588,7 @@ class MultNet(Default):
         for network in nets_to_test.values():
             network.eval()
 
-        dataset_loader = data.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
+        dataset_loader = torchdata.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
         logger.info('Computing feats for clustering')
         feats = list()
         for example in tqdm.tqdm(dataset_loader):
