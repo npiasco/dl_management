@@ -93,6 +93,74 @@ class ClustersReweight(nn.Module):
         return x
 
 
+class ConcatPCA(nn.Module):
+    def __init__(self, **kwargs):
+        super().__init__()
+        pca_input_size_main = kwargs.pop('pca_input_size_main', 16384)
+        pca_input_size_aux = kwargs.pop('pca_input_size_aux', 16384)
+        pca_output_size_main = kwargs.pop('pca_output_size_main', 256)
+        pca_output_size_aux = kwargs.pop('pca_output_size_aux', 256)
+        load_main = kwargs.pop('load_main', None)
+        load_aux = kwargs.pop('load_aux', None)
+        self.norm = kwargs.pop('norm', True)
+        self.layers_to_train = kwargs.pop('layers_to_train', 'no_layer')
+        self.attention = kwargs.pop('attention', False)
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        self.pca_main = nn.Linear(pca_input_size_main, pca_output_size_main, bias=False)
+        self.pca_aux = nn.Linear(pca_input_size_aux, pca_output_size_aux, bias=False)
+
+        if load_main is not None:
+            pca_param = torch.load(load_main)
+            self.pca_main.weight = nn.Parameter(pca_param)
+            logger.info('Custom PCA {} have been loaded'.format(load_main))
+        if load_aux is not None:
+            pca_param = torch.load(load_aux)
+            self.pca_aux.weight = nn.Parameter(pca_param)
+            logger.info('Custom PCA {} have been loaded'.format(load_aux))
+
+        if self.attention:
+            self.gate_x1 = nn.Sequential(
+                nn.Linear(pca_output_size_main + pca_output_size_aux, pca_output_size_main),
+                nn.Sigmoid()
+            )
+            self.gate_x2 = nn.Sequential(
+                nn.Linear(pca_output_size_main + pca_output_size_aux, pca_output_size_aux),
+                nn.Sigmoid()
+            )
+
+
+    def forward(self, x1, x2):
+
+        pca1 = self.pca_main(x1)
+        pca2 = self.pca_aux(x2)
+
+        if self.norm:
+            pca1 = func.normalize(pca1)
+            pca2 = func.normalize(pca2)
+
+        x = torch.cat((pca1, pca2), dim=1)
+
+        if self.attention:
+            g1 = self.gate_x1(x)
+            g2 = self.gate_x2(x)
+            x = torch.cat((g1 * pca1, g2 * pca2), dim=1)
+
+        return x
+
+    def get_training_layers(self, layers_to_train=None):
+        if layers_to_train is None:
+            layers_to_train = self.layers_to_train
+        if layers_to_train == 'no_layer':
+            return []
+        elif layers_to_train == 'all':
+            return [{'params': self.parameters()}, ]
+        elif layers_to_train == 'att':
+            return [{'params': self.gate_x1.parameters()}, {'params': self.gate_x2.parameters()}, ]
+
+
 class Concat(nn.Module):
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
