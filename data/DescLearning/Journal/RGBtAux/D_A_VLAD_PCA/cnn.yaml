@@ -1,0 +1,76 @@
+Main:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        layers_to_train: 'no_layer'
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: False
+            unet: True
+            indices: True
+        agg_method: 'NetVLAD'
+        agg_method_param:
+            bias: True
+            cluster_size: 64
+            feature_size: 256
+            alpha: 60
+
+Deconv:
+    class: 'networks.ResNet.Deconv'
+    param_class:
+        layers_to_train: 'no_layer'
+        size_res_1: 192
+        size_res_2: 64
+        input_size: 256
+        up_factor: 1
+        alexnet_entry: True
+        extended_size: False
+        norm_layer: group
+        reduce_factor: 1
+        final_activation: 'sig'
+        inv_output: false
+
+Aux:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        agg_method: 'NetVLAD'
+        agg_method_param:
+            bias: True
+            cluster_size: 64
+            feature_size: 256
+            alpha: 60
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: False
+            end_relu: False
+            batch_norm: False
+            jet_tf: True
+            jet_tf_param:
+                num_embedding: 256
+                size_embedding: 3
+                trainable: false
+                amplitude: 1
+                min_value: 0
+        layers_to_train: 'no_layer'
+
+Fuse:
+    class: 'networks.FeatAggregation.ConcatPCA'
+    param_class:
+        norm: True
+        pca_output_size_main: 1024
+        load_main: 'pca_1024-D_main.pth'
+        pca_output_size_aux: 1024
+        load_aux: 'pca_1024-D_aux.pth'
+        layers_to_train: 'att'
+        attention: True
+
+init_weights:
+    Main:
+        feature: '../D_A_VLAD/Main_feature.pth'
+        descriptor: '../D_A_VLAD/Main_descriptor.pth'
+    Deconv:
+        deconv_1: '../D_A_VLAD/Deconv_deconv_1.pth'
+        deconv_2: '../D_A_VLAD/Deconv_deconv_2.pth'
+        deconv_3: '../D_A_VLAD/Deconv_deconv_3.pth'
+    Aux:
+        feature: '../D_A_VLAD/Aux_feature.pth'
+        descriptor: '../D_A_VLAD/Aux_descriptor.pth'
