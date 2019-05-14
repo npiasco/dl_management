@@ -1,0 +1,20 @@
+Main:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        agg_method: 'NetVLAD'
+        agg_method_param:
+            bias: True
+            cluster_size: 64
+            feature_size: 256
+            #load: '/home/npiasco/Dev/dl_management/data/DescLearning/Journal/Clusters/A_rgb_64_clusters.pth'
+            load: '/home/nathan/Dev/Code/dl_management/data/DescLearning/Journal/Clusters/R_rgb_64_clusters.pth'
+            alpha: 20
+        base_archi: 'Resnet'
+        base_archi_param:
+            load_imagenet: True
+            end_relu: False
+            jet_tf: False
+            num_layer: 18
+            truncated: 3
+        layers_to_train: 'up_to_conv2'
+
