@@ -224,15 +224,20 @@ class NetVLAD(nn.Module):
 
         # Bias
         if self.add_bias:
-            self.bias = nn.Parameter(
-                (
-                    (1 / math.sqrt(self.feature_size)) * torch.randn(self.cluster_size)
-                ).view(1, self.cluster_size)
-            )
             if one_d_bias:
-                self.bias = self.bias.view(self.cluster_size)
+                self.bias = nn.Parameter(
+                    (
+                        (1 / math.sqrt(self.feature_size)) * torch.randn(self.cluster_size)
+                    ).view(self.cluster_size)
+                )
+            else:
+                self.bias = nn.Parameter(
+                    (
+                        (1 / math.sqrt(self.feature_size)) * torch.randn(self.cluster_size)
+                    ).view(1, self.cluster_size)
+                )
 
-                # Cluster
+        # Cluster
         self.clusters2 = nn.Parameter((1 / math.sqrt(self.feature_size))
                                       * torch.randn(1, self.feature_size, self.cluster_size))
         if load is not None:
