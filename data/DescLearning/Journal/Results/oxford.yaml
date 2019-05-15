@@ -1,0 +1,61 @@
+nets:
+# RGB #
+    A_NetVLAD: {root: '../RGB/A_VLAD/', class: System.MultNet, param_class: {trainer_file: '../trainer.yaml'}}
+    
+    R_NetVLAD: {root: '../RGB/R_VLAD/', class: System.MultNet, param_class: {trainer_file: '../trainer.yaml'}}
+
+# RGB + D #
+    D_A_VLAD: {root: '../RGBtAux/D_A_VLAD/', class: System.MultNet, param_class: {trainer_file: '../trainer_depth.yaml'}}
+
+    D_R_VLAD: {root: '../RGBtAux/D_R_VLAD/', class: System.MultNet, param_class: {trainer_file: '../trainer_depth.yaml'}}
+
+# RGB + R #
+    R_A_VLAD: {root: '../RGBtAux/R_A_VLAD/', class: System.MultNet, param_class: {trainer_file: '../trainer_depth.yaml'}}
+    
+    R_R_VLAD: {root: '../RGBtAux/R_R_VLAD/', class: System.MultNet, param_class: {trainer_file: '../trainer_depth.yaml'}}
+
+
+datasets: 
+    - 'datasets/lt_queries.yaml'
+    - 'datasets/snow_queries.yaml'
+    - 'datasets/night_queries.yaml'
+
+test_func:
+    default:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 1
+            radius: 25
+    r1m50:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 1
+            radius: 50
+    r5:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 5
+            radius: 25
+    r10:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 10
+            radius: 25
+    mr25:
+        class: 'score.Functions.MeanRecallAtN'
+        param_class:
+            n: 25
+            radius: 25
+    recall:
+        class: 'score.Functions.Recall'
+        param_class:
+            n: 25
+            radius: 25
+    distance:
+        class: 'score.Functions.Distance'
+        param_class:
+            d_max: 50
+    mdistance:
+        class: 'score.Functions.MeanDistance'
+        param_class:
+            d_max: 50
