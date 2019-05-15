@@ -197,6 +197,7 @@ class BetaWeights:
 def exp_triplet_loss(anchor, positives, negatives, **kwargs):
     alpha = kwargs.pop('alpha', 1)
     p = kwargs.pop('p', 2)
+    swap = kwargs.pop('swap', True)
 
     if kwargs:
         raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -205,8 +206,12 @@ def exp_triplet_loss(anchor, positives, negatives, **kwargs):
     cpt = 0
     for positive in positives:
         for negative in negatives:
-            dp = func.pairwise_distance(anchor, positive, p=p)
-            dn = func.pairwise_distance(anchor, negative, p=p)
+            dp = torch.mean(func.pairwise_distance(anchor, positive, p=p))
+            dn = torch.mean(func.pairwise_distance(anchor, negative, p=p))
+            if swap:
+                dn2 = torch.mean(func.pairwise_distance(positive, negative, p=p))
+                if dn2 < dn:
+                    dn = dn2
 
             c_loss = torch.mean(torch.log(1 + torch.exp(alpha*(dp-dn))))
             if tt_loss is None:
