@@ -10,9 +10,9 @@ lr_scheduler:
     class: lr_scheduler.MultiStepLR
     param:
       gamma: 0.5
-        milestones: [10, 15, 20]
+      milestones: [10, 15, 20]
 max_epoch: 200
-min_value_to_stop: 20
+min_value_to_stop: 15
 num_workers: 8
 sucess_bad_epoch: 2
 testing_mod: [rgb]
