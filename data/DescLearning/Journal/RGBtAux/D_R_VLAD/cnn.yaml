@@ -27,6 +27,7 @@ Deconv:
         size_res_2: 64
         input_size: 256
         up_factor: 1
+        final_activation: 'sig'
 
 Aux:
     class: 'networks.Descriptor.Main'
