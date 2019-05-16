@@ -1,0 +1,35 @@
+Main:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        agg_method: 'NetVLAD'
+        agg_method_param:
+            bias: True
+            cluster_size: 64
+            feature_size: 256
+            #load: '/home/npiasco/Dev/dl_management/data/DescLearning/Journal/Clusters/R_rgb_64_clusters.pth'
+            #load: '/home/nathan/Dev/Code/dl_management/data/DescLearning/Journal/Clusters/R_rgb_64_clusters.pth'
+            alpha: 20
+        base_archi: 'Resnet'
+        base_archi_param:
+            load_imagenet: False
+            end_relu: False
+            jet_tf: False
+            num_layer: 18
+            truncated: 3
+        layers_to_train: 'no_layer'
+
+
+Fuse:
+    class: 'networks.FeatAggregation.ConcatPCA'
+    param_class:
+        norm: True
+        pca_input_size: [16384, ]
+        pca_output_size: [1024, ]
+        load_pca: ['../R_VLAD/R_pca_1024-D.pth', ]
+        attention: False
+        layers_to_train: 'all'
+
+init_weights:
+    Main:
+        feature: '../R_VLAD/Main_feature.pth'
+        descriptor: '../R_VLAD/Main_descriptor.pth'

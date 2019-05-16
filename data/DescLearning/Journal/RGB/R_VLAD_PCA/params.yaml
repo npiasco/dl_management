@@ -1,0 +1,15 @@
+batch_size: 25
+curr_epoch: 0
+lr_scheduler:
+  main_trainer:
+    class: lr_scheduler.MultiStepLR
+    param:
+      gamma: 0.5
+      milestones: [10, 15, 20]
+max_epoch: 200
+min_value_to_stop: 15
+num_workers: 8
+shuffle: true
+sucess_bad_epoch: 2
+testing_mod: [rgb]
+training_mod: [rgb]
