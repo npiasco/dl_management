@@ -44,5 +44,7 @@ if __name__ == '__main__':
         machine.print('test_query')
     elif action == 'testd':
         machine.print('test_data')
+    elif action == 'pca':
+        machine.compute_PCA(512, desc=['desc'])
     else:
         raise ValueError('Unknown cmd: {}'.format(action))
