@@ -509,14 +509,14 @@ class MultNet(Default):
         for network in nets_to_test.values():
             network.eval()
 
-        #dataset_loader = torchdata.DataLoader(self.data['train'], batch_size=1, num_workers=8)
-        dataset_loader = torchdata.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
+        dataset_loader = torchdata.DataLoader(self.data['train'], batch_size=1, num_workers=8)
+        #dataset_loader = torchdata.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
 
         logger.info('Computing feats for PCA')
         feats = list()
         with torch.no_grad():
             for example in tqdm.tqdm(dataset_loader):
-                '''
+
                 data = [example['query']] + example['positives'] + example['negatives']
                 for b in data:
                     b = self.trainer.batch_to_device(b)
@@ -536,6 +536,7 @@ class MultNet(Default):
                 feat = trainers.minning_function.recc_acces(variables, desc)
                 feat = feat.cpu().data.numpy()
                 feats.append(feat)
+                '''
 
         logger.info('Computing PCA')
         pca = skdec.PCA(final_size, False, whiten=whiten)
