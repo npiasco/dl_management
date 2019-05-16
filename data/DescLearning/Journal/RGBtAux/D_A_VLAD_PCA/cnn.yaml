@@ -56,12 +56,11 @@ Fuse:
     class: 'networks.FeatAggregation.ConcatPCA'
     param_class:
         norm: True
-        pca_output_size_main: 1024
-        load_main: 'pca_1024-D_main.pth'
-        pca_output_size_aux: 1024
-        load_aux: 'pca_1024-D_aux.pth'
-        layers_to_train: 'att'
+        pca_input_size: [16384, 16384]
+        pca_output_size: [256, 256]
+        load_pca: ['pca_256-D_main.pth', 'pca_256-D_aux.pth']
         attention: True
+        layers_to_train: 'att'
 
 init_weights:
     Main:

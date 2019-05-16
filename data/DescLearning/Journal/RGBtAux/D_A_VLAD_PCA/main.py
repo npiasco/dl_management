@@ -47,8 +47,8 @@ if __name__ == '__main__':
     elif action == 'testd':
         machine.print('test_data')
     elif action == 'pca_main':
-        machine.compute_PCA(1024, desc=['main_out', 'desc'])
+        machine.compute_PCA(256, desc=['main_out', 'desc'])
     elif action == 'pca_aux':
-        machine.compute_PCA(1024, desc=['aux_desc'])
+        machine.compute_PCA(256, desc=['aux_desc'])
     else:
         raise ValueError('Unknown cmd: {}'.format(action))
