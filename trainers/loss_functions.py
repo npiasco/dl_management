@@ -213,7 +213,7 @@ def exp_triplet_loss(anchor, positives, negatives, **kwargs):
                 if dn2 < dn:
                     dn = dn2
 
-            c_loss = torch.mean(torch.log(1 + torch.exp(alpha*(dp-dn))))
+            c_loss = torch.log(1 + torch.exp(alpha*(dp-dn)))
             if tt_loss is None:
                 tt_loss = c_loss
             else:
