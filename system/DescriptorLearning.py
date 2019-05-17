@@ -380,7 +380,7 @@ class MultNet(Default):
                 logger.info('Loading pretrained weights {} for network {} (part {})'.format(weight_path, name_network,
                                                                                             net_part_name))
                 getattr(self.trainer.networks[name_network], net_part_name).load_state_dict(
-                    torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
+                    torch.load(weight_path)
                 )
 
     @staticmethod
