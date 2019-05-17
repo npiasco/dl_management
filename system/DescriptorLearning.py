@@ -556,7 +556,6 @@ class MultNet(Default):
         feats = list()
         for example in tqdm.tqdm(dataset_loader):
             variables = {'batch': example}
-
             for action in self.trainer.eval_forwards['dataset']:
                 variables = self.trainer._sequential_forward(action, variables, nets_to_test)
 
@@ -592,8 +591,8 @@ class MultNet(Default):
         logger.info('Computing feats for clustering')
         feats = list()
         for example in tqdm.tqdm(dataset_loader):
+            example = self.trainer.batch_to_device(example)
             variables = {'batch': example}
-
             for action in self.trainer.eval_forwards['dataset']:
                 variables = self.trainer._sequential_forward(action, variables, nets_to_test)
 
