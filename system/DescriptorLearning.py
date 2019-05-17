@@ -475,14 +475,13 @@ class MultNet(Default):
             plt.show()
 
     def creat_clusters(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1, mod='rgb'):
-        # TODO: PCA whitening like this
         self.trainer.networks['Main'].train()
         dataset_loader = torchdata.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
         logger.info('Computing feats for clustering')
         feats = list()
         for example in tqdm.tqdm(dataset_loader):
-            feat = self.trainer.networks['Main'](auto.Variable(self.trainer.cuda_func(example[mod]),
-                                              requires_grad=False))['feat']
+            example = self.trainer.batch_to_device(example)
+            feat = self.trainer.networks['Main'](example[mod])['feat']
             max_sample = feat.size(2)*feat.size(3)
             feat = feat.view(feat.size(0), size_feat, max_sample).transpose(1, 2).contiguous()
             feat = feat.view(-1, size_feat).cpu().data.numpy()
@@ -584,10 +583,10 @@ class MultNet(Default):
 
         torch.save(torch_clusters, 'kmeans_' + str(size_cluster) + '_clusters.pth')
 
-    def creat_clusters_auxlad(self, size_cluster, n_ex=1e6, size_feat=512, jobs=-1):
+    def creat_clusters_auxlad(self, size_cluster, n_ex=1e6, size_feat=256, jobs=-1):
         nets_to_test = self.trainer.networks
         for network in nets_to_test.values():
-            network.eval()
+            network.train()
 
         dataset_loader = torchdata.DataLoader(self.data['val']['data'], batch_size=1, num_workers=8)
         logger.info('Computing feats for clustering')

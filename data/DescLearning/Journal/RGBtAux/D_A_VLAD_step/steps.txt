@@ -1,0 +1,4 @@
+ * Train deconv with pretrained Main encoder
+ * Compute Clusters for aux mod
+ * Serialize deconv & reset params and load
+ * Joint training
