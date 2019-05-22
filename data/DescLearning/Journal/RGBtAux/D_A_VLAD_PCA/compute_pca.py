@@ -16,8 +16,6 @@ if __name__ == '__main__':
                              cnn_type='cnn.yaml',
                              trainer_file='../trainer_att.yaml',
                              dataset_file='../../../SummerTests/datasets/cmu_lt.yaml')
-    action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
-
     machine.compute_PCA(256, desc=['main_out', 'desc'])
     os.system('mv pca_256-D.pth pca_256-D_main.pth')
 
