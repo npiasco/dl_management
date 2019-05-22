@@ -58,9 +58,9 @@ Fuse:
         norm: True
         pca_input_size: [16384, 16384]
         pca_output_size: [256, 256]
-        load_pca: ['pca_256-D_main.pth', 'pca_256-D_aux.pth']
-        attention: False
-        layers_to_train: 'all'
+        load_pca: ['../D_A_VLAD_PCA/pca_256-D_main.pth', '../D_A_VLAD_PCA/pca_256-D_aux.pth']
+        attention: True
+        layers_to_train: 'att'
 
 init_weights:
     Main:
