@@ -34,7 +34,7 @@ with open(params_file, 'rt') as f:
     params = yaml.safe_load(f)
 
 for dataset in params['datasets']:
-    dataset_name = dataset.replace('.yaml','').replace('datasets','').replace('/','')
+    dataset_name = dataset.split('/')[-1].replace('.yaml', '')
     folder_name = 'Results_{}'.format(dataset_name)
     try:
         os.mkdir(folder_name)
