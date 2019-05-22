@@ -1,0 +1,237 @@
+class: 'trainers.TripletTrainers.MultNetTrainer'
+param_class:
+    cuda_on: True
+    val_num_workers: 8
+    optimizers_params:
+        main_trainer:
+            associated_net: ['Main', 'Aux', 'Fuse']
+            optimizer_type: ADAM
+            param:
+                lr: 0.0001
+                weight_decay: 0.0005
+        deconv_trainer:
+            associated_net: ['Deconv',]
+            optimizer_type: ADAM
+            param:
+                lr: 0.0002
+                weight_decay: 0.0005
+                
+
+    training_pipeline:
+        [
+            {
+             mode: 'no_grad',
+             trainer: main_trainer
+            },             
+            # ----------------BATCH TO VAR------------------ #
+            {
+             mode: 'batch_forward',
+             func: minning.batch_to_var,
+             param: {mode: 'positives', target: [], mult_mod: True},
+             net_name: 'Main',
+             out_name: 'var_pos'
+            },
+            {
+             mode: 'batch_forward',
+             func: minning.batch_to_var,
+             param: {mode: 'negatives', target: [], mult_mod: True},
+             net_name: 'Main',
+             out_name: 'var_neg'
+            },
+            # ---------------------------------------------- #
+
+            # -------------------MAIN FWD------------------- #
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['batch', 'query', 'rgb'], ]},
+             net_name: 'Main',
+             out_name: 'main_forwd_query'
+            },
+
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['var_pos', 'rgb'], ], multiples_instance: True},
+             net_name: 'Main',
+             out_name: 'main_forwd_pos'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['var_neg', 'rgb'], ], multiples_instance: True},
+             net_name: 'Main',
+             out_name: 'main_forwd_neg'
+            },
+            # ---------------------------------------------- #
+
+            # -----------------Deconv FWD------------------- #
+            {
+             mode: forward,
+             func: minning.custom_forward,
+             param: {multiples_instance: false, detach_inputs: True,
+             input_targets: [['main_forwd_query' , 'feat'], ['main_forwd_query', 'res_1'], ['main_forwd_query', 'res_2']]},
+             net_name: 'Deconv',
+             out_name: 'maps_query'
+            },
+            {
+             mode: forward,
+             func: minning.custom_forward,
+             param: {multiples_instance: true, detach_inputs: True, input_targets: [['main_forwd_pos', 'feat'], ['main_forwd_pos', 'res_1'],['main_forwd_pos', 'res_2']]},
+             net_name: 'Deconv',
+             out_name: 'maps_pos'
+            },
+            {
+             mode: forward,
+             func: minning.custom_forward,
+             param: {multiples_instance: true, detach_inputs: True, input_targets: [['main_forwd_neg', 'feat'], ['main_forwd_neg', 'res_1'], ['main_forwd_neg', 'res_2']]},
+             net_name: 'Deconv',
+             out_name: 'maps_neg'
+            },
+            # ---------------------------------------------- #
+
+            # ---------------- Loss modality --------------- #
+            # L1
+            {
+                mode: loss,
+                name: 'l1_loss_pos',
+                func: 'loss_func.l1_modal_loss',
+                args: [['maps_pos'], ['var_pos', 'mono_ref']],
+                param:{p: 1, listed_maps: True, factor: 1}
+            },
+            {
+                mode: loss,
+                name: 'l1_loss_neg',
+                func: 'loss_func.l1_modal_loss',
+                args: [['maps_neg'], ['var_neg', 'mono_ref']],
+                param:{p: 1, listed_maps: True, factor: 1}
+            },
+            {
+                mode: loss,
+                name: 'l1_loss_query',
+                func: 'loss_func.l1_modal_loss',
+                args: [['maps_query'], ['batch', 'query', 'mono_ref']],
+                param:{p: 1, listed_maps: False, factor: 1}
+            },
+            {
+                mode: backprop,
+                name: 'deconv_backprop',
+                trainer: 'deconv_trainer'
+            },
+
+            # ---------------------------------------------- #
+        ]
+    eval_forwards:
+        dataset:
+            [
+                {
+                 mode: 'batch_forward',
+                 func: minning.batch_to_var,
+                 param: {mode: 'query', target: [], mult_mod: True},
+                 net_name: 'Main',
+                 out_name: 'var_query'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['var_query', 'rgb'],]},
+                 net_name: 'Main',
+                 out_name: 'main_out'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['main_out' , 'feat'], ['main_out', 'res_1'], ['main_out', 'res_2'],]},
+                 net_name: 'Deconv',
+                 out_name: 'maps'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['maps'],]},
+                 net_name: 'Aux',
+                 out_name: 'aux_desc'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['main_out', 'desc'], ['aux_desc']]},
+                 net_name: 'Fuse',
+                 out_name: 'desc'
+                },
+            ]
+        queries:
+            [
+                {
+                 mode: 'batch_forward',
+                 func: minning.batch_to_var,
+                 param: {mode: 'query', target: [], mult_mod: True},
+                 net_name: 'Main',
+                 out_name: 'var_query'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['var_query', 'rgb'],]},
+                 net_name: 'Main',
+                 out_name: 'main_out'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['main_out' , 'feat'], ['main_out', 'res_1'], ['main_out', 'res_2'],]},
+                 net_name: 'Deconv',
+                 out_name: 'maps'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['maps'],]},
+                 net_name: 'Aux',
+                 out_name: 'aux_desc'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['main_out', 'desc'], ['aux_desc']]},
+                 net_name: 'Fuse',
+                 out_name: 'desc'
+                },
+            ]
+    eval_final_desc: ['desc']
+
+eval_class: 'score.Functions.MeanRecallAtN'
+param_eval_class:
+    n: 2
+    radius: 25
+test_func:
+    default:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 1
+            radius: 25
+    r5:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 5
+            radius: 25
+    r10:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 10
+            radius: 25
+    mr25:
+        class: 'score.Functions.MeanRecallAtN'
+        param_class:
+            n: 25
+            radius: 25
+    mean_recall:
+        class: 'score.Functions.MeanRecallAtN'
+        param_class:
+            n: 50
+            radius: 25
+    recall:
+        class: 'score.Functions.Recall'
+        param_class:
+            n: 50
+            radius: 25
