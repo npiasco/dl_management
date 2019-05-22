@@ -59,17 +59,17 @@ Fuse:
         pca_input_size: [16384, 16384]
         pca_output_size: [256, 256]
         load_pca: ['pca_256-D_main.pth', 'pca_256-D_aux.pth']
-        attention: True
-        layers_to_train: 'att'
+        attention: False
+        layers_to_train: 'all'
 
 init_weights:
     Main:
-        feature: '../D_A_VLAD/Main_feature.pth'
-        descriptor: '../D_A_VLAD/Main_descriptor.pth'
+        feature: '../D_A_VLAD_step_join/Main_feature.pth'
+        descriptor: '../D_A_VLAD_step_join/Main_descriptor.pth'
     Deconv:
-        deconv_1: '../D_A_VLAD/Deconv_deconv_1.pth'
-        deconv_2: '../D_A_VLAD/Deconv_deconv_2.pth'
-        deconv_3: '../D_A_VLAD/Deconv_deconv_3.pth'
+        deconv_1: '../D_A_VLAD_step_join/Deconv_deconv_1.pth'
+        deconv_2: '../D_A_VLAD_step_join/Deconv_deconv_2.pth'
+        deconv_3: '../D_A_VLAD_step_join/Deconv_deconv_3.pth'
     Aux:
-        feature: '../D_A_VLAD/Aux_feature.pth'
-        descriptor: '../D_A_VLAD/Aux_descriptor.pth'
+        feature: '../D_A_VLAD_step_join/Aux_feature.pth'
+        descriptor: '../D_A_VLAD_step_join/Aux_descriptor.pth'
