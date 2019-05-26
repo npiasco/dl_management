@@ -214,6 +214,7 @@ class NetVLAD(nn.Module):
         self.feat_norm = kwargs.pop('feat_norm', True)
         self.add_bias = kwargs.pop('bias', False)
         one_d_bias = kwargs.pop('one_d_bias', False)
+        self.layers_to_train = kwargs.pop('layers_to_train', 'no_layer')
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -301,4 +302,14 @@ class NetVLAD(nn.Module):
         return vlad
 
     def get_training_layers(self, layers_to_train=None):
-        return []
+        if not layers_to_train:
+            layers_to_train = self.layers_to_train
+
+        if layers_to_train == 'all':
+            train_parameters = [{'params': self.parameters()}]
+        elif layers_to_train == 'no_layer':
+            train_parameters = []
+        else:
+            raise KeyError('No behaviour for layers_to_train = {}'.format(layers_to_train))
+        return train_parameters
+
