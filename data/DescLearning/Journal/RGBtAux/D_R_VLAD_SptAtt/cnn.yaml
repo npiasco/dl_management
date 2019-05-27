@@ -1,21 +1,26 @@
-Main:
+Main_feat:
     class: 'networks.Descriptor.Main'
     param_class:
         layers_to_train: 'no_layer'
         base_archi: 'Resnet'
         base_archi_param:
-            load_imagenet: False
+            load_imagenet: True
             end_relu: False
             jet_tf: False
             num_layer: 18
             truncated: 3
             unet: True
-        agg_method: 'NetVLAD'
-        agg_method_param:
-            bias: True
-            cluster_size: 64
-            feature_size: 256
-            alpha: 40
+        agg_method: 'RMAC'
+        agg_method_param: {}
+
+Main_desc:
+    class: 'networks.Aggregation.NetVLAD'
+    param_class:
+        layers_to_train: 'no_layer'
+        bias: True
+        cluster_size: 64
+        feature_size: 256
+        alpha: 20
 
 Deconv:
     class: 'networks.ResNet.Deconv'
@@ -27,16 +32,11 @@ Deconv:
         up_factor: 1
         final_activation: 'sig'
 
-Aux:
+Aux_feat:
     class: 'networks.Descriptor.Main'
     param_class:
-        agg_method: 'NetVLAD'
-        agg_method_param:
-            bias: True
-            cluster_size: 64
-            feature_size: 256
-            #load: 'A_depth_64_clusters.pth'
-            alpha: 60
+        agg_method: 'RMAC'
+        agg_method_param: {}
         base_archi: 'Alexnet'
         base_archi_param:
             load_imagenet: True
@@ -50,6 +50,22 @@ Aux:
                 amplitude: 1
                 min_value: 0
         layers_to_train: 'all'
+        feat_test: True
+
+Aux_desc:
+    class: 'networks.Aggregation.NetVLAD'
+    param_class:
+        layers_to_train: 'all'
+        bias: True
+        cluster_size: 64
+        feature_size: 256
+        load: 'A_depth_64_clusters.pth'
+        alpha: 60
+
+SpatialAtt:
+    class: 'networks.FeatAggregation.SpatialAtt'
+    param_class:
+        layers_to_train: 'all'
 
 Fuse:
     class: 'networks.FeatAggregation.Concat'
@@ -59,10 +75,11 @@ Fuse:
         norm: False
 
 init_weights:
-    Main:
+    Main_feat:
         feature: '../../RGB/R_VLAD/Main_feature.pth'
-        descriptor: '../../RGB/R_VLAD/Main_descriptor.pth'
-#    Deconv:
-#        deconv_1: 'Deconv_deconv_1.pth'
-#        deconv_2: 'Deconv_deconv_2.pth'
-#        deconv_3: 'Deconv_deconv_3.pth'
+    Main_desc:
+        self: '../../RGB/R_VLAD/Main_descriptor.pth'
+    Deconv:
+        deconv_1: 'Deconv_deconv_1.pth'
+        deconv_2: 'Deconv_deconv_2.pth'
+        deconv_3: 'Deconv_deconv_3.pth'
