@@ -1,0 +1,25 @@
+batch_size: 1
+curr_epoch: 0
+lr_scheduler:
+  deconv_trainer:
+    class: lr_scheduler.MultiStepLR
+    param:
+      gamma: 0.5
+      milestones: [10, 15, 20]
+  main_trainer:
+    class: lr_scheduler.MultiStepLR
+    param:
+      gamma: 0.5
+      milestones: [10, 15, 20]
+max_epoch: 50
+min_value_to_stop: 15
+num_workers: 8
+saved_files: {best_network: best_network.pth, loss: loss.pth, network_Aux_desc: network_Aux_desc.pth,
+  network_Aux_feat: network_Aux_feat.pth, network_Deconv: network_Deconv.pth, network_Fuse: network_Fuse.pth,
+  network_Main_desc: network_Main_desc.pth, network_Main_feat: network_Main_feat.pth,
+  network_SpatialAtt: network_SpatialAtt.pth, optimizer_deconv_trainer: optimizer_deconv_trainer.pth,
+  optimizer_main_trainer: optimizer_main_trainer.pth, val_score: val_score.pth}
+score_file: score_file.pth
+sucess_bad_epoch: 2
+testing_mod: [rgb]
+training_mod: [rgb, mono_depth]
