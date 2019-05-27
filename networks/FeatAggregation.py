@@ -106,27 +106,38 @@ class SpatialAtt(nn.Module):
 
         for i, nd in enumerate(size_maps):
             setattr(self, 'dim_red_{}'.format(i), nn.Conv2d(nd, 1, 1))
-            #setattr(self, 'glob_mean_{}'.format(i), nn.Conv2d(nd, 1, 1))
 
-            #nn.AdaptiveAvgPool2d(1)
+            setattr(self, 'glob_mean_{}'.format(i), nn.Linear(nd, 1))
+
             setattr(self, 'mask_{}'.format(i),
                     nn.Sequential(
-                        nn.Conv2d(self.n_desc, 1, 1),
+                        nn.Conv2d(self.n_desc*2, 1, 1),
                         nn.Sigmoid()
                     )
                     )
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
 
     def forward(self, *xs):
         rew_xs = list()
         for i, x in enumerate(xs):
-            rew_xs.append(getattr(self, 'dim_red_{}'.format(i))(x))
+            rew_xs.append(
+                torch.cat(
+                    (
+                        getattr(self, 'dim_red_{}'.format(i))(x),
+                        getattr(self, 'glob_mean_{}'.format(i))(
+                            self.avg_pool(x).view(x.size(0), -1)).unsqueeze(-1).unsqueeze(-1).expand(
+                            -1, -1, x.size(-2), x.size(-1))
+                    ), dim=1
+                )
+            )
+
 
         rews_all = torch.cat(rew_xs, dim=1)
 
-        rew_xs = list()
+        rew_xs = dict()
         for i, x in enumerate(xs):
             mask = getattr(self, 'mask_{}'.format(i))(rews_all)
-            rew_xs.append(mask*x)
+            rew_xs[i] = mask*x
 
         return rew_xs
 
