@@ -176,15 +176,15 @@ param_class:
             },
             {
              mode: 'forward',
-             func: minning.simple_multiple_forward,
-             param: {input_targets: ['rew_pos', 0 ]},#, multiples_instance: True},
+             func: minning.custom_forward,
+             param: {input_targets: [['rew_pos', 0 ], ], multiples_instance: True},
              net_name: 'Main_desc',
              out_name: 'main_desc_pos'
             },
             {
              mode: 'forward',
-             func: minning.simple_multiple_forward,
-             param: {input_targets: ['rew_pos', 1 ]},#, multiples_instance: True},
+             func: minning.custom_forward,
+             param: {input_targets: [['rew_pos', 1 ], ], multiples_instance: True},
              net_name: 'Aux_desc',
              out_name: 'aux_desc_pos'
             },
@@ -197,19 +197,18 @@ param_class:
             },
             {
              mode: 'forward',
-             func: minning.simple_multiple_forward,
-             param: {input_targets: ['rew_neg', 0 ]},#, multiples_instance: True},
+             func: minning.custom_forward,
+             param: {input_targets: [['rew_neg', 0 ], ], multiples_instance: True},
              net_name: 'Main_desc',
              out_name: 'main_desc_neg'
             },
             {
              mode: 'forward',
-             func: minning.simple_multiple_forward,
-             param: {input_targets: ['rew_neg', 1] },#, multiples_instance: True},
+             func: minning.custom_forward,
+             param: {input_targets: [['rew_neg', 1], ], multiples_instance: True},
              net_name: 'Aux_desc',
              out_name: 'aux_desc_neg'
             },
-
             # ---------------------------------------------- #
 
             # -----------------DESC FUSING------------------ #
