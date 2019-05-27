@@ -379,9 +379,14 @@ class MultNet(Default):
             for net_part_name, weight_path in net_part.items():
                 logger.info('Loading pretrained weights {} for network {} (part {})'.format(weight_path, name_network,
                                                                                             net_part_name))
-                getattr(self.trainer.networks[name_network], net_part_name).load_state_dict(
-                    torch.load(weight_path)
-                )
+                if net_part_name == 'self':
+                    self.trainer.networks[name_network].load_state_dict(
+                        torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
+                    )
+                else:
+                    getattr(self.trainer.networks[name_network], net_part_name).load_state_dict(
+                        torch.load(weight_path)
+                    )
 
     @staticmethod
     def creat_network(networks_params):

@@ -25,6 +25,7 @@ class Main(nn.Module):
                                           'batch_norm': False
                                       })
         self.layers_to_train = kwargs.pop('layers_to_train', 'all')
+        self.feat_test = kwargs.pop('feat_test', False)
 
         if kwargs:
             raise TypeError('Unexpected **kwargs: %r' % kwargs)
@@ -51,7 +52,7 @@ class Main(nn.Module):
         else:
             x_desc = self.descriptor(x_feat)
 
-        if self.training:
+        if self.training or self.feat_test:
             if self.unet:
                 forward_pass = {'desc': x_desc,
                                 'feat': x_feat['feat'],

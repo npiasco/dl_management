@@ -93,6 +93,63 @@ class ClustersReweight(nn.Module):
         return x
 
 
+class SpatialAtt(nn.Module):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.layers_to_train = kwargs.pop('layers_to_train', 'no_layer')
+        size_maps = kwargs.pop('size_maps', [256, 256])
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        self.n_desc = len(size_maps)
+
+        for i, nd in enumerate(size_maps):
+            setattr(self, 'dim_red_{}'.format(i), nn.Conv2d(nd, 1, 1))
+
+            setattr(self, 'glob_mean_{}'.format(i), nn.Linear(nd, 1))
+
+            setattr(self, 'mask_{}'.format(i),
+                    nn.Sequential(
+                        nn.Conv2d(self.n_desc*2, 1, 1),
+                        nn.Sigmoid()
+                    )
+                    )
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+
+    def forward(self, *xs):
+        rew_xs = list()
+        for i, x in enumerate(xs):
+            rew_xs.append(
+                torch.cat(
+                    (
+                        getattr(self, 'dim_red_{}'.format(i))(x),
+                        getattr(self, 'glob_mean_{}'.format(i))(
+                            self.avg_pool(x).view(x.size(0), -1)).unsqueeze(-1).unsqueeze(-1).expand(
+                            -1, -1, x.size(-2), x.size(-1))
+                    ), dim=1
+                )
+            )
+
+
+        rews_all = torch.cat(rew_xs, dim=1)
+
+        rew_xs = dict()
+        for i, x in enumerate(xs):
+            mask = getattr(self, 'mask_{}'.format(i))(rews_all)
+            rew_xs[i] = mask*x
+
+        return rew_xs
+
+    def get_training_layers(self, layers_to_train=None):
+        if layers_to_train is None:
+            layers_to_train = self.layers_to_train
+        if layers_to_train == 'no_layer':
+            return []
+        elif layers_to_train == 'all':
+            return [{'params': self.parameters()}]
+
+
 class ConcatPCA(nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
