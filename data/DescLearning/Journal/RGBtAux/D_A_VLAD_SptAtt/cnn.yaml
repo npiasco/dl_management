@@ -77,12 +77,12 @@ Fuse:
         main_ratio: 1.0
         norm: False
 
-#init_weights:
-#    Main_feat:
-#        feature: '../../RGB/A_VLAD/Main_feature.pth'
-#    Main_desc:
-#        self: '../../RGB/A_VLAD/Main_descriptor.pth'
-#    Deconv:
-#        deconv_1: 'Deconv_deconv_1.pth'
-#        deconv_2: 'Deconv_deconv_2.pth'
-#        deconv_3: 'Deconv_deconv_3.pth'
+init_weights:
+    Main_feat:
+        feature: '../../RGB/A_VLAD/Main_feature.pth'
+    Main_desc:
+        self: '../../RGB/A_VLAD/Main_descriptor.pth'
+    Deconv:
+        deconv_1: 'Deconv_deconv_1.pth'
+        deconv_2: 'Deconv_deconv_2.pth'
+        deconv_3: 'Deconv_deconv_3.pth'
