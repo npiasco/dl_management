@@ -93,6 +93,52 @@ class ClustersReweight(nn.Module):
         return x
 
 
+class SpatialAtt(nn.Module):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.layers_to_train = kwargs.pop('layers_to_train', 'no_layer')
+        size_maps = kwargs.pop('size_maps', [256, 256])
+
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+
+        self.n_desc = len(size_maps)
+
+        for i, nd in enumerate(size_maps):
+            setattr(self, 'dim_red_{}'.format(i), nn.Conv2d(nd, 1, 1))
+            #setattr(self, 'glob_mean_{}'.format(i), nn.Conv2d(nd, 1, 1))
+
+            #nn.AdaptiveAvgPool2d(1)
+            setattr(self, 'mask_{}'.format(i),
+                    nn.Sequential(
+                        nn.Conv2d(self.n_desc, 1, 1),
+                        nn.Sigmoid()
+                    )
+                    )
+
+    def forward(self, *xs):
+        rew_xs = list()
+        for i, x in enumerate(xs):
+            rew_xs.append(getattr(self, 'dim_red_{}'.format(i))(x))
+
+        rews_all = torch.cat(rew_xs, dim=1)
+
+        rew_xs = list()
+        for i, x in enumerate(xs):
+            mask = getattr(self, 'mask_{}'.format(i))(rews_all)
+            rew_xs.append(mask*x)
+
+        return rew_xs
+
+    def get_training_layers(self, layers_to_train=None):
+        if layers_to_train is None:
+            layers_to_train = self.layers_to_train
+        if layers_to_train == 'no_layer':
+            return []
+        elif layers_to_train == 'all':
+            return [{'params': self.parameters()}]
+
+
 class ConcatPCA(nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
