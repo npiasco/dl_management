@@ -1,10 +1,10 @@
 Main:
     class: 'networks.Descriptor.Main'
     param_class:
-        layers_to_train: 'up_to_conv2'
+        layers_to_train: 'no_layer'
         base_archi: 'Resnet'
         base_archi_param:
-            load_imagenet: True
+            load_imagenet: False
             end_relu: False
             jet_tf: False
             num_layer: 18
@@ -15,7 +15,7 @@ Main:
             bias: True
             cluster_size: 64
             feature_size: 256
-            alpha: 20
+            alpha: 40
 
 Deconv:
     class: 'networks.ResNet.Deconv'

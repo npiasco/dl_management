@@ -2,12 +2,14 @@ Main_feat:
     class: 'networks.Descriptor.Main'
     param_class:
         layers_to_train: 'no_layer'
-        base_archi: 'Alexnet'
-        feat_test: True
+        base_archi: 'Resnet'
         base_archi_param:
-            load_imagenet: False
+            load_imagenet: True
+            end_relu: False
+            jet_tf: False
+            num_layer: 18
+            truncated: 3
             unet: True
-            indices: True
         agg_method: 'RMAC'
         agg_method_param: {}
 
@@ -18,22 +20,17 @@ Main_desc:
         bias: True
         cluster_size: 64
         feature_size: 256
-        alpha: 60
+        alpha: 20
 
 Deconv:
     class: 'networks.ResNet.Deconv'
     param_class:
         layers_to_train: 'all'
-        size_res_1: 192
+        size_res_1: 128
         size_res_2: 64
         input_size: 256
         up_factor: 1
-        alexnet_entry: True
-        extended_size: False
-        norm_layer: group
-        reduce_factor: 1
         final_activation: 'sig'
-        inv_output: false
 
 Aux_feat:
     class: 'networks.Descriptor.Main'
@@ -42,7 +39,7 @@ Aux_feat:
         agg_method_param: {}
         base_archi: 'Alexnet'
         base_archi_param:
-            #load_imagenet: True
+            load_imagenet: True
             end_relu: False
             batch_norm: False
             jet_tf: True
@@ -62,7 +59,7 @@ Aux_desc:
         bias: True
         cluster_size: 64
         feature_size: 256
-        #load: 'A_depth_64_clusters.pth'
+        load: 'A_depth_64_clusters.pth'
         alpha: 60
 
 SpatialAtt:
@@ -79,9 +76,9 @@ Fuse:
 
 init_weights:
     Main_feat:
-        feature: '../../RGB/A_VLAD/Main_feature.pth'
+        feature: '../../RGB/R_VLAD/Main_feature.pth'
     Main_desc:
-        self: '../../RGB/A_VLAD/Main_descriptor.pth'
+        self: '../../RGB/R_VLAD/Main_descriptor.pth'
     Deconv:
         deconv_1: 'Deconv_deconv_1.pth'
         deconv_2: 'Deconv_deconv_2.pth'

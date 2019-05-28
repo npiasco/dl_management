@@ -381,7 +381,7 @@ class MultNet(Default):
                                                                                             net_part_name))
                 if net_part_name == 'self':
                     self.trainer.networks[name_network].load_state_dict(
-                        torch.load(os.environ['CNN_WEIGHTS'] + weight_path)
+                        torch.load(weight_path)
                     )
                 else:
                     getattr(self.trainer.networks[name_network], net_part_name).load_state_dict(
