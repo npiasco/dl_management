@@ -50,7 +50,7 @@ Aux:
                 trainable: false
                 amplitude: 1
                 min_value: 0
-        layers_to_train: 'no_layer'
+        layers_to_train: 'only_descriptor'
 
 Fuse:
     class: 'networks.FeatAggregation.Concat'
