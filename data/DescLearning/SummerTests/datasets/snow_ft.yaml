@@ -1,12 +1,9 @@
 train:
     class: datasets.Robotcar.TripletDataset
     param_class:
-        load_triplets: 'night_200_triplets.pth'
-        # In case of load_triplets: None
-        ex_shuffle: True
-        num_positives: 2
-        num_negatives: 20
-        num_triplets: 1
+        num_positives: 1
+        num_negatives: 1
+        num_triplets: 500
         max_pose_dist: 7  # metre
         min_neg_dist: 700  # metre
         max_angle: 0.174533  # rad, 20 deg
@@ -15,7 +12,7 @@ train:
             class: datasets.Robotcar.VBLDataset
             param_class:
                 root: 'training/TrainDataset_05_19_15/'
-                modalities: {rgb: 'pruned_dataset.txt', mono_depth: 'pruned_true_depth_dataset.txt', mono_ref: 'pruned_true_ref_dataset.txt'}
+                modalities: {rgb: 'pruned_dataset.txt', mono_depth: 'pruned_mono_dense_depth_dataset.txt', mono_ref: 'pruned_mono_dense_ref_dataset.txt'}
                 coord_file: 'pruned_coordxImbearing.txt'
                 bearing: True
                 transform:
@@ -36,7 +33,7 @@ train:
                 class: datasets.Robotcar.VBLDataset,
                 param_class:
                     {
-                        root: 'training/TrainDataset_Night/',
+                        root: 'training/TrainDataset_Snow/',
                         modalities: {rgb: 'dataset.txt', mono_depth: 'true_depth_dataset.txt', mono_ref: 'true_ref_dataset.txt'},
                         coord_file: 'coordxImbearing.txt',
                         bearing: True,
@@ -69,8 +66,8 @@ test:
     queries:
         class: datasets.Robotcar.VBLDataset
         param_class:
-            root: 'Robotcar_D1/NightQuery/'
-            modalities: {rgb: 'query.txt',}
+            root: 'Robotcar_D1/SnowQuery/'
+            modalities: {rgb: 'query.txt', }
             coord_file: 'coordxIm.txt'
             bearing: False
             transform:
@@ -97,7 +94,7 @@ val:
     queries:
         class: datasets.Robotcar.VBLDataset
         param_class:
-            root: 'training/TrainDataset_Night/'
+            root: 'training/TrainDataset_Snow/'
             modalities: {rgb: 'val_dataset.txt', }
             coord_file: 'val_coordxIm.txt'
             bearing: False
