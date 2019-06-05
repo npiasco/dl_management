@@ -32,7 +32,7 @@ class Platinum(utils.data.Dataset):
                 'first': (tf.Resize((224, 224)), tf.ToTensor())
             }
 
-        self.data = pd.read_csv(self.root + file, header=1, sep=';')
+        self.data = pd.read_csv(self.root + file, skiprows=2, sep=';')
         self.modalities = modalities
         self.used_mod = self.modalities
 
@@ -53,6 +53,10 @@ class Platinum(utils.data.Dataset):
             file_name = self.root + self.data.ix[fidx, self.mod_to_indx(mod_name)]# + '.png'
             if self.panorama_split is not None:
                 raw_img = scipy.misc.imread(file_name)
+                h, w , c = raw_img.shape
+                ratio = w/1000
+                if ratio > 1:
+                    raw_img = np.array(PIL.Image.fromarray(raw_img).resize((int(w // ratio), int(h // ratio))))
                 r = raw_img.shape[1] / (2 * np.pi)
                 vert_ang = np.degrees(raw_img.shape[0]/r)
                 v_pas_angle = (360 / self.panorama_split['v_split'])
@@ -116,30 +120,31 @@ def show_batch(sample_batched):
             buffer += (mod,)
 
     images_batch = torch.cat(buffer, 0)
-    grid = torchvis.utils.make_grid(images_batch, nrow=3)
+    grid = torchvis.utils.make_grid(images_batch, nrow=4)
 
     plt.imshow(grid.numpy().transpose((1, 2, 0)))
 
 
 if __name__ == '__main__':
-    root_to_folders = os.environ['PLATINUM'] + 'data/'
+    #root_to_folders = os.environ['PLATINUM'] + 'data/'
+    root_to_folders = '/private/anakim/data/mboussaha/data/imori/session_575/section_3/'
 
-    modtouse = ['rgb', 'depth', 'sem']
+    modtouse = ['rgb', ]
     transform = {
-        'first': (tf.Resize((230)),tf.RandomCrop(224)),
-        'rgb': (tf.ToTensor(), ),
+        'first': (tf.Resize((224)),),
+        'rgb': (tf.RandomVerticalFlip(p=1), tf.ToTensor(), ),
         'depth': (tf.ToTensor(),),
         'sem': (tf.ToTensor(),)
     }
 
     dataset = Platinum(root=root_to_folders,
-                       file='test_graph.csv',
+                       file='session-575-3.csv',
                        modalities=modtouse,
                        transform=transform,
-                       panorama_split=None)
+                       panorama_split= None)#{'v_split': 3, 'h_split': 2, 'offset': 0})
 
-    dataloader = utils.data.DataLoader(dataset, batch_size=6, shuffle=True, num_workers=2)
-
+    dataloader = utils.data.DataLoader(dataset, batch_size=4, shuffle=True, num_workers=2)
+    print(len(dataset))
     for b in dataloader:
         plt.figure(1)
         show_batch(b)

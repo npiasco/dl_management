@@ -14,7 +14,7 @@ import system.DescriptorLearning as System
 if __name__ == '__main__':
     machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])],
                              cnn_type='cnn.yaml',
-                             trainer_file='../trainer_ref_joint.yaml',
+                             trainer_file='../trainer_only_ref.yaml',
                              dataset_file='../../../SummerTests/datasets/cmu_lt.yaml')
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':

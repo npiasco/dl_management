@@ -43,6 +43,7 @@ class DeploymentNet(nn.Module):
             base_archi_param={
                 'end_relu': False,
                 'jet_tf': True,
+                'jet_tf_param': {'amplitude': 2.0, 'min_value': -1.0},
                 'load_imagenet': False
             }
         )
@@ -539,11 +540,13 @@ class Softlier(nn.Module):
 
 if __name__ == '__main__':
     input_size = 448//2
-    tensor_input = torch.rand([2, 3, input_size, int(input_size/2)]).cuda()
+    tensor_input = torch.rand([2, 3, input_size, int(input_size)])
     print(tensor_input.size())
-    '''
-    net = DeploymentNet()
 
+    net = DeploymentNet()
+    net(tensor_input)
+
+    '''
     root = '/mnt/anakim/data/RGBtrainD/Resnet18T/BUTF/OTS/2NetVLAD/'
     net.main_desc.feature.load_state_dict(torch.load(root + 'Main_feature.pth'))
     net.main_desc.descriptor.load_state_dict(torch.load(root + 'Main_descriptor.pth'))
@@ -554,6 +557,8 @@ if __name__ == '__main__':
     net.aux_desc.descriptor.load_state_dict(torch.load(root + 'Aux_descriptor.pth'))
 
     torch.save(net.state_dict(), 'default.pth')
+    '''
+
     '''
     enc = PixEncoder(k_size=4, d_fact=2).cuda()
     #dec= PixDecoder(k_size=4, d_fact=2, out_channel=1, div_fact=2, dropout=0.1)
@@ -569,3 +574,4 @@ if __name__ == '__main__':
 
     out_rec = rec_mod(tensor_input)
     print(out_rec.size())
+    '''
