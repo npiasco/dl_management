@@ -6,7 +6,7 @@ train:
         ex_shuffle: True
         num_positives: 2
         num_negatives: 20
-        num_triplets: 200
+        num_triplets: 1
         max_pose_dist: 7  # metre
         min_neg_dist: 700  # metre
         max_angle: 0.174533  # rad, 20 deg
