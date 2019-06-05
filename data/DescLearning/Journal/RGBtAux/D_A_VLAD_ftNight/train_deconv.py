@@ -15,7 +15,7 @@ if __name__ == '__main__':
     machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])],
                              cnn_type='cnn.yaml',
                              trainer_file='../trainer_only_depth.yaml',
-                             dataset_file='../../../SummerTests/datasets/night_queries.yaml')
+                             dataset_file='../../../SummerTests/datasets/night_ft.yaml')
     action = input('Exec:\n[t]\ttrain\n[e]\ttest\n[p]\tprint (console)\n[P]\tprint (full)\n[ ]\ttrain+test\n')
     if action == 't':
         machine.train()
