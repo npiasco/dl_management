@@ -15,7 +15,7 @@ Main:
             bias: True
             cluster_size: 64
             feature_size: 256
-            alpha: 20
+            alpha: 40
 
 Deconv:
     class: 'networks.ResNet.Deconv'
@@ -25,6 +25,7 @@ Deconv:
         size_res_2: 64
         input_size: 256
         up_factor: 1
+        final_activation: 'sig'
 
 Aux:
     class: 'networks.Descriptor.Main'
