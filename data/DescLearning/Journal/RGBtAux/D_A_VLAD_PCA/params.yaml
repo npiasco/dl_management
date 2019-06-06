@@ -1,4 +1,4 @@
-batch_size: 50
+batch_size: 1
 curr_epoch: 0
 lr_scheduler:
   main_trainer:

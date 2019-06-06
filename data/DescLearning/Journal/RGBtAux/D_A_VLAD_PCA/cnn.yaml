@@ -17,7 +17,7 @@ Main:
 Deconv:
     class: 'networks.ResNet.Deconv'
     param_class:
-        layers_to_train: 'no_layer'
+        layers_to_train: 'all'
         size_res_1: 192
         size_res_2: 64
         input_size: 256
@@ -50,26 +50,30 @@ Aux:
                 trainable: false
                 amplitude: 1
                 min_value: 0
-        layers_to_train: 'no_layer'
+        layers_to_train: 'all'
 
 Fuse:
+    class: 'networks.FeatAggregation.Concat'
+    param_class:
+        norm: False
+
+FusePCA:
     class: 'networks.FeatAggregation.ConcatPCA'
     param_class:
         norm: True
-        pca_input_size: [16384, 16384]
-        pca_output_size: [256, 256]
-        load_pca: ['pca_256-D_main.pth', 'pca_256-D_aux.pth']
+        pca_input_size: [32768,] # 2 * 16384
+        pca_output_size: [512, ]
+#        load_pca: ['pca_512-D.pth', ]
         attention: False
-        layers_to_train: 'all'
 
-init_weights:
-    Main:
-        feature: '../D_A_VLAD_step_join/Main_feature.pth'
-        descriptor: '../D_A_VLAD_step_join/Main_descriptor.pth'
-    Deconv:
-        deconv_1: '../D_A_VLAD_step_join/Deconv_deconv_1.pth'
-        deconv_2: '../D_A_VLAD_step_join/Deconv_deconv_2.pth'
-        deconv_3: '../D_A_VLAD_step_join/Deconv_deconv_3.pth'
-    Aux:
-        feature: '../D_A_VLAD_step_join/Aux_feature.pth'
-        descriptor: '../D_A_VLAD_step_join/Aux_descriptor.pth'
+#init_weights:
+#    Main:
+#        feature: '../D_A_VLAD_step_join/Main_feature.pth'
+#        descriptor: '../D_A_VLAD_step_join/Main_descriptor.pth'
+#    Deconv:
+#        deconv_1: '../D_A_VLAD_step_join/Deconv_deconv_1.pth'
+#        deconv_2: '../D_A_VLAD_step_join/Deconv_deconv_2.pth'
+#        deconv_3: '../D_A_VLAD_step_join/Deconv_deconv_3.pth'
+#    Aux:
+#        feature: '../D_A_VLAD_step_join/Aux_feature.pth'
+#        descriptor: '../D_A_VLAD_step_join/Aux_descriptor.pth'

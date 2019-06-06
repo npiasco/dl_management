@@ -14,10 +14,6 @@ import system.DescriptorLearning as System
 if __name__ == '__main__':
     machine = System.MultNet(root=os.path.abspath(sys.argv[0])[:-len(sys.argv[0])],
                              cnn_type='cnn.yaml',
-                             trainer_file='../trainer_att.yaml',
+                             trainer_file='../trainer_joint_PCA.yaml',
                              dataset_file='../../../SummerTests/datasets/cmu_lt.yaml')
-    machine.compute_PCA(256, desc=['main_out', 'desc'])
-    os.system('mv pca_256-D.pth pca_256-D_main.pth')
-
-    machine.compute_PCA(256, desc=['aux_desc'])
-    os.system('mv pca_256-D.pth pca_256-D_aux.pth')
+    machine.compute_PCA(512, desc=['desc_no_PCA'])
