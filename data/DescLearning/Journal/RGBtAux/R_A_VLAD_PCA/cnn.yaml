@@ -1,0 +1,79 @@
+Main:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        layers_to_train: 'no_layer'
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: False
+            unet: True
+            indices: True
+        agg_method: 'NetVLAD'
+        agg_method_param:
+            bias: True
+            cluster_size: 64
+            feature_size: 256
+            alpha: 60
+
+Deconv:
+    class: 'networks.ResNet.Deconv'
+    param_class:
+        layers_to_train: 'all'
+        size_res_1: 192
+        size_res_2: 64
+        input_size: 256
+        up_factor: 1
+        alexnet_entry: True
+        extended_size: False
+        norm_layer: group
+        reduce_factor: 1
+        final_activation: 'sig'
+        inv_output: false
+
+Aux:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        agg_method: 'NetVLAD'
+        agg_method_param:
+            bias: True
+            cluster_size: 64
+            feature_size: 256
+            alpha: 60
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: False
+            end_relu: False
+            batch_norm: False
+            jet_tf: True
+            jet_tf_param:
+                num_embedding: 256
+                size_embedding: 3
+                trainable: false
+                amplitude: 1
+                min_value: 0
+        layers_to_train: 'all'
+
+Fuse:
+    class: 'networks.FeatAggregation.Concat'
+    param_class:
+        norm: False
+
+FusePCA:
+    class: 'networks.FeatAggregation.ConcatPCA'
+    param_class:
+        norm: True
+        pca_input_size: [32768,] # 2 * 16384
+        pca_output_size: [512, ]
+#        load_pca: ['pca_512-D.pth', ]
+        attention: False
+
+init_weights:
+    Main:
+        feature: '../R_A_VLAD_step_join/Main_feature.pth'
+        descriptor: '../R_A_VLAD_step_join/Main_descriptor.pth'
+    Deconv:
+        deconv_1: '../R_A_VLAD_step_join/Deconv_deconv_1.pth'
+        deconv_2: '../R_A_VLAD_step_join/Deconv_deconv_2.pth'
+        deconv_3: '../R_A_VLAD_step_join/Deconv_deconv_3.pth'
+    Aux:
+        feature: '../R_A_VLAD_step_join/Aux_feature.pth'
+        descriptor: '../R_A_VLAD_step_join/Aux_descriptor.pth'
