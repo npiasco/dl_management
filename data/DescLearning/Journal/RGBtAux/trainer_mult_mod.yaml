@@ -1,0 +1,431 @@
+class: 'trainers.TripletTrainers.MultNetTrainer'
+param_class:
+    cuda_on: True
+    val_num_workers: 8
+    optimizers_params:
+        main_trainer:
+            associated_net: ['Main', 'AuxD', 'AuxR', 'Fuse', 'DeconvD', 'DeconvR']
+            optimizer_type: ADAM
+            param:
+                lr: 0.0001
+                weight_decay: 0.0005
+                
+
+    training_pipeline:
+        [
+            {
+             mode: 'no_grad',
+             trainer: main_trainer
+            },             
+            # ----------------BATCH TO VAR------------------ #
+            {
+             mode: 'batch_forward',
+             func: minning.batch_to_var,
+             param: {mode: 'positives', target: [], mult_mod: True},
+             net_name: 'Main',
+             out_name: 'var_pos'
+            },
+            {
+             mode: 'batch_forward',
+             func: minning.batch_to_var,
+             param: {mode: 'negatives', target: [], mult_mod: True},
+             net_name: 'Main',
+             out_name: 'var_neg'
+            },
+            # ---------------------------------------------- #
+
+            # -------------------MAIN FWD------------------- #
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['batch', 'query', 'rgb'], ]},
+             net_name: 'Main',
+             out_name: 'main_forwd_query'
+            },
+
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['var_pos', 'rgb'], ], multiples_instance: True},
+             net_name: 'Main',
+             out_name: 'main_forwd_pos'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['var_neg', 'rgb'], ], multiples_instance: True},
+             net_name: 'Main',
+             out_name: 'main_forwd_neg'
+            },
+            # ---------------------------------------------- #
+
+            # -----------------Deconv D FWD------------------- #
+            {
+             mode: forward,
+             func: minning.custom_forward,
+             param: {multiples_instance: false, detach_inputs: True,
+             input_targets: [['main_forwd_query' , 'feat'], ['main_forwd_query', 'res_1'], ['main_forwd_query', 'res_2']]},
+             net_name: 'DeconvD',
+             out_name: 'maps_query_D'
+            },
+            {
+             mode: forward,
+             func: minning.custom_forward,
+             param: {multiples_instance: true, detach_inputs: True, input_targets: [['main_forwd_pos', 'feat'], ['main_forwd_pos', 'res_1'],['main_forwd_pos', 'res_2']]},
+             net_name: 'DeconvD',
+             out_name: 'maps_pos_D'
+            },
+            {
+             mode: forward,
+             func: minning.custom_forward,
+             param: {multiples_instance: true, detach_inputs: True, input_targets: [['main_forwd_neg', 'feat'], ['main_forwd_neg', 'res_1'], ['main_forwd_neg', 'res_2']]},
+             net_name: 'DeconvD',
+             out_name: 'maps_neg_D'
+            },
+            # ---------------------------------------------- #
+
+            # -----------------Deconv R FWD------------------- #
+            {
+             mode: forward,
+             func: minning.custom_forward,
+             param: {multiples_instance: false, detach_inputs: True,
+             input_targets: [['main_forwd_query' , 'feat'], ['main_forwd_query', 'res_1'], ['main_forwd_query', 'res_2']]},
+             net_name: 'DeconvR',
+             out_name: 'maps_query_R'
+            },
+            {
+             mode: forward,
+             func: minning.custom_forward,
+             param: {multiples_instance: true, detach_inputs: True, input_targets: [['main_forwd_pos', 'feat'], ['main_forwd_pos', 'res_1'],['main_forwd_pos', 'res_2']]},
+             net_name: 'DeconvR',
+             out_name: 'maps_pos_R'
+            },
+            {
+             mode: forward,
+             func: minning.custom_forward,
+             param: {multiples_instance: true, detach_inputs: True, input_targets: [['main_forwd_neg', 'feat'], ['main_forwd_neg', 'res_1'], ['main_forwd_neg', 'res_2']]},
+             net_name: 'DeconvR',
+             out_name: 'maps_neg_R'
+            },
+            # ---------------------------------------------- #
+
+            # -------------------AUX D FWD-------------------- #
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['maps_query_D'], ], detach_inputs: True},
+             net_name: 'AuxD',
+             out_name: 'aux_forwd_query_D'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['maps_pos_D'], ], multiples_instance: True, detach_inputs: True},
+             net_name: 'AuxD',
+             out_name: 'aux_forwd_pos_D'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['maps_neg_D'], ], multiples_instance: True, detach_inputs: True},
+             net_name: 'AuxD',
+             out_name: 'aux_forwd_neg_D'
+            },
+            # ---------------------------------------------- #
+
+            # -------------------AUX R FWD-------------------- #
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['maps_query_R'], ], detach_inputs: True},
+             net_name: 'AuxR',
+             out_name: 'aux_forwd_query_R'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['maps_pos_R'], ], multiples_instance: True, detach_inputs: True},
+             net_name: 'AuxR',
+             out_name: 'aux_forwd_pos_R'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['maps_neg_R'], ], multiples_instance: True, detach_inputs: True},
+             net_name: 'AuxR',
+             out_name: 'aux_forwd_neg_R'
+            },
+            # ---------------------------------------------- #
+
+
+            # -----------------DESC FUSING------------------ #
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['main_forwd_query', 'desc'], ['aux_forwd_query_D', 'desc'], ['aux_forwd_query_R', 'desc'], ], multiples_instance: False},
+             net_name: 'Fuse',
+             out_name: 'forwd_query'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['main_forwd_pos', 'desc'], ['aux_forwd_pos_D', 'desc'], ['aux_forwd_pos_R', 'desc'], ], multiples_instance: True},
+             net_name: 'Fuse',
+             out_name: 'forwd_pos'
+            },
+            {
+             mode: 'forward',
+             func: minning.custom_forward,
+             param: {input_targets: [['main_forwd_neg', 'desc'], ['aux_forwd_neg_D', 'desc'], ['aux_forwd_neg_R', 'desc'], ], multiples_instance: True},
+             net_name: 'Fuse',
+             out_name: 'forwd_neg'
+            },
+            # ---------------------------------------------- #
+
+            # -------------------MINNING-------------------- #
+            {
+             mode: 'minning',
+             func: 'minning.general_hard_minning',
+             param: {n_ex: 1, mode: positives, anchor_getter: ['forwd_query'], example_getter: ['forwd_pos'], return_idx: True},
+             out_name: 'hard_pos'
+            },
+            {
+             mode: 'minning',
+             func: 'minning.general_hard_minning',
+             param: {n_ex: 10, mode: negatives, anchor_getter: ['forwd_query'], example_getter: ['forwd_neg'], return_idx: True},
+             out_name: 'hard_neg'
+            },
+            {
+             mode: 'minning',
+             func: 'minning.examples_selection',
+             param:
+                {idxs: ['hard_pos', 'idx'],
+                 getter: ['aux_forwd_pos_D', 'desc'],
+                },
+             out_name: aux_hard_pos_D
+            },
+            {
+             mode: 'minning',
+             func: 'minning.examples_selection',
+             param:
+                {idxs: ['hard_pos', 'idx'],
+                 getter: ['aux_forwd_pos_R', 'desc'],
+                },
+             out_name: aux_hard_pos_R
+            },
+            {
+             mode: 'minning',
+             func: 'minning.examples_selection',
+             param:
+                {idxs: ['hard_neg', 'idx'],
+                 getter: ['aux_forwd_neg_D', 'desc'],
+                },
+             out_name: aux_hard_neg_D
+            },
+            {
+             mode: 'minning',
+             func: 'minning.examples_selection',
+             param:
+                {idxs: ['hard_neg', 'idx'],
+                 getter: ['aux_forwd_neg_R', 'desc'],
+                },
+             out_name: aux_hard_neg_R
+            },
+            {
+             mode: 'minning',
+             func: 'minning.examples_selection',
+             param:
+                {idxs: ['hard_pos', 'idx'],
+                 getter: ['main_forwd_pos', 'desc'],
+                },
+             out_name: main_hard_pos
+            },
+            {
+             mode: 'minning',
+             func: 'minning.examples_selection',
+             param:
+                {idxs: ['hard_neg', 'idx'],
+                 getter: ['main_forwd_neg', 'desc'],
+                },
+             out_name: main_hard_neg
+            },
+            # ---------------------------------------------- #
+
+            # ----------------MAIN+AUX LOSSES--------------- #
+            {
+             mode: 'loss',
+             name: 'aux_triplet_loss_D',
+             func: 'loss_func.adaptive_triplet_loss',
+             args: [['aux_forwd_query_D', 'desc'], ['aux_hard_pos_D'], ['aux_hard_neg_D']],
+             param:{margin: 0.1, swap: true}
+            },
+            {
+             mode: 'loss',
+             name: 'aux_triplet_loss_R',
+             func: 'loss_func.adaptive_triplet_loss',
+             args: [['aux_forwd_query_R', 'desc'], ['aux_hard_pos_R'], ['aux_hard_neg_R']],
+             param:{margin: 0.1, swap: true}
+            },
+            {
+             mode: 'loss',
+             name: 'main_triplet_loss',
+             func: 'loss_func.adaptive_triplet_loss',
+             args: [['main_forwd_query', 'desc'], ['main_hard_pos'], ['main_hard_neg']],
+             param:{margin: 0.1, swap: true}
+            },
+            {
+             mode: 'loss',
+             name: 'triplet_loss',
+             func: 'loss_func.adaptive_triplet_loss',
+             args: [['forwd_query'], ['hard_pos', 'ex'], ['hard_neg', 'ex']],
+             param:{margin: 0.1, swap: true}
+            },
+            {
+                mode: backprop,
+                name: 'main_backprop',
+                trainer: 'main_trainer'
+            },
+            # ---------------------------------------------- #
+        ]
+    eval_forwards:
+        dataset:
+            [
+                {
+                 mode: 'batch_forward',
+                 func: minning.batch_to_var,
+                 param: {mode: 'query', target: [], mult_mod: True},
+                 net_name: 'Main',
+                 out_name: 'var_query'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['var_query', 'rgb'],]},
+                 net_name: 'Main',
+                 out_name: 'main_out'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['main_out' , 'feat'], ['main_out', 'res_1'], ['main_out', 'res_2'],]},
+                 net_name: 'DeconvD',
+                 out_name: 'maps_D'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['maps_D'],]},
+                 net_name: 'AuxD',
+                 out_name: 'aux_desc_D'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['main_out' , 'feat'], ['main_out', 'res_1'], ['main_out', 'res_2'],]},
+                 net_name: 'DeconvR',
+                 out_name: 'maps_R'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['maps_R'],]},
+                 net_name: 'AuxR',
+                 out_name: 'aux_desc_R'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['main_out', 'desc'], ['aux_desc_D'], ['aux_desc_R']]},
+                 net_name: 'Fuse',
+                 out_name: 'desc'
+                },
+            ]
+        queries:
+            [
+                {
+                 mode: 'batch_forward',
+                 func: minning.batch_to_var,
+                 param: {mode: 'query', target: [], mult_mod: True},
+                 net_name: 'Main',
+                 out_name: 'var_query'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['var_query', 'rgb'],]},
+                 net_name: 'Main',
+                 out_name: 'main_out'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['main_out' , 'feat'], ['main_out', 'res_1'], ['main_out', 'res_2'],]},
+                 net_name: 'DeconvD',
+                 out_name: 'maps_D'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['maps_D'],]},
+                 net_name: 'AuxD',
+                 out_name: 'aux_desc_D'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['main_out' , 'feat'], ['main_out', 'res_1'], ['main_out', 'res_2'],]},
+                 net_name: 'DeconvR',
+                 out_name: 'maps_R'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['maps_R'],]},
+                 net_name: 'AuxR',
+                 out_name: 'aux_desc_R'
+                },
+                {
+                 mode: 'forward',
+                 func: 'minning.custom_forward',
+                 param: {input_targets: [['main_out', 'desc'], ['aux_desc_D'], ['aux_desc_R']]},
+                 net_name: 'Fuse',
+                 out_name: 'desc'
+                },
+            ]
+    eval_final_desc: ['desc']
+
+eval_class: 'score.Functions.MeanRecallAtN'
+param_eval_class:
+    n: 2
+    radius: 25
+test_func:
+    default:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 1
+            radius: 25
+    r5:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 5
+            radius: 25
+    r10:
+        class: 'score.Functions.RecallAtN'
+        param_class:
+            n: 10
+            radius: 25
+    mr25:
+        class: 'score.Functions.MeanRecallAtN'
+        param_class:
+            n: 25
+            radius: 25
+    mean_recall:
+        class: 'score.Functions.MeanRecallAtN'
+        param_class:
+            n: 50
+            radius: 25
+    recall:
+        class: 'score.Functions.Recall'
+        param_class:
+            n: 50
+            radius: 25
