@@ -262,6 +262,40 @@ class Concat(nn.Module):
         return {}
 
 
+class NConcat(nn.Module):
+    def __init__(self, **kwargs):
+        nn.Module.__init__(self)
+
+        self.norm = kwargs.pop('norm', False)
+        self.norm_x = kwargs.pop('norm_x', None)
+        self.ratios = kwargs.pop('ratios', list())
+        if kwargs:
+            raise TypeError('Unexpected **kwargs: %r' % kwargs)
+        if self.norm_x is None:
+            self.norm_x = [False] * len(self.ratios)
+
+    def forward(self, *xs):
+
+        list_desc = list()
+        for i, x in enumerate(xs):
+            if self.norm_x[i]:
+                x = func.normalize(x)
+            list_desc.append(self.ratios[i] * x)
+
+        x = torch.cat(list_desc, dim=1)
+
+        if self.norm:
+            x = func.normalize(x)
+
+        return x
+
+    def get_training_layers(self, layers_to_train=None):
+        return []
+
+    def full_save(self, discard_tf=False):
+        return {}
+
+
 class Sum(nn.Module):
     def __init__(self, **kwargs):
         nn.Module.__init__(self)
