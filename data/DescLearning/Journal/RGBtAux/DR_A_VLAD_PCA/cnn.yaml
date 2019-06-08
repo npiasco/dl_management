@@ -1,0 +1,127 @@
+Main:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        layers_to_train: 'no_layer'
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: False
+            unet: True
+            indices: True
+        agg_method: 'NetVLAD'
+        agg_method_param:
+            bias: True
+            cluster_size: 64
+            feature_size: 256
+            alpha: 60
+
+DeconvD:
+    class: 'networks.ResNet.Deconv'
+    param_class:
+        layers_to_train: 'no_layer'
+        size_res_1: 192
+        size_res_2: 64
+        input_size: 256
+        up_factor: 1
+        alexnet_entry: True
+        extended_size: False
+        norm_layer: group
+        reduce_factor: 1
+        final_activation: 'sig'
+        inv_output: false
+
+DeconvR:
+    class: 'networks.ResNet.Deconv'
+    param_class:
+        layers_to_train: 'no_layer'
+        size_res_1: 192
+        size_res_2: 64
+        input_size: 256
+        up_factor: 1
+        alexnet_entry: True
+        extended_size: False
+        norm_layer: group
+        reduce_factor: 1
+        final_activation: 'sig'
+        inv_output: false
+
+AuxD:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        agg_method: 'NetVLAD'
+        agg_method_param:
+            bias: True
+            cluster_size: 64
+            feature_size: 256
+            load: '../D_A_VLAD_step_join/A_depth_64_clusters.pth'
+            alpha: 60
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: True
+            end_relu: False
+            batch_norm: False
+            jet_tf: True
+            jet_tf_param:
+                num_embedding: 256
+                size_embedding: 3
+                trainable: false
+                amplitude: 1
+                min_value: 0
+        layers_to_train: 'all'
+
+AuxR:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        agg_method: 'NetVLAD'
+        agg_method_param:
+            bias: True
+            cluster_size: 64
+            feature_size: 256
+            load: '../R_A_VLAD_step_join/A_ref_64_clusters.pth'
+            alpha: 60
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: True
+            end_relu: False
+            batch_norm: False
+            jet_tf: True
+            jet_tf_param:
+                num_embedding: 256
+                size_embedding: 3
+                trainable: false
+                amplitude: 1
+                min_value: 0
+        layers_to_train: 'all'
+
+Fuse:
+    class: 'networks.FeatAggregation.NConcat'
+    param_class:
+        ratios: [1.0, 1.0, 1.0]
+
+FusePCA:
+    class: 'networks.FeatAggregation.ConcatPCA'
+    param_class:
+        norm: True
+        pca_input_size: [49152,] # 2 * FusePCA:
+        pca_output_size: [2048, ]
+#        load_pca: ['pca_2048-D.pth', ]
+        attention: False
+
+
+init_weights:
+    Main:
+        feature: '../../RGB/A_VLAD/Main_feature.pth'
+        descriptor: '../../RGB/A_VLAD/Main_descriptor.pth'
+    DeconvD:
+        deconv_1: '../D_A_VLAD_step_join/Deconv_deconv_1.pth'
+        deconv_2: '../D_A_VLAD_step_join/Deconv_deconv_2.pth'
+        deconv_3: '../D_A_VLAD_step_join/Deconv_deconv_3.pth'
+    DeconvR:
+        deconv_1: '../R_A_VLAD_step_join/Deconv_deconv_1.pth'
+        deconv_2: '../R_A_VLAD_step_join/Deconv_deconv_2.pth'
+        deconv_3: '../R_A_VLAD_step_join/Deconv_deconv_3.pth'
+    AuxD:
+        feature: '../DR_A_VLAD/AuxD_feature.pth'
+        descriptor: '../DR_A_VLAD/AuxD_descriptor.pth'
+    AuxR:
+        feature: '../DR_A_VLAD/AuxR_feature.pth'
+        descriptor: '../DR_A_VLAD/AuxR_descriptor.pth'
