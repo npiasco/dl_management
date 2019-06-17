@@ -1,0 +1,68 @@
+Main:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        layers_to_train: 'no_layer'
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: False
+        agg_method: 'NetVLAD'
+        agg_method_param:
+            bias: True
+            cluster_size: 64
+            feature_size: 256
+            alpha: 60
+
+Aux:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        agg_method: 'NetVLAD'
+        agg_method_param:
+            bias: True
+            cluster_size: 64
+            feature_size: 256
+            #load: 'A_depth_64_clusters.pth'
+            alpha: 60
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: True
+            end_relu: False
+            batch_norm: False
+            jet_tf: True
+            jet_tf_param:
+                num_embedding: 256
+                size_embedding: 3
+                trainable: false
+                amplitude: 1
+                min_value: 0
+        layers_to_train: 'all'
+
+Hall:
+    class: 'networks.Descriptor.Main'
+    param_class:
+        layers_to_train: 'all'
+        base_archi: 'Alexnet'
+        base_archi_param:
+            load_imagenet: False
+        agg_method: 'NetVLAD'
+        agg_method_param:
+            bias: True
+            cluster_size: 64
+            feature_size: 256
+            alpha: 60
+
+Fuse:
+    class: 'networks.FeatAggregation.Concat'
+    param_class:
+        norm: False
+
+
+init_weights:
+    Main:
+        feature: '../../RGB/A_VLAD/Main_feature.pth'
+        descriptor: '../../RGB/A_VLAD/Main_descriptor.pth'
+#    Hall:
+#        feature: 'Aux_feature.pth'
+#        descriptor: 'Aux_descriptor.pth'
+#    Aux:
+#        feature: 'Aux_feature.pth'
+#        descriptor: 'Aux_descriptor.pth'
