@@ -353,6 +353,8 @@ def l1_modal_loss(predicted_maps, gt_maps, **kwargs):
         predicted = predicted_maps
         gt_w_grad = gt_maps
 
+    gt_w_grad = gt_w_grad.detach()
+
     if no_zeros:
         if predicted_maps.size(1) > 1:
             zeros_idx = torch.max(predicted_maps == predicted_maps.new_zeros(predicted_maps.size()), dim=1)[0].byte()
