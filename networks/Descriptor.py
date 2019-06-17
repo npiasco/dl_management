@@ -104,8 +104,11 @@ class Main(nn.Module):
 
     def full_save(self, discard_tf=False):
         if discard_tf:
-            del self.feature.base_archi['jet_tf']
-            self.feature.feature = nn.Sequential(self.feature.base_archi)
+            try:
+                del self.feature.base_archi['jet_tf']
+                self.feature.feature = nn.Sequential(self.feature.base_archi)
+            except KeyError:
+                pass
         return {'feature': self.feature.state_dict(),
                 'descriptor': self.descriptor.state_dict()}
 
