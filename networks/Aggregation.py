@@ -296,7 +296,8 @@ class NetVLAD(nn.Module):
         vlad = func.normalize(vlad)
 
         # flattening + L2 norm
-        vlad = vlad.view(-1, self.cluster_size * self.feature_size)
+        #vlad = vlad.view(-1, self.cluster_size * self.feature_size)
+        vlad = vlad.contiguous().view(-1, self.cluster_size * self.feature_size)
         vlad = func.normalize(vlad)
 
         return vlad
