@@ -66,14 +66,14 @@ FusePCA:
 #        load_pca: ['pca_512-D.pth', ]
         attention: False
 
-#init_weights:
-#    Main:
-#        feature: '../D_A_VLAD_step_join/Main_feature.pth'
-#        descriptor: '../D_A_VLAD_step_join/Main_descriptor.pth'
-#    Deconv:
-#        deconv_1: '../D_A_VLAD_step_join/Deconv_deconv_1.pth'
-#        deconv_2: '../D_A_VLAD_step_join/Deconv_deconv_2.pth'
-#        deconv_3: '../D_A_VLAD_step_join/Deconv_deconv_3.pth'
-#    Aux:
-#        feature: '../D_A_VLAD_step_join/Aux_feature.pth'
-#        descriptor: '../D_A_VLAD_step_join/Aux_descriptor.pth'
+init_weights:
+    Main:
+        feature: '../D_A_VLAD_step_join/Main_feature.pth'
+        descriptor: '../D_A_VLAD_step_join/Main_descriptor.pth'
+    Deconv:
+        deconv_1: '../D_A_VLAD_step_join/Deconv_deconv_1.pth'
+        deconv_2: '../D_A_VLAD_step_join/Deconv_deconv_2.pth'
+        deconv_3: '../D_A_VLAD_step_join/Deconv_deconv_3.pth'
+    Aux:
+        feature: '../D_A_VLAD_step_join/Aux_feature.pth'
+        descriptor: '../D_A_VLAD_step_join/Aux_descriptor.pth'
