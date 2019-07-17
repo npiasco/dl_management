@@ -16,6 +16,7 @@ from trainers.minning_function import recc_acces
 import pose_utils.BatchWrapper as b_wrapper
 import trainers.minning_function as minning
 import time
+from plyfile import PlyData, PlyElement
 
 
 logger = setlog.get_logger(__name__)
@@ -450,7 +451,8 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
 
         return errors
 
-    def _compute_errors(self, networks, queries, dataset):
+    def _compute_errors(self, networks, queries, dataset, save_traj=True):
+        nn = True
         verbose = False
         for network in networks.values():
             network.eval()
@@ -470,6 +472,11 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
             'orientation': list()
         }
         logger.info('Computing position and orientation errors')
+
+        if save_traj:
+            np_model = list()
+            np_model_gt = list()
+
         for i, query in tqdm.tqdm(enumerate(queries_loader)):
             variables = {'batch': self.batch_to_device(query), 'ref_data': dataset}
             if 'db' in data_variables.keys():
@@ -483,10 +490,34 @@ class MultNetTrainer(Base.BaseMultNetTrainer):
                                                      query['pose']['p'].cpu().numpy()))
             errors['orientation'].append(self.distance_between_q(pose['q'].cpu().detach().numpy()[0],
                                                                  query['pose']['q'].cpu().numpy()[0]))
+            if save_traj:
+                np_model.append(pose['p'].squeeze().cpu().detach().numpy())
+                np_model_gt.append(query['pose']['p'].squeeze().cpu().numpy())
             if verbose:
                 print('Query {} Position err: {} / Orientation err: {}'.format(i,
                                                                                errors['position'][-1],
                                                                                errors['orientation'][-1]))
+
+        if save_traj:
+            if nn:
+                np_model = np.array([(p_[0], p_[1], p_[2], 255, 0, 0) for p_ in np_model],
+                                    dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'), ('red', 'u1'), ('green', 'u1'),
+                                           ('blue', 'u1')])
+                el = PlyElement.describe(np_model, 'vertex')
+                PlyData([el]).write('nn_traj.ply')
+            else:
+                np_model = np.array([(p_[0], p_[1], p_[2], 0, 0, 255) for p_ in np_model],
+                                    dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'), ('red', 'u1'), ('green', 'u1'),
+                                           ('blue', 'u1')])
+                el = PlyElement.describe(np_model, 'vertex')
+                PlyData([el]).write('traj.ply')
+
+            np_model = np.array([(p_[0], p_[1], p_[2], 0, 255, 0) for p_ in np_model_gt],
+                                dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'), ('red', 'u1'), ('green', 'u1'),
+                                       ('blue', 'u1')])
+            el = PlyElement.describe(np_model, 'vertex')
+            PlyData([el]).write('gt_traj.ply')
+
         return errors
 
     @staticmethod
