@@ -79,7 +79,7 @@ def get_nn_pose_from_desc(variable, **kwargs):
 
     idx = get_nn_pose_from_desc.nn_computor.kneighbors(feats.cpu().numpy(), return_distance=False, n_neighbors=k_nn*step_k_nn)
 
-    if k_nn > 1:
+    if k_nn > 0:
         if angle_threshold:
             poses = [db['pose'][idx[0, 0]]]
             idx_next = 1
@@ -417,7 +417,6 @@ def custom_forward(net, outputs, **kwargs):
                 forward = [forwarded]
             else:
                 forward.append(forwarded)
-
     else:
         if detach_inputs:
             if is_dict:
